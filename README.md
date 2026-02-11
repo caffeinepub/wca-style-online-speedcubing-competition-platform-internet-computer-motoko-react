@@ -1,2 +1,3 @@
-# wca-style-online-speedcubing-competition-platform-internet-computer-motoko-react
-Exported from Caffeine project: WCA-style online speedcubing competition platform (Internet Computer: Motoko + React)
+## WCA-style online speedcubing competition platform (Internet Computer: Motoko + React)
+
+To run app build and run docker image: `docker build -t app . docker run -it --network host app`

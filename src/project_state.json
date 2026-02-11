@@ -1,0 +1,154 @@
+{
+  "schemaVersion": "1.0.0",
+  "projectStateVersion": 3,
+  "summary": "Full-stack online speedcubing competition platform (WCA-style) using Next.js App Router + TypeScript + PostgreSQL + Prisma + NextAuth, deployable on Vercel. Supports authentication, competition creation/joining, 5-solve timed flow with inspection/penalties, secure result submission, and leaderboard UI (dark/minimal), with future expandability for events/payments/webhooks.",
+  "architectural_notes": [
+    "Tech stack: Next.js (App Router) + TypeScript + PostgreSQL + Prisma ORM + NextAuth; deploy on Vercel.",
+    "Competition format mirrors WCA-style online comps: 5 scrambles/solves with inspection and penalties.",
+    "Result integrity enforced server-side: no client-side trust for attempt counts; validate session/ownership and prevent duplicate submissions.",
+    "Database constraint: unique (competitionId, userId) for Results to prevent joining twice."
+  ],
+  "known_issues": [],
+  "isFixRequest": false,
+  "existing_features": [
+    {
+      "id": "feature-implement-user-authentication-using-internet-identity-ii-and-require-login-to-participate-in-competitions-store-a-user-profile-record-keyed-by-principal-with-a-user-editable-display-name-and-ensure-only-authenticated-users-can-create-results-or-submit-solves",
+      "title": "Implement user authentication using Internet Identity (II) and require login to participate in competitions. Store a user profile record keyed by Principal with a user-editable display name, and ensure only authenticated users can create results or submit solves.",
+      "reqIds": [
+        "REQ-1"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-an-admin-only-competition-management-flow-admins-can-create-competitions-with-name-slug-start-end-dates-status-upcoming-running-completed-optional-participant-limit-and-exactly-5-scrambles-non-admin-users-can-only-read-competition-info",
+      "title": "Implement an admin-only competition management flow: admins can create competitions with name, slug, start/end dates, status (upcoming/running/completed), optional participant limit, and exactly 5 scrambles. Non-admin users can only read competition info.",
+      "reqIds": [
+        "REQ-3"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-the-competition-participation-lifecycle-users-can-view-a-competition-intro-page-and-click-start-competition-once-starting-creates-the-user-s-result-record-if-not-already-started-and-users-cannot-join-twice-restart-or-reset-their-progress",
+      "title": "Implement the competition participation lifecycle: users can view a competition intro page and click “Start Competition” once. Starting creates the user’s Result record (if not already started), and users cannot join twice, restart, or reset their progress.",
+      "reqIds": [
+        "REQ-4"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-build-the-solve-flow-ui-for-5-solves-per-competition-show-one-scramble-at-a-time-hide-the-scramble-until-inspection-starts-run-a-15-second-wca-inspection-timer-with-penalties-2-for-15-17s-dnf-for-17s-run-a-client-side-solve-timer-and-submit-each-attempt-to-the-backend-prevent-navigating-back-to-previous-scrambles-and-automatically-advance-to-the-next-scramble-until-completion",
+      "title": "Build the solve flow UI for 5 solves per competition: show one scramble at a time, hide the scramble until inspection starts, run a 15-second WCA inspection timer with penalties (+2 for 15–17s, DNF for >17s), run a client-side solve timer, and submit each attempt to the backend. Prevent navigating back to previous scrambles and automatically advance to the next scramble until completion.",
+      "reqIds": [
+        "REQ-5"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-leaderboard-page-per-competition-that-lists-completed-results-only-computes-average-of-5-drop-best-and-worst-sorts-ascending-best-first-displays-rankings-and-paginates-when-result-count-is-large",
+      "title": "Add a leaderboard page per competition that lists completed results only, computes Average of 5 (drop best and worst), sorts ascending (best first), displays rankings, and paginates when result count is large.",
+      "reqIds": [
+        "REQ-7"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-ui-ux-safeguards-during-an-in-progress-solve-session-use-a-dark-minimal-interface-focused-on-the-timer-with-large-typography-clearly-visible-scramble-once-revealed-warn-users-before-page-refresh-close-and-prevent-accidental-back-navigation-during-the-solve-flow-as-much-as-the-browser-allows",
+      "title": "Implement UI/UX safeguards during an in-progress solve session: use a dark, minimal interface focused on the timer with large typography, clearly visible scramble once revealed, warn users before page refresh/close, and prevent accidental back navigation during the solve flow as much as the browser allows.",
+      "reqIds": [
+        "REQ-8"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-create-a-coherent-visual-theme-for-the-app-and-apply-it-consistently-across-all-pages-typography-spacing-component-styling-and-states-while-keeping-the-ui-dark-and-minimal-avoid-blue-purple-as-primary-colors",
+      "title": "Create a coherent visual theme for the app and apply it consistently across all pages (typography, spacing, component styling, and states) while keeping the UI dark and minimal. Avoid blue/purple as primary colors.",
+      "reqIds": [
+        "REQ-9"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-design-the-backend-api-surface-motoko-actor-methods-and-frontend-data-layer-react-query-to-support-future-expandability-for-multiple-events-e-g-3x3-2x2-and-future-paid-competitions-webhook-processing-without-implementing-payments-now",
+      "title": "Design the backend API surface (Motoko actor methods) and frontend data layer (React Query) to support future expandability for multiple events (e.g., 3x3, 2x2) and future paid competitions/webhook processing, without implementing payments now.",
+      "reqIds": [
+        "REQ-10"
+      ],
+      "version": 1
+    }
+  ],
+  "new_feature_requests": [
+    {
+      "id": "AR-1",
+      "summary": "Implement authentication with NextAuth (email/password + OAuth), enforce unique email accounts, and store user profile (display name).",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-2",
+      "summary": "Competition system: admin can create competitions (name/slug/dates/status, 5 scrambles, optional participant limit); users can view intro and start once; per-user state (not started/in progress/completed) with join-once enforcement.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-3",
+      "summary": "Solve flow: 5 solves per competition with hidden scramble until inspection; 15s inspection with +2 (15–17s) and DNF (>17s); browser timer; save each solve server-side; prevent backtracking; lock after completion.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-4",
+      "summary": "Define PostgreSQL/Prisma database schema for Users, Competitions, Scrambles, Results with constraints (unique competitionId+userId) and penalty storage.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-5",
+      "summary": "Security rules: session validation on API/routes; users can only update own results; server validates attempt number/solve count; prevent double submissions and manual POST manipulation.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-6",
+      "summary": "Leaderboard: show completed results; compute Ao5 (drop best & worst); sort ascending; display rankings with pagination.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-7",
+      "summary": "UI/UX: dark minimal theme focused on timer (large font), clear scramble display, disable back navigation during solve, warn on refresh.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-8",
+      "summary": "Deployment readiness for Vercel: Prisma migrations; use server actions or API routes appropriately; provide folder structure, key routes, seed script, and solve page logic.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-9",
+      "summary": "Future expandability: support multiple events (3x3/2x2/etc), enable paid competitions later, and add payment gateway webhook support.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-11",
+      "summary": "Add backend data models and persistence in the single Motoko actor for: Users, Competitions, Scrambles (5 per competition), and Results (one per user per competition). Enforce uniqueness of one Result per (competitionId, userPrincipal) and store per-attempt times plus penalties and status (not started / in progress / completed).",
+      "reqIds": [
+        "REQ-2"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-15",
+      "summary": "Implement server-side security and integrity rules for solve submissions: validate the caller session, ensure users can only mutate their own result, validate attempt number and competition status, and prevent double submissions/manual POST manipulation by making submissions idempotent and rejecting invalid state transitions.",
+      "reqIds": [
+        "REQ-6"
+      ],
+      "status": "pending"
+    }
+  ],
+  "projectName": "WCA-style online speedcubing competition platform (Internet Computer: Motoko + React)",
+  "clarification_mode": "instant",
+  "clarification_rounds": 0
+}
