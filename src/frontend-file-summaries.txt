@@ -3,7 +3,7 @@
   "frontend/src/components/layout/AppShell.tsx": "Main layout shell with header navigation showing Create button only for allowlisted admins and updated branding to MCubes.",
   "frontend/src/components/auth/LoginButton.tsx": "Internet Identity login/logout button with loading states and query cache clearing on logout.",
   "frontend/src/components/auth/RequireAuth.tsx": "Authentication guard component that blocks content and shows login prompt for unauthenticated users.",
-  "frontend/src/components/auth/AdminGuard.tsx": "Admin-only guard component enforcing the allowlisted-admin rule with inline comment documenting the email-based allowlist limitation.",
+  "frontend/src/components/auth/AdminGuard.tsx": "Admin-only guard component enforcing the allowlisted-admin rule with updated messaging referencing multiple allowlisted administrators (plural) instead of a single administrator.",
   "frontend/src/components/profile/ProfileSetupDialog.tsx": "Profile setup dialog updated to collect email (for admin allowlist) and display name, creating mcubes user ID via backend.",
   "frontend/src/components/profile/ProfileMenu.tsx": "Inline profile display and edit component in the header showing user's display name and mcubes ID with edit capability, preserving mcubesId when saving profile updates.",
   "frontend/src/components/competition/CompetitionCard.tsx": "Reusable competition card component displaying competition metadata, status, and navigation to detail page.",

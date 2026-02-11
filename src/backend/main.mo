@@ -8,12 +8,17 @@ import Time "mo:core/Time";
 import Nat "mo:core/Nat";
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
+import Migration "migration";
 
+(with migration = Migration.run)
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
-  let ADMIN_EMAIL = "midhun.speedcuber@gmail.com";
+  let ADMIN_EMAILS = [
+    "midhun.speedcuber@gmail.com",
+    "thiirdparty.mcubes@gmail.com",
+  ];
 
   module NatPrincipalEvent {
     public func compare(x : (Nat, Principal, Event), y : (Nat, Principal, Event)) : Order.Order {
@@ -158,7 +163,15 @@ actor {
       return false;
     };
     switch (userEmails.get(caller)) {
-      case (?email) { email == ADMIN_EMAIL };
+      case (?email) {
+        if (ADMIN_EMAILS.find(func(e) { e == email }) != null) {
+          return true;
+        };
+      };
+      case (null) {};
+    };
+    switch (userProfiles.get(caller)) {
+      case (?profile) { profile.mcubesId == "MCUBES-0" };
       case (null) { false };
     };
   };

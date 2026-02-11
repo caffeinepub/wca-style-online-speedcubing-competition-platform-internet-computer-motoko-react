@@ -1,33 +1,43 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-11T23:25:15.625Z",
+  "generatedAt": "2026-02-11T23:35:52.118Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 1,
-    "implemented": 0,
+    "total": 2,
+    "implemented": 1,
     "items": [
       {
-        "id": "REQ-16",
-        "summary": "Update the backend allowlisted admin email used to authorize competition creation from \"miidhun.speedcuber@gmail.com\" to \"midhun.speedcuber@gmail.com\", so that the user with stored email \"midhun.speedcuber@gmail.com\" can successfully create competitions.",
+        "id": "REQ-17",
+        "summary": "Update admin authorization so that competition-creation/admin access is granted to either (a) users whose stored email is allowlisted, including \"midhun.speedcuber@gmail.com\" and \"thiirdparty.mcubes@gmail.com\", OR (b) users whose stored mcubes user ID is exactly \"MCUBES-0\".",
         "status": "unknown",
         "plannedFiles": [],
         "matchedFiles": []
+      },
+      {
+        "id": "REQ-18",
+        "summary": "Update the frontend admin gating messaging to reflect that there can be multiple allowlisted administrators (not just a single admin), and ensure the AdminGuard continues to block access to the admin competition creation page when the backend reports the caller is not an admin.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/auth/AdminGuard.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/auth/AdminGuard.tsx"
+        ]
       }
     ]
   },
   "changedFiles": [
     "backend/main.mo",
+    "backend/migration.mo",
     "build-request.json",
     "feature_evidence.json",
+    "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
-    "frontend/src/backend.d.ts",
-    "frontend/src/backend.ts",
-    "frontend/src/declarations/backend.did.d.ts",
-    "frontend/src/declarations/backend.did.js",
+    "frontend/src/components/auth/AdminGuard.tsx",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

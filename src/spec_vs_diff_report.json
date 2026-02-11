@@ -1,21 +1,41 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-11T23:25:15.622Z",
-  "summary": "REQ-16 appears implemented: backend/main.mo now defines ADMIN_EMAIL as \"midhun.speedcuber@gmail.com\" and isAllowlistedAdmin compares stored user email against that constant. An additional, non-requested metadata change was made to project_state.json.",
-  "missing_requirements": [],
-  "hallucinated_features": [
+  "generatedAt": "2026-02-11T23:35:52.115Z",
+  "summary": "Backend updated to include a second admin email in an allowlist and frontend AdminGuard messaging was updated to refer to multiple allowlisted administrators. However, the diff does not clearly show implementation of the mcubesId-based admin rule (MCUBES-0) or the exact authorization behavior for createCompetition. A new backend migration module was added, which appears unrequested and may violate the constraint that backend logic remain in a single Motoko actor file unless necessary for stable-state changes.",
+  "missing_requirements": [
     {
-      "description": "Updated project metadata/summary text to mention the admin email allowlist value.",
-      "reason": "The BuildRequest only asked to change the backend allowlisted admin email constant/authorization behavior in backend/main.mo and did not request any project_state.json edits.",
+      "id": "REQ-17",
+      "requirement": "Admin access must be granted if the caller's stored mcubes user ID is exactly \"MCUBES-0\" (even if email is not allowlisted), and createCompetition must enforce this allowlist (Unauthorized otherwise).",
+      "reason": "The shown backend change only clearly adds \"thiirdparty.mcubes@gmail.com\" to an ADMIN_EMAILS list; the diff is truncated inside isAllowlistedAdmin and does not provide evidence that mcubesId == \"MCUBES-0\" is checked or that createCompetition returns an \"Unauthorized\" error for non-admins under the new rules.",
       "evidence": [
-        "project_state.json"
+        "backend/main.mo (truncated)"
       ]
     }
   ],
-  "confidence": 0.84,
+  "hallucinated_features": [
+    {
+      "description": "Added a backend migration module and wired it into the actor.",
+      "reason": "BuildRequest did not request any stable-state migration and explicitly constrained backend logic to remain in a single Motoko actor file (backend/main.mo) with migration code only if stable state needs changes. The diff adds backend/migration.mo and imports/uses it from backend/main.mo without clear necessity from the request.",
+      "evidence": [
+        "backend/migration.mo",
+        "backend/main.mo (truncated)"
+      ]
+    },
+    {
+      "description": "Changed/introduced an AccessControl.isAdmin gate inside isAllowlistedAdmin before applying allowlist logic.",
+      "reason": "REQ-17 describes admin authorization based on stored email allowlist OR mcubesId == \"MCUBES-0\"; it does not mention requiring an existing AccessControl admin flag. The diff shows an early return if not AccessControl.isAdmin, which could be an unrequested extra constraint (though the remainder of the function is truncated).",
+      "evidence": [
+        "backend/main.mo (truncated)"
+      ]
+    }
+  ],
+  "confidence": 0.62,
   "changed_files": [
     "backend/main.mo",
+    "backend/migration.mo",
+    "frontend-file-summaries.txt",
+    "frontend/src/components/auth/AdminGuard.tsx",
     "project_state.json"
   ]
 }

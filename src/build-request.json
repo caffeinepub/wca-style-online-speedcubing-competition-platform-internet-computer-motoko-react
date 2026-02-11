@@ -1,35 +1,53 @@
 {
   "kind": "build_request",
-  "title": "Update allowlisted admin email for competition creation",
+  "title": "Expand admin allowlist to include thiirdparty.mcubes@gmail.com and/or MCUBES-0",
   "priority": "normal",
   "requirements": [
     {
-      "id": "REQ-16",
-      "text": "Update the backend allowlisted admin email used to authorize competition creation from \"miidhun.speedcuber@gmail.com\" to \"midhun.speedcuber@gmail.com\", so that the user with stored email \"midhun.speedcuber@gmail.com\" can successfully create competitions.",
+      "id": "REQ-17",
+      "text": "Update admin authorization so that competition-creation/admin access is granted to either (a) users whose stored email is allowlisted, including \"midhun.speedcuber@gmail.com\" and \"thiirdparty.mcubes@gmail.com\", OR (b) users whose stored mcubes user ID is exactly \"MCUBES-0\".",
       "target": "backend",
       "source": {
         "messageIds": [
-          "recent-messages"
+          "msg-8"
         ],
         "quotes": [
-          "unable to create competition says unable to create . chnage admin email to midhun.speedcuber@gmail.com"
+          "add thiirdparty.mcubes@gmail.com or MCUBES-0 as admin"
         ]
       },
       "acceptanceCriteria": [
-        "In backend/main.mo, the allowlist constant used by isAllowlistedAdmin compares against exactly \"midhun.speedcuber@gmail.com\".",
-        "When logged in as an Internet Identity principal that (a) is marked admin by AccessControl and (b) has userEmails[principal] set to \"midhun.speedcuber@gmail.com\", createCompetition succeeds.",
-        "When the stored email is any other value (including the old \"miidhun.speedcuber@gmail.com\"), createCompetition is rejected with an Unauthorized error as before."
+        "A caller with stored email \"midhun.speedcuber@gmail.com\" is recognized as admin (no regression).",
+        "A caller with stored email \"thiirdparty.mcubes@gmail.com\" is recognized as admin and can successfully call createCompetition.",
+        "A caller whose stored profile mcubesId is exactly \"MCUBES-0\" is recognized as admin and can successfully call createCompetition even if their stored email is not allowlisted.",
+        "A caller who matches none of the allowlist rules is denied with an \"Unauthorized\" error when calling createCompetition."
+      ]
+    },
+    {
+      "id": "REQ-18",
+      "text": "Update the frontend admin gating messaging to reflect that there can be multiple allowlisted administrators (not just a single admin), and ensure the AdminGuard continues to block access to the admin competition creation page when the backend reports the caller is not an admin.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-8"
+        ],
+        "quotes": [
+          "add thiirdparty.mcubes@gmail.com or MCUBES-0 as admin"
+        ]
+      },
+      "acceptanceCriteria": [
+        "When a non-admin visits the admin create competition route, the page shows an access-denied message in English indicating the page is restricted to allowlisted administrators.",
+        "When an allowlisted admin visits the admin create competition route, the create competition form renders as before."
       ]
     }
   ],
   "constraints": [
-    "Respect the single-actor backend architecture; keep all Motoko logic in backend/main.mo.",
-    "Only create/update backend/migration.mo if a state/schema migration is required (it should not be required for a constant change).",
-    "Do not edit frontend files listed as immutable in SYSTEM_CONTEXT."
+    "Backend must remain a single Motoko actor (all logic in backend/main.mo); add migration code only if existing stable state needs changes.",
+    "Do not edit any frontend files under frontend/src/components/ui or other paths listed as immutable in SYSTEM_CONTEXT."
   ],
   "nonGoals": [
-    "Do not implement the \"mcubes user id\" formatting rules or any other user profile changes (not requested in the latest message).",
-    "Do not redesign the admin UI or change generic frontend error handling beyond what is necessary for the email allowlist change."
+    "Do not add new authentication providers (Internet Identity remains the only auth).",
+    "Do not change competition creation fields/validation beyond what is required for admin allowlist expansion.",
+    "Do not implement any new admin roles/permissions system beyond the requested allowlist expansion."
   ],
   "imageRequirements": {
     "required": [],

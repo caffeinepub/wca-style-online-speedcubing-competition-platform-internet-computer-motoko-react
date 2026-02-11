@@ -1,4 +1,24 @@
 {
   "kind": "feature_evidence_report",
-  "features": []
+  "features": [
+    {
+      "featureId": "feature-update-the-frontend-admin-gating-messaging-to-reflect-that-there-can-be-multiple-allowlisted-administrators-not-just-a-single-admin-and-ensure-the-adminguard-continues-to-block-access-to-the-admin-competition-creation-page-when-the-backend-reports-the-caller-is-not-an-admin",
+      "featureTitle": "Update the frontend admin gating messaging to reflect that there can be multiple allowlisted administrators (not just a single admin), and ensure the AdminGuard continues to block access to the admin competition creation page when the backend reports the caller is not an admin.",
+      "files": [
+        "frontend/src/components/auth/AdminGuard.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-18"
+      ],
+      "confidence": "high"
+    }
+  ]
 }

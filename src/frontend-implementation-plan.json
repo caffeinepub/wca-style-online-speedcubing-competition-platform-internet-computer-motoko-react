@@ -1,6 +1,22 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Frontend plan: no changes required for backend allowlist email update",
-  "requirements": []
+  "title": "Update admin access-denied messaging for multiple allowlisted admins",
+  "requirements": [
+    {
+      "id": "REQ-18",
+      "summary": "Adjust AdminGuard access-denied copy to reference multiple allowlisted administrators while continuing to block non-admin access to the admin competition creation page based on backend admin status.",
+      "acceptanceCriteria": [
+        "When a non-admin visits the admin create competition route, the page shows an access-denied message in English indicating the page is restricted to allowlisted administrators.",
+        "When an allowlisted admin visits the admin create competition route, the create competition form renders as before."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/components/auth/AdminGuard.tsx",
+          "operation": "modify",
+          "description": "Update the access-denied messaging to refer to 'allowlisted administrators' (plural) rather than a single administrator, while keeping the existing authorization check based on the backend-reported admin status (via useIsCallerAdmin/actor.isCallerAdmin). Use the existing authorization component patterns already present in the app; verify the component's usage instructions before implementing."
+        }
+      ]
+    }
+  ]
 }

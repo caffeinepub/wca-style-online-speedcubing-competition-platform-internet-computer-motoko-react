@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 7,
-  "summary": "Full-stack online speedcubing competition platform (Next.js + TS + PostgreSQL/Prisma + NextAuth on Vercel) with WCA-style 5-solve flow, admin-only competition creation restricted to admin email midhun.speedcuber@gmail.com, per-user unique \"mcubes\" user ID and profile, immediate leaderboard updates on completion, multi-event competitions, and optional paid entry via Razorpay (test keys for now).",
+  "projectStateVersion": 9,
+  "summary": "Full-stack online speedcubing competition platform (Next.js + TS + PostgreSQL/Prisma + NextAuth on Vercel) with WCA-style 5-solve flow, per-user unique \"mcubes\" user ID and profile, immediate leaderboard updates on completion, multi-event competitions, optional paid entry via Razorpay (test keys for now), and admin-only competition creation restricted via an allowlist (currently email-based) that needs to include thiirdparty.mcubes@gmail.com and/or MCUBES-0.",
   "architectural_notes": [
     "Tech stack: Next.js (App Router) + TypeScript + PostgreSQL + Prisma ORM + NextAuth; deploy on Vercel.",
     "Competition format mirrors WCA-style online comps: 5 scrambles/solves with inspection and penalties.",
@@ -10,7 +10,8 @@
     "Add a persistent, app-specific \"mcubes user ID\" for each user profile (separate from auth provider identifiers).",
     "Introduce paid competitions via Razorpay integration (test credentials first), with a competition entry fee and payment-gated participation where applicable.",
     "Extend data model to support multiple events per competition (event catalog includes 2x2, 3x3, 4x4, 5x5, Skewb, Megaminx, Clock, 3x3 OH, Pyraminx).",
-    "Admin authorization allowlist email should be midhun.speedcuber@gmail.com (used for competition creation and admin UI guards)."
+    "Admin authorization allowlist email should be midhun.speedcuber@gmail.com (used for competition creation and admin UI guards).",
+    "Admin authorization should support expanding the allowlist beyond a single email, potentially including multiple emails and/or specific mcubes user IDs (e.g., MCUBES-0)."
   ],
   "known_issues": [
     "Creating a competition currently fails with a generic \"unable to create\" error when the logged-in user's stored email does not match the allowlisted admin email; needs clearer messaging and/or updated allowlist value."
@@ -110,6 +111,14 @@
       "title": "Ensure that when a user finishes all 5 solves for a competition event, their result is marked completed server-side and appears in the leaderboard immediately after completion without requiring a manual page refresh.",
       "reqIds": [
         "REQ-15"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-the-frontend-admin-gating-messaging-to-reflect-that-there-can-be-multiple-allowlisted-administrators-not-just-a-single-admin-and-ensure-the-adminguard-continues-to-block-access-to-the-admin-competition-creation-page-when-the-backend-reports-the-caller-is-not-an-admin",
+      "title": "Update the frontend admin gating messaging to reflect that there can be multiple allowlisted administrators (not just a single admin), and ensure the AdminGuard continues to block access to the admin competition creation page when the backend reports the caller is not an admin.",
+      "reqIds": [
+        "REQ-18"
       ],
       "version": 1
     }
@@ -234,6 +243,20 @@
       "summary": "Update the backend allowlisted admin email used to authorize competition creation from \"miidhun.speedcuber@gmail.com\" to \"midhun.speedcuber@gmail.com\", so that the user with stored email \"midhun.speedcuber@gmail.com\" can successfully create competitions.",
       "reqIds": [
         "REQ-16"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-25",
+      "summary": "Expand admin authorization allowlist to also grant admin rights to thiirdparty.mcubes@gmail.com and/or to a specific mcubes user ID (MCUBES-0) for competition creation/admin UI access.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-26",
+      "summary": "Update admin authorization so that competition-creation/admin access is granted to either (a) users whose stored email is allowlisted, including \"midhun.speedcuber@gmail.com\" and \"thiirdparty.mcubes@gmail.com\", OR (b) users whose stored mcubes user ID is exactly \"MCUBES-0\".",
+      "reqIds": [
+        "REQ-17"
       ],
       "status": "pending"
     }
