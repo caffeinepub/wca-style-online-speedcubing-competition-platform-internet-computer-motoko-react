@@ -1,18 +1,23 @@
-import { useParams, useNavigate } from '@tanstack/react-router';
-import { useGetLeaderboard, useGetCompetition } from '../hooks/useQueries';
-import { useGetAllUserProfiles } from '../hooks/useQueries';
+import { useParams, useSearch } from '@tanstack/react-router';
+import { useGetCompetition, useGetLeaderboard, useGetAllUserProfiles } from '../hooks/useQueries';
 import LeaderboardTable from '../components/leaderboard/LeaderboardTable';
-import { calculateAo5, type LeaderboardEntry } from '../lib/ao5';
-import { Trophy, Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, Trophy } from 'lucide-react';
+import { Event } from '../backend';
+import { DEFAULT_EVENT, EVENT_LABELS } from '../types/domain';
 
 export default function LeaderboardPage() {
   const { competitionId } = useParams({ from: '/competition/$competitionId/leaderboard' });
-  const navigate = useNavigate();
-  const { data: competition, isLoading: compLoading } = useGetCompetition(BigInt(competitionId));
-  const { data: results, isLoading: resultsLoading } = useGetLeaderboard(BigInt(competitionId));
-  const { data: profiles } = useGetAllUserProfiles();
+  const search = useSearch({ from: '/competition/$competitionId/leaderboard' }) as { event?: Event };
+  const selectedEvent = search.event || DEFAULT_EVENT;
 
-  if (compLoading || resultsLoading) {
+  const { data: competition, isLoading: compLoading } = useGetCompetition(BigInt(competitionId));
+  const { data: leaderboard, isLoading: leaderboardLoading } = useGetLeaderboard(
+    BigInt(competitionId),
+    selectedEvent
+  );
+  const { data: userProfiles } = useGetAllUserProfiles();
+
+  if (compLoading || leaderboardLoading) {
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="flex items-center justify-center min-h-[400px]">
@@ -30,68 +35,37 @@ export default function LeaderboardPage() {
       <div className="container mx-auto px-4 py-12">
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-2">Competition Not Found</h2>
+          <p className="text-muted-foreground">The competition you're looking for doesn't exist.</p>
         </div>
       </div>
     );
   }
 
-  const completedResults = results?.filter((r) => r.status === 'completed') || [];
-
-  const leaderboardEntries: LeaderboardEntry[] = completedResults
-    .map((result) => {
-      const profile = profiles?.find((p) => p.user.toString() === result.user.toString());
-      const attempts = result.attempts.map((a) => ({
-        time: Number(a.time),
-        penalty: Number(a.penalty),
-      }));
-      const ao5 = calculateAo5(attempts);
-
-      return {
-        displayName: profile?.profile.displayName || 'Unknown',
-        ao5,
-        attempts,
-      };
-    })
-    .sort((a, b) => {
-      if (a.ao5 === 'DNF' && b.ao5 === 'DNF') return 0;
-      if (a.ao5 === 'DNF') return 1;
-      if (b.ao5 === 'DNF') return -1;
-      return a.ao5 - b.ao5;
-    })
-    .map((entry, index) => ({
-      ...entry,
-      rank: index + 1,
-    }));
+  const completedResults = leaderboard?.filter((r) => r.status === 'completed') || [];
 
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="max-w-6xl mx-auto">
-        <button
-          onClick={() => navigate({ to: '/competition/$competitionId', params: { competitionId } })}
-          className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-6"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Competition
-        </button>
-
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-chart-1 to-chart-2 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Trophy className="w-8 h-8 text-white" />
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <Trophy className="w-8 h-8 text-chart-1" />
+            <h1 className="text-4xl font-bold">Leaderboard</h1>
           </div>
-          <h1 className="text-4xl font-bold mb-2">{competition.name}</h1>
-          <p className="text-lg text-muted-foreground">Leaderboard</p>
+          <p className="text-muted-foreground">
+            {competition.name} - {EVENT_LABELS[selectedEvent]}
+          </p>
         </div>
 
-        {leaderboardEntries.length === 0 ? (
+        {completedResults.length === 0 ? (
           <div className="bg-card border border-border rounded-xl p-12 text-center">
-            <p className="text-muted-foreground text-lg">
-              No completed results yet. Be the first to finish!
+            <Trophy className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+            <h2 className="text-2xl font-bold mb-2">No Results Yet</h2>
+            <p className="text-muted-foreground">
+              Be the first to complete this competition and claim the top spot!
             </p>
           </div>
         ) : (
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
-            <LeaderboardTable entries={leaderboardEntries} />
-          </div>
+          <LeaderboardTable results={completedResults} userProfiles={userProfiles || []} />
         )}
       </div>
     </div>

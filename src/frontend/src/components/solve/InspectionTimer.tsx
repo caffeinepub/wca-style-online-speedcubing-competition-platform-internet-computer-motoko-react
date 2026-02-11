@@ -3,10 +3,10 @@ import { Eye, EyeOff } from 'lucide-react';
 
 interface InspectionTimerProps {
   scramble: string;
-  onInspectionComplete: (penalty: number) => void;
+  onComplete: (penalty: number) => void;
 }
 
-export default function InspectionTimer({ scramble, onInspectionComplete }: InspectionTimerProps) {
+export default function InspectionTimer({ scramble, onComplete }: InspectionTimerProps) {
   const [phase, setPhase] = useState<'ready' | 'inspecting' | 'complete'>('ready');
   const [timeLeft, setTimeLeft] = useState(15);
   const intervalRef = useRef<number | null>(null);
@@ -15,7 +15,7 @@ export default function InspectionTimer({ scramble, onInspectionComplete }: Insp
   const startInspection = () => {
     setPhase('inspecting');
     startTimeRef.current = Date.now();
-    
+
     intervalRef.current = window.setInterval(() => {
       const elapsed = (Date.now() - startTimeRef.current) / 1000;
       const remaining = Math.max(0, 15 - elapsed);
@@ -43,7 +43,7 @@ export default function InspectionTimer({ scramble, onInspectionComplete }: Insp
     }
 
     setPhase('complete');
-    onInspectionComplete(penalty);
+    onComplete(penalty);
   };
 
   useEffect(() => {
@@ -90,7 +90,7 @@ export default function InspectionTimer({ scramble, onInspectionComplete }: Insp
         <div className="w-20 h-20 bg-chart-1/10 rounded-full flex items-center justify-center">
           <Eye className="w-10 h-10 text-chart-1" />
         </div>
-        
+
         <div className="text-center space-y-4">
           <div
             className={`text-7xl font-bold tabular-nums transition-colors ${
@@ -99,9 +99,7 @@ export default function InspectionTimer({ scramble, onInspectionComplete }: Insp
           >
             {timeLeft.toFixed(1)}
           </div>
-          {isPenalty && !isDNF && (
-            <p className="text-chart-4 font-medium">+2 Penalty Zone</p>
-          )}
+          {isPenalty && !isDNF && <p className="text-chart-4 font-medium">+2 Penalty Zone</p>}
           {isDNF && <p className="text-destructive font-medium">DNF - Over 17 seconds</p>}
         </div>
 

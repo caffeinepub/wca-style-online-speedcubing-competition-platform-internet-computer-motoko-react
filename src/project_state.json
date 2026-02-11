@@ -1,15 +1,21 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 3,
-  "summary": "Full-stack online speedcubing competition platform (WCA-style) using Next.js App Router + TypeScript + PostgreSQL + Prisma + NextAuth, deployable on Vercel. Supports authentication, competition creation/joining, 5-solve timed flow with inspection/penalties, secure result submission, and leaderboard UI (dark/minimal), with future expandability for events/payments/webhooks.",
+  "projectStateVersion": 7,
+  "summary": "Full-stack online speedcubing competition platform (Next.js + TS + PostgreSQL/Prisma + NextAuth on Vercel) with WCA-style 5-solve flow, admin-only competition creation restricted to admin email midhun.speedcuber@gmail.com, per-user unique \"mcubes\" user ID and profile, immediate leaderboard updates on completion, multi-event competitions, and optional paid entry via Razorpay (test keys for now).",
   "architectural_notes": [
     "Tech stack: Next.js (App Router) + TypeScript + PostgreSQL + Prisma ORM + NextAuth; deploy on Vercel.",
     "Competition format mirrors WCA-style online comps: 5 scrambles/solves with inspection and penalties.",
     "Result integrity enforced server-side: no client-side trust for attempt counts; validate session/ownership and prevent duplicate submissions.",
-    "Database constraint: unique (competitionId, userId) for Results to prevent joining twice."
+    "Database constraint: unique (competitionId, userId) for Results to prevent joining twice.",
+    "Add a persistent, app-specific \"mcubes user ID\" for each user profile (separate from auth provider identifiers).",
+    "Introduce paid competitions via Razorpay integration (test credentials first), with a competition entry fee and payment-gated participation where applicable.",
+    "Extend data model to support multiple events per competition (event catalog includes 2x2, 3x3, 4x4, 5x5, Skewb, Megaminx, Clock, 3x3 OH, Pyraminx).",
+    "Admin authorization allowlist email should be midhun.speedcuber@gmail.com (used for competition creation and admin UI guards)."
   ],
-  "known_issues": [],
-  "isFixRequest": false,
+  "known_issues": [
+    "Creating a competition currently fails with a generic \"unable to create\" error when the logged-in user's stored email does not match the allowlisted admin email; needs clearer messaging and/or updated allowlist value."
+  ],
+  "isFixRequest": true,
   "existing_features": [
     {
       "id": "feature-implement-user-authentication-using-internet-identity-ii-and-require-login-to-participate-in-competitions-store-a-user-profile-record-keyed-by-principal-with-a-user-editable-display-name-and-ensure-only-authenticated-users-can-create-results-or-submit-solves",
@@ -72,6 +78,38 @@
       "title": "Design the backend API surface (Motoko actor methods) and frontend data layer (React Query) to support future expandability for multiple events (e.g., 3x3, 2x2) and future paid competitions/webhook processing, without implementing payments now.",
       "reqIds": [
         "REQ-10"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-restrict-admin-privileges-and-thus-competition-creation-access-to-the-single-allowlisted-account-email-miidhun-speedcuber-gmail-com-and-update-all-admin-checks-and-ui-guards-to-use-this-allowlist-rule",
+      "title": "Restrict admin privileges (and thus competition creation access) to the single allowlisted account email \"miidhun.speedcuber@gmail.com\", and update all admin checks and UI guards to use this allowlist rule.",
+      "reqIds": [
+        "REQ-11"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-extend-competitions-to-support-multiple-events-selectable-at-creation-time-supporting-at-minimum-2x2-3x3-4x4-5x5-skewb-megaminx-clock-3x3-one-handed-pyraminx-store-event-specific-scrambles-exactly-5-scrambles-per-event-and-update-the-solve-flow-and-leaderboard-to-be-per-event-within-a-competition",
+      "title": "Extend competitions to support multiple events selectable at creation time, supporting at minimum: 2x2, 3x3, 4x4, 5x5, Skewb, Megaminx, Clock, 3x3 One-Handed, Pyraminx; store event-specific scrambles (exactly 5 scrambles per event) and update the solve flow and leaderboard to be per-event within a competition.",
+      "reqIds": [
+        "REQ-13"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-support-for-free-vs-paid-competitions-at-creation-time-including-an-entry-amount-when-paid-enforce-that-users-must-complete-payment-razorpay-test-mode-before-they-can-start-a-paid-competition-event",
+      "title": "Add support for free vs paid competitions at creation time, including an entry amount when paid; enforce that users must complete payment (Razorpay test mode) before they can start a paid competition event.",
+      "reqIds": [
+        "REQ-14"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-ensure-that-when-a-user-finishes-all-5-solves-for-a-competition-event-their-result-is-marked-completed-server-side-and-appears-in-the-leaderboard-immediately-after-completion-without-requiring-a-manual-page-refresh",
+      "title": "Ensure that when a user finishes all 5 solves for a competition event, their result is marked completed server-side and appears in the leaderboard immediately after completion without requiring a manual page refresh.",
+      "reqIds": [
+        "REQ-15"
       ],
       "version": 1
     }
@@ -144,6 +182,58 @@
       "summary": "Implement server-side security and integrity rules for solve submissions: validate the caller session, ensure users can only mutate their own result, validate attempt number and competition status, and prevent double submissions/manual POST manipulation by making submissions idempotent and rejecting invalid state transitions.",
       "reqIds": [
         "REQ-6"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-16",
+      "summary": "Restrict admin privileges/competition creation to a specific allowlisted account: miidhun.speedcuber@gmail.com (only this user can create competitions).",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-17",
+      "summary": "On account creation, generate and persist a unique \"mcubes user ID\" per user (in addition to auth identity) and maintain a user profile used to store/display results.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-18",
+      "summary": "Competitions can be created as free or paid with an entry amount; integrate Razorpay checkout/payment capture using test key/id initially (support swapping to production keys later).",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-19",
+      "summary": "Support competitions with multiple events (e.g., 2x2, 3x3, 4x4, 5x5, Skewb, Megaminx, Clock, 3x3 One-Handed, Pyraminx) selectable during competition creation.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-20",
+      "summary": "Ensure leaderboard updates immediately when a user completes a competition (results appear right away without manual refresh where feasible).",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-22",
+      "summary": "On first-time profile creation, generate and persist a unique \"mcubes user ID\" for each user and store it in the user profile alongside display name; ensure it is stable across sessions and can be fetched with getCallerUserProfile.",
+      "reqIds": [
+        "REQ-12"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-23",
+      "summary": "Define and generate a custom \"mcubes user ID\" format based on join year/date + first 3 letters of first name + first letter of last name + a sequence suffix (01/02/...) to disambiguate users with the same name pattern.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-24",
+      "summary": "Update the backend allowlisted admin email used to authorize competition creation from \"miidhun.speedcuber@gmail.com\" to \"midhun.speedcuber@gmail.com\", so that the user with stored email \"midhun.speedcuber@gmail.com\" can successfully create competitions.",
+      "reqIds": [
+        "REQ-16"
       ],
       "status": "pending"
     }

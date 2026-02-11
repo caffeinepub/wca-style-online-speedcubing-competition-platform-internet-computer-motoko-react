@@ -15,45 +15,81 @@ export interface Competition {
   'id' : bigint,
   'status' : CompetitionStatus,
   'endDate' : Time,
-  'scrambles' : Array<string>,
+  'scrambles' : Array<[Array<string>, Event]>,
   'name' : string,
   'slug' : string,
+  'events' : Array<Event>,
+  'entryFee' : [] | [bigint],
+  'participantLimit' : [] | [bigint],
+  'startDate' : Time,
+}
+export interface CompetitionInput {
+  'status' : CompetitionStatus,
+  'endDate' : Time,
+  'scrambles' : Array<[Array<string>, Event]>,
+  'name' : string,
+  'slug' : string,
+  'events' : Array<Event>,
+  'entryFee' : [] | [bigint],
   'participantLimit' : [] | [bigint],
   'startDate' : Time,
 }
 export type CompetitionStatus = { 'upcoming' : null } |
   { 'completed' : null } |
   { 'running' : null };
+export type Event = { 'megaminx' : null } |
+  { 'fiveByFive' : null } |
+  { 'threeByThreeOneHanded' : null } |
+  { 'clock' : null } |
+  { 'threeByThree' : null } |
+  { 'pyraminx' : null } |
+  { 'skewb' : null } |
+  { 'twoByTwo' : null } |
+  { 'fourByFour' : null };
+export interface PaymentConfirmation {
+  'razorpayPaymentId' : string,
+  'razorpaySignature' : string,
+  'event' : Event,
+  'razorpayOrderId' : string,
+  'competitionId' : bigint,
+}
 export interface ResultInput {
   'status' : SolveStatus,
   'user' : Principal,
   'attempts' : Array<AttemptInput>,
+  'event' : Event,
   'competitionId' : bigint,
 }
 export type SolveStatus = { 'in_progress' : null } |
   { 'completed' : null } |
   { 'not_started' : null };
 export type Time = bigint;
-export interface UserProfile { 'displayName' : string }
+export interface UserProfile { 'displayName' : string, 'mcubesId' : string }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
-  'createCompetition' : ActorMethod<[Competition], bigint>,
-  'createUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'confirmPayment' : ActorMethod<[PaymentConfirmation], undefined>,
+  'createCompetition' : ActorMethod<[CompetitionInput], bigint>,
+  'createUserProfile' : ActorMethod<[string], undefined>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getCompetition' : ActorMethod<[bigint], [] | [Competition]>,
   'getCompetitions' : ActorMethod<[], Array<Competition>>,
-  'getLeaderboard' : ActorMethod<[bigint], Array<ResultInput>>,
-  'getResults' : ActorMethod<[bigint], Array<ResultInput>>,
+  'getLeaderboard' : ActorMethod<[bigint, Event], Array<ResultInput>>,
+  'getResults' : ActorMethod<[bigint, Event], Array<ResultInput>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
+  'getUserResult' : ActorMethod<[bigint, Event], [] | [ResultInput]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
-  'startCompetition' : ActorMethod<[bigint], undefined>,
-  'submitAttempt' : ActorMethod<[bigint, bigint, AttemptInput], undefined>,
+  'setUserEmail' : ActorMethod<[string], undefined>,
+  'startCompetition' : ActorMethod<[bigint, Event], undefined>,
+  'submitAttempt' : ActorMethod<
+    [bigint, Event, bigint, AttemptInput],
+    undefined
+  >,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

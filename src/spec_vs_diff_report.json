@@ -1,172 +1,21 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-11T22:24:11.388Z",
-  "summary": "Diff adds a new Motoko backend actor with user profile, competition, and result-related types plus a React frontend with routing, auth guards, profile UI, solve timers, and leaderboard table UI. However, several BuildRequest requirements are not evidenced in the provided diff summary (notably stable persistence, event extensibility field, full solve-submission integrity, and leaderboard pagination/Ao5 rules). The diff also introduces some unrequested behaviors (URL-based admin secret initialization and a caffeine.ai branded footer link).",
-  "missing_requirements": [
-    {
-      "id": "REQ-2",
-      "requirement": "State survives canister upgrades using stable storage patterns (no data loss after redeploy/upgrade).",
-      "reason": "backend/main.mo (as shown) uses non-stable `var` Maps and counters; no `stable` variables, preupgrade/postupgrade hooks, or migration patterns are visible in the diff excerpt.",
-      "evidence": [
-        "backend/main.mo"
-      ]
-    },
-    {
-      "id": "REQ-3",
-      "requirement": "Competition slug is unique across competitions (server-enforced).",
-      "reason": "The createCompetition implementation is truncated and no slug uniqueness check is visible in the provided excerpt.",
-      "evidence": [
-        "backend/main.mo"
-      ]
-    },
-    {
-      "id": "REQ-3",
-      "requirement": "A competition always has exactly 5 scrambles (1–5) stored server-side.",
-      "reason": "Competition has `scrambles : [Text]` but no validation enforcing exactly 5 scrambles is visible in the provided excerpt.",
-      "evidence": [
-        "backend/main.mo"
-      ]
-    },
-    {
-      "id": "REQ-3",
-      "requirement": "If participant limit is set, the backend prevents new starts once the limit is reached (based on number of started results).",
-      "reason": "No server-side enforcement for participant limits on 'start competition' is visible in the provided excerpt (start/join logic not shown).",
-      "evidence": [
-        "backend/main.mo"
-      ]
-    },
-    {
-      "id": "REQ-4",
-      "requirement": "Starting creates the user’s Result record (if not already started) and is idempotent; completed results cannot be reopened.",
-      "reason": "Result lifecycle/start logic and idempotency checks are not visible in the provided backend excerpt or the shown frontend pages (SolveFlowPage/CompetitionDetailPage not included in the diff snippet).",
-      "evidence": [
-        "backend/main.mo",
-        "frontend/src/App.tsx"
-      ]
-    },
-    {
-      "id": "REQ-5",
-      "requirement": "Each attempt submission calls a backend method that validates expected attempt index and rejects out-of-order or duplicate submissions; after attempt 5, backend marks result completed and UI shows completion screen with no further timing controls.",
-      "reason": "UI components for inspection and solve timers exist, and a completion screen exists, but the actual submission calls and backend validation/state transitions are not shown in the provided diff excerpt (SolveFlowPage not included; backend submit method not visible).",
-      "evidence": [
-        "frontend/src/components/solve/InspectionTimer.tsx",
-        "frontend/src/components/solve/SolveTimer.tsx",
-        "frontend/src/components/solve/SolveCompletionScreen.tsx",
-        "backend/main.mo"
-      ]
-    },
-    {
-      "id": "REQ-6",
-      "requirement": "Backend returns clear error variants/messages for unauthorized, not found, invalid attempt, already completed, already submitted.",
-      "reason": "backend/main.mo uses `Runtime.trap(\"Unauthorized: ...\")` in shown methods; no explicit error variant types/results for solve submission are visible in the excerpt, and submission API is not shown.",
-      "evidence": [
-        "backend/main.mo",
-        "frontend/src/api/errors.ts"
-      ]
-    },
-    {
-      "id": "REQ-7",
-      "requirement": "Leaderboard page per competition lists completed results only, computes Ao5 (drop best and worst; DNF handling), sorts by Ao5 with DNFs last, and paginates; backend supports paged queries.",
-      "reason": "Only a presentational `LeaderboardTable` is shown; there is no evidence of Ao5 computation, completed-only filtering, sorting rules, or pagination controls/query parameters in the diff snippet.",
-      "evidence": [
-        "frontend/src/components/leaderboard/LeaderboardTable.tsx",
-        "frontend/src/api/queryKeys.ts"
-      ]
-    },
-    {
-      "id": "REQ-8",
-      "requirement": "App intercepts in-app navigation away from solve flow and asks for confirmation while in progress.",
-      "reason": "A `useNavigationBlocker` hook exists, but there is no evidence it is actually used by SolveFlowPage (not shown) or wired into routing for solve sessions.",
-      "evidence": [
-        "frontend/src/hooks/useNavigationBlocker.tsx",
-        "frontend/src/App.tsx"
-      ]
-    },
-    {
-      "id": "REQ-8",
-      "requirement": "App shows a browser unload warning on refresh/close during in-progress solve sessions.",
-      "reason": "A `useBeforeUnloadWarning` hook exists, but there is no evidence it is used/activated during solve flow (SolveFlowPage not shown).",
-      "evidence": [
-        "frontend/src/hooks/useBeforeUnloadWarning.ts",
-        "frontend/src/App.tsx"
-      ]
-    },
-    {
-      "id": "REQ-9",
-      "requirement": "Primary accent color is not blue or purple; theme applied consistently across all pages.",
-      "reason": "The diff shows usage of design tokens/classes like `bg-chart-1`, etc., but does not include the theme/tailwind config or CSS variables that define actual colors; cannot verify accent color constraints or consistent application across all pages from the snippet.",
-      "evidence": [
-        "frontend/src/App.tsx",
-        "frontend/src/components/layout/AppShell.tsx"
-      ]
-    },
-    {
-      "id": "REQ-10",
-      "requirement": "Competition data model includes an event identifier/type field suitable for multiple events (even if UI defaults to one event).",
-      "reason": "The backend `Competition` type shown has no event/eventType field, while the UI hardcodes \"Event: 3x3x3 Cube\".",
-      "evidence": [
-        "backend/main.mo",
-        "frontend/src/components/competition/CompetitionCard.tsx"
-      ]
-    }
-  ],
+  "generatedAt": "2026-02-11T23:25:15.622Z",
+  "summary": "REQ-16 appears implemented: backend/main.mo now defines ADMIN_EMAIL as \"midhun.speedcuber@gmail.com\" and isAllowlistedAdmin compares stored user email against that constant. An additional, non-requested metadata change was made to project_state.json.",
+  "missing_requirements": [],
   "hallucinated_features": [
     {
-      "description": "Admin access control initialization via a secret URL parameter (`caffeineAdminToken`) and a backend method `_initializeAccessControlWithSecret`.",
-      "reason": "BuildRequest requires admin-only management but does not request a URL-parameter-based secret bootstrap mechanism for admin privileges; this adds an unrequested security/authorization pathway.",
+      "description": "Updated project metadata/summary text to mention the admin email allowlist value.",
+      "reason": "The BuildRequest only asked to change the backend allowlisted admin email constant/authorization behavior in backend/main.mo and did not request any project_state.json edits.",
       "evidence": [
-        "frontend/src/hooks/useActor.ts"
-      ]
-    },
-    {
-      "description": "Caffeine.ai referral/branding footer link (and 'Built with ❤️' text).",
-      "reason": "Not requested by the BuildRequest; introduces external branding/referral content into the UI.",
-      "evidence": [
-        "frontend/src/components/layout/AppShell.tsx"
+        "project_state.json"
       ]
     }
   ],
-  "confidence": 0.62,
+  "confidence": 0.84,
   "changed_files": [
-    "all_files_summary.json",
     "backend/main.mo",
-    "frontend-file-summaries.txt",
-    "frontend/index.css",
-    "frontend/index.html",
-    "frontend/src/App.tsx",
-    "frontend/src/api/errors.ts",
-    "frontend/src/api/queryKeys.ts",
-    "frontend/src/components/auth/AdminGuard.tsx",
-    "frontend/src/components/auth/LoginButton.tsx",
-    "frontend/src/components/auth/RequireAuth.tsx",
-    "frontend/src/components/competition/CompetitionCard.tsx",
-    "frontend/src/components/layout/AppShell.tsx",
-    "frontend/src/components/leaderboard/LeaderboardTable.tsx",
-    "frontend/src/components/profile/ProfileMenu.tsx",
-    "frontend/src/components/profile/ProfileSetupDialog.tsx",
-    "frontend/src/components/solve/InspectionTimer.tsx",
-    "frontend/src/components/solve/SolveCompletionScreen.tsx",
-    "frontend/src/components/solve/SolveTimer.tsx",
-    "frontend/src/hooks/useActor.ts",
-    "frontend/src/hooks/useBeforeUnloadWarning.ts",
-    "frontend/src/hooks/useCurrentUserProfile.ts",
-    "frontend/src/hooks/useInternetIdentity.ts",
-    "frontend/src/hooks/useNavigationBlocker.tsx",
-    "frontend/src/hooks/useQueries.ts",
-    "frontend/src/index.css",
-    "frontend/src/lib/ao5.ts",
-    "frontend/src/lib/dateUtils.ts",
-    "frontend/src/lib/timeUtils.ts",
-    "frontend/src/main.tsx",
-    "frontend/src/pages/CompetitionDetailPage.tsx",
-    "frontend/src/pages/CompetitionsListPage.tsx",
-    "frontend/src/pages/LeaderboardPage.tsx",
-    "frontend/src/pages/SolveFlowPage.tsx",
-    "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
-    "frontend/src/types/domain.ts",
-    "frontend/src/utils/urlParams.ts",
-    "frontend/tailwind.config.js",
     "project_state.json"
   ]
 }

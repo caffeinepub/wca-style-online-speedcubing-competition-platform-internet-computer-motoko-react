@@ -15,8 +15,11 @@ export default function ProfileMenu() {
   };
 
   const handleSave = async () => {
-    if (displayName.trim()) {
-      await saveProfile.mutateAsync({ displayName: displayName.trim() });
+    if (displayName.trim() && profile) {
+      await saveProfile.mutateAsync({
+        displayName: displayName.trim(),
+        mcubesId: profile.mcubesId,
+      });
       setIsEditing(false);
     }
   };
@@ -58,6 +61,9 @@ export default function ProfileMenu() {
     <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2">
       <User className="w-4 h-4 text-muted-foreground" />
       <span className="text-sm font-medium">{profile?.displayName || 'User'}</span>
+      {profile?.mcubesId && (
+        <span className="text-xs text-muted-foreground">({profile.mcubesId})</span>
+      )}
       <button
         onClick={handleEdit}
         className="p-1 hover:bg-chart-1/10 rounded transition-colors ml-1"

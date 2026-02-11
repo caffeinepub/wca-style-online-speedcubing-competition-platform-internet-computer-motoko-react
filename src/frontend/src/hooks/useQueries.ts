@@ -2,7 +2,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
 import { useInternetIdentity } from './useInternetIdentity';
 import { QUERY_KEYS } from '../api/queryKeys';
-import type { UserProfile, Competition, ResultInput, AttemptInput } from '../backend';
+import type {
+  UserProfile,
+  Competition,
+  ResultInput,
+  AttemptInput,
+  CompetitionInput,
+  PaymentConfirmation,
+  Event,
+} from '../backend';
 
 export function useIsCallerAdmin() {
   const { actor, isFetching } = useActor();
@@ -17,14 +25,25 @@ export function useIsCallerAdmin() {
   });
 }
 
+export function useSetUserEmail() {
+  const { actor } = useActor();
+
+  return useMutation({
+    mutationFn: async (email: string) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.setUserEmail(email);
+    },
+  });
+}
+
 export function useCreateUserProfile() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (profile: UserProfile) => {
+    mutationFn: async (displayName: string) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.createUserProfile(profile);
+      return actor.createUserProfile(displayName);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.currentUserProfile });
@@ -78,7 +97,7 @@ export function useCreateCompetition() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (competition: Competition) => {
+    mutationFn: async (competition: CompetitionInput) => {
       if (!actor) throw new Error('Actor not available');
       return actor.createCompetition(competition);
     },
@@ -88,46 +107,58 @@ export function useCreateCompetition() {
   });
 }
 
+export function useConfirmPayment() {
+  const { actor } = useActor();
+
+  return useMutation({
+    mutationFn: async (payment: PaymentConfirmation) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.confirmPayment(payment);
+    },
+  });
+}
+
 export function useStartCompetition() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (competitionId: bigint) => {
+    mutationFn: async ({ competitionId, event }: { competitionId: bigint; event: Event }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.startCompetition(competitionId);
+      return actor.startCompetition(competitionId, event);
     },
-    onSuccess: (_, competitionId) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.results(competitionId) });
+    onSuccess: (_, { competitionId, event }) => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.results(competitionId, event) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.userResult(competitionId, event) });
     },
   });
 }
 
-export function useGetResults(competitionId: bigint) {
+export function useGetResults(competitionId: bigint, event: Event) {
   const { actor, isFetching } = useActor();
 
   return useQuery({
-    queryKey: QUERY_KEYS.results(competitionId),
+    queryKey: QUERY_KEYS.results(competitionId, event),
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getResults(competitionId);
+      return actor.getResults(competitionId, event);
     },
     enabled: !!actor && !isFetching,
   });
 }
 
-export function useGetMyCompetitionResult(competitionId: bigint) {
+export function useGetUserResult(competitionId: bigint, event: Event) {
+  const { actor, isFetching } = useActor();
   const { identity } = useInternetIdentity();
-  const { data: results, isLoading } = useGetResults(competitionId);
 
-  const myResult = results?.find(
-    (r) => identity && r.user.toString() === identity.getPrincipal().toString()
-  );
-
-  return {
-    data: myResult || null,
-    isLoading,
-  };
+  return useQuery({
+    queryKey: QUERY_KEYS.userResult(competitionId, event),
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getUserResult(competitionId, event);
+    },
+    enabled: !!actor && !isFetching && !!identity,
+  });
 }
 
 export function useSubmitAttempt() {
@@ -137,31 +168,34 @@ export function useSubmitAttempt() {
   return useMutation({
     mutationFn: async ({
       competitionId,
+      event,
       attemptIndex,
       attempt,
     }: {
       competitionId: bigint;
+      event: Event;
       attemptIndex: bigint;
       attempt: AttemptInput;
     }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.submitAttempt(competitionId, attemptIndex, attempt);
+      return actor.submitAttempt(competitionId, event, attemptIndex, attempt);
     },
-    onSuccess: (_, { competitionId }) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.results(competitionId) });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.leaderboard(competitionId) });
+    onSuccess: (_, { competitionId, event }) => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.results(competitionId, event) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.leaderboard(competitionId, event) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.userResult(competitionId, event) });
     },
   });
 }
 
-export function useGetLeaderboard(competitionId: bigint) {
+export function useGetLeaderboard(competitionId: bigint, event: Event) {
   const { actor, isFetching } = useActor();
 
   return useQuery({
-    queryKey: QUERY_KEYS.leaderboard(competitionId),
+    queryKey: QUERY_KEYS.leaderboard(competitionId, event),
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getLeaderboard(competitionId);
+      return actor.getLeaderboard(competitionId, event);
     },
     enabled: !!actor && !isFetching,
   });
@@ -175,11 +209,13 @@ export function useGetAllUserProfiles() {
     queryKey: QUERY_KEYS.allUserProfiles,
     queryFn: async () => {
       if (!actor || !competitions) return [];
-      
-      const allResults = await Promise.all(
-        competitions.map((comp) => actor.getResults(comp.id))
+
+      const allResultsPromises = competitions.flatMap((comp) =>
+        comp.events.map((event) => actor.getResults(comp.id, event))
       );
-      
+
+      const allResults = await Promise.all(allResultsPromises);
+
       const uniqueUsers = new Set<string>();
       allResults.flat().forEach((result) => {
         uniqueUsers.add(result.user.toString());

@@ -1,209 +1,35 @@
 {
   "kind": "build_request",
-  "title": "WCA-style online speedcubing competition platform (Internet Computer: Motoko + React)",
+  "title": "Update allowlisted admin email for competition creation",
   "priority": "normal",
   "requirements": [
     {
-      "id": "REQ-1",
-      "text": "Implement user authentication using Internet Identity (II) and require login to participate in competitions. Store a user profile record keyed by Principal with a user-editable display name, and ensure only authenticated users can create results or submit solves.",
-      "target": "both",
-      "source": {
-        "messageIds": [
-          "msg-1",
-          "msg-4"
-        ],
-        "quotes": [
-          "Authentication - Users must login... Only logged-in users can participate. ... Store user profile with display name.",
-          "Security Rules - API routes must validate user session. Users can only update their own results."
-        ]
-      },
-      "acceptanceCriteria": [
-        "Unauthenticated users can browse public competition pages but cannot start a competition or submit solve results.",
-        "On first login, a user profile is created for the caller Principal (if missing).",
-        "A logged-in user can set/update their own display name; users cannot modify other users' profiles.",
-        "All backend update calls that mutate user-specific data validate caller != anonymous and use caller Principal as the source of truth."
-      ]
-    },
-    {
-      "id": "REQ-2",
-      "text": "Add backend data models and persistence in the single Motoko actor for: Users, Competitions, Scrambles (5 per competition), and Results (one per user per competition). Enforce uniqueness of one Result per (competitionId, userPrincipal) and store per-attempt times plus penalties and status (not started / in progress / completed).",
+      "id": "REQ-16",
+      "text": "Update the backend allowlisted admin email used to authorize competition creation from \"miidhun.speedcuber@gmail.com\" to \"midhun.speedcuber@gmail.com\", so that the user with stored email \"midhun.speedcuber@gmail.com\" can successfully create competitions.",
       "target": "backend",
       "source": {
         "messageIds": [
-          "msg-1"
+          "recent-messages"
         ],
         "quotes": [
-          "Competition System... Admin can create competitions... 5 scrambles...",
-          "Database Schema... Users, Competitions, Scrambles, Results... Constraints: Unique (competitionId, userId)"
+          "unable to create competition says unable to create . chnage admin email to midhun.speedcuber@gmail.com"
         ]
       },
       "acceptanceCriteria": [
-        "The backend can create/read competitions and their 5 scrambles.",
-        "The backend maintains exactly one result record per (competition, user). Attempts are stored in order and cannot exceed 5.",
-        "Result status transitions are enforced server-side: not started -> in progress -> completed; no reverse transitions.",
-        "State survives canister upgrades using stable storage patterns (no data loss after redeploy/upgrade)."
-      ]
-    },
-    {
-      "id": "REQ-3",
-      "text": "Implement an admin-only competition management flow: admins can create competitions with name, slug, start/end dates, status (upcoming/running/completed), optional participant limit, and exactly 5 scrambles. Non-admin users can only read competition info.",
-      "target": "both",
-      "source": {
-        "messageIds": [
-          "msg-1"
-        ],
-        "quotes": [
-          "Competition System - Admin can create competitions with: Name, Slug, Start date, End date, Status... 5 scrambles, Participant limit (optional)."
-        ]
-      },
-      "acceptanceCriteria": [
-        "Backend enforces admin authorization for create/update competition operations.",
-        "Competition slug is unique across competitions (server-enforced).",
-        "A competition always has exactly 5 scrambles (1–5) stored server-side.",
-        "If participant limit is set, the backend prevents new starts once the limit is reached (based on number of started results)."
-      ]
-    },
-    {
-      "id": "REQ-4",
-      "text": "Implement the competition participation lifecycle: users can view a competition intro page and click “Start Competition” once. Starting creates the user’s Result record (if not already started), and users cannot join twice, restart, or reset their progress.",
-      "target": "both",
-      "source": {
-        "messageIds": [
-          "msg-1"
-        ],
-        "quotes": [
-          "User must click \"Start Competition\". Once started: Create a result record... User cannot restart or reset... User cannot join twice. Competition state tracking per user..."
-        ]
-      },
-      "acceptanceCriteria": [
-        "If a user has not started, the UI shows a Start action; once started, the UI routes to the solve flow at the correct current attempt.",
-        "Repeated Start requests are idempotent: they do not create duplicates and do not reset state.",
-        "A completed result cannot be reopened for additional attempts."
-      ]
-    },
-    {
-      "id": "REQ-5",
-      "text": "Build the solve flow UI for 5 solves per competition: show one scramble at a time, hide the scramble until inspection starts, run a 15-second WCA inspection timer with penalties (+2 for 15–17s, DNF for >17s), run a client-side solve timer, and submit each attempt to the backend. Prevent navigating back to previous scrambles and automatically advance to the next scramble until completion.",
-      "target": "both",
-      "source": {
-        "messageIds": [
-          "msg-1"
-        ],
-        "quotes": [
-          "Solve Flow - Each competition has 5 solves. Show one scramble at a time. Scramble must be hidden until inspection starts... 15-second WCA inspection timer... +2... DNF... Timer must run in browser... Save time... Prevent going back... After 5 solves: Mark competition completed. Lock further access."
-        ]
-      },
-      "acceptanceCriteria": [
-        "The UI enforces the sequence: inspection starts -> scramble revealed -> solve timer -> stop -> submission -> advance; previous scrambles cannot be revisited in the UI.",
-        "Penalty is determined and displayed based on inspection duration: none (<15s), +2 (15–17s), DNF (>17s).",
-        "Each attempt submission calls a backend method that validates the expected attempt index and rejects out-of-order or duplicate submissions.",
-        "After attempt 5 is submitted, the backend marks the result completed and the UI shows a completion screen (no further timing controls)."
-      ]
-    },
-    {
-      "id": "REQ-6",
-      "text": "Implement server-side security and integrity rules for solve submissions: validate the caller session, ensure users can only mutate their own result, validate attempt number and competition status, and prevent double submissions/manual POST manipulation by making submissions idempotent and rejecting invalid state transitions.",
-      "target": "backend",
-      "source": {
-        "messageIds": [
-          "msg-1"
-        ],
-        "quotes": [
-          "Security Rules - API routes must validate user session... No client-side trust for solve count. Server validates attempt number. Prevent double submissions. Prevent manual POST manipulation."
-        ]
-      },
-      "acceptanceCriteria": [
-        "Backend rejects solve submissions from anonymous users.",
-        "Backend rejects submissions that do not match the next expected attempt index for that (competition, user).",
-        "Backend rejects submissions when competition is not in a state that allows participation (e.g., completed/ended, if such rules are applied).",
-        "Backend returns clear error variants/messages for: unauthorized, not found, invalid attempt, already completed, already submitted."
-      ]
-    },
-    {
-      "id": "REQ-7",
-      "text": "Add a leaderboard page per competition that lists completed results only, computes Average of 5 (drop best and worst), sorts ascending (best first), displays rankings, and paginates when result count is large.",
-      "target": "both",
-      "source": {
-        "messageIds": [
-          "msg-1"
-        ],
-        "quotes": [
-          "Leaderboard - Show all completed results. Calculate: Average of 5 (drop best & worst). Sort ascending. Display ranking. Paginate if large."
-        ]
-      },
-      "acceptanceCriteria": [
-        "Leaderboard excludes in-progress results.",
-        "Ao5 calculation follows: remove best and worst of 5; average remaining 3; any DNF in counted solves results in DNF Ao5 (define and apply consistently).",
-        "Results are sorted by Ao5 with DNFs ranked last.",
-        "UI supports pagination controls and the backend supports paged queries (limit/offset or cursor)."
-      ]
-    },
-    {
-      "id": "REQ-8",
-      "text": "Implement UI/UX safeguards during an in-progress solve session: use a dark, minimal interface focused on the timer with large typography, clearly visible scramble once revealed, warn users before page refresh/close, and prevent accidental back navigation during the solve flow as much as the browser allows.",
-      "target": "frontend",
-      "source": {
-        "messageIds": [
-          "msg-1"
-        ],
-        "quotes": [
-          "UI Requirements - Dark theme. Minimal. Focus on timer. Large font timer. Scramble clearly visible. Disable browser back navigation during solve. Warn user if refreshing page."
-        ]
-      },
-      "acceptanceCriteria": [
-        "Timer is visually dominant (large font) and legible on a dark theme.",
-        "When a session is in progress, the app shows a browser unload warning on refresh/close (where supported).",
-        "The app intercepts in-app navigation away from the solve flow and asks for confirmation while in progress.",
-        "Users cannot use in-app controls to navigate to previous scrambles/attempts."
-      ]
-    },
-    {
-      "id": "REQ-9",
-      "text": "Create a coherent visual theme for the app and apply it consistently across all pages (typography, spacing, component styling, and states) while keeping the UI dark and minimal. Avoid blue/purple as primary colors.",
-      "target": "frontend",
-      "source": {
-        "messageIds": [
-          "msg-1"
-        ],
-        "quotes": [
-          "UI Requirements - Dark theme. Minimal. Focus on timer."
-        ]
-      },
-      "acceptanceCriteria": [
-        "All primary surfaces, text, and interactive elements follow a consistent dark theme style guide.",
-        "Primary accent color is not blue or purple.",
-        "Buttons, cards, typography scale, and form fields look consistent across competition pages, solve flow, and leaderboard."
-      ]
-    },
-    {
-      "id": "REQ-10",
-      "text": "Design the backend API surface (Motoko actor methods) and frontend data layer (React Query) to support future expandability for multiple events (e.g., 3x3, 2x2) and future paid competitions/webhook processing, without implementing payments now.",
-      "target": "both",
-      "source": {
-        "messageIds": [
-          "msg-1"
-        ],
-        "quotes": [
-          "Future Expandability - Support multiple events... Support paid competitions later. Add webhook support for payment gateway in future."
-        ]
-      },
-      "acceptanceCriteria": [
-        "Competition data model includes an event identifier or event type field suitable for multiple events (even if UI defaults to one event).",
-        "Code organization separates competition metadata, participation, and result submission logic to make future extensions straightforward.",
-        "No payment collection or external webhook integrations are implemented in this build."
+        "In backend/main.mo, the allowlist constant used by isAllowlistedAdmin compares against exactly \"midhun.speedcuber@gmail.com\".",
+        "When logged in as an Internet Identity principal that (a) is marked admin by AccessControl and (b) has userEmails[principal] set to \"midhun.speedcuber@gmail.com\", createCompetition succeeds.",
+        "When the stored email is any other value (including the old \"miidhun.speedcuber@gmail.com\"), createCompetition is rejected with an Unauthorized error as before."
       ]
     }
   ],
   "constraints": [
-    "Backend must remain a single Motoko actor with all logic in backend/main.mo; add migration.mo only if upgrading existing stable state becomes necessary.",
-    "Do not edit files under frontend immutablePaths (frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useInternetIdentity.tsx, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, frontend/src/components/ui); compose and use them as-is.",
-    "Use English for all user-facing UI text."
+    "Respect the single-actor backend architecture; keep all Motoko logic in backend/main.mo.",
+    "Only create/update backend/migration.mo if a state/schema migration is required (it should not be required for a constant change).",
+    "Do not edit frontend files listed as immutable in SYSTEM_CONTEXT."
   ],
   "nonGoals": [
-    "Do not implement Next.js App Router, Vercel deployment, PostgreSQL, Prisma, or NextAuth (not supported in this project).",
-    "Do not implement email/password authentication or third-party OAuth providers; use Internet Identity only.",
-    "Do not implement real-time features (WebSockets/live updates).",
-    "Do not implement payments or external payment gateway webhooks in this iteration."
+    "Do not implement the \"mcubes user id\" formatting rules or any other user profile changes (not requested in the latest message).",
+    "Do not redesign the admin UI or change generic frontend error handling beyond what is necessary for the email allowlist change."
   ],
   "imageRequirements": {
     "required": [],

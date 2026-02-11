@@ -44,7 +44,7 @@ export default function AppShell() {
               <Timer className="w-6 h-6 text-white" />
             </div>
             <div className="flex flex-col items-start">
-              <h1 className="text-xl font-bold tracking-tight">SpeedCube</h1>
+              <h1 className="text-xl font-bold tracking-tight">MCubes</h1>
               <p className="text-xs text-muted-foreground">Online Competitions</p>
             </div>
           </button>
@@ -78,7 +78,7 @@ export default function AppShell() {
         <div className="container mx-auto px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Trophy className="w-4 h-4" />
-            <span>© {new Date().getFullYear()} SpeedCube Platform</span>
+            <span>© {new Date().getFullYear()} MCubes Platform</span>
           </div>
           <div className="text-sm text-muted-foreground">
             Built with ❤️ using{' '}

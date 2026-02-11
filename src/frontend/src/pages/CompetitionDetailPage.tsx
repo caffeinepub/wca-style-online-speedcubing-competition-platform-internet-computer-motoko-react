@@ -1,9 +1,21 @@
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
-import { useGetCompetition, useStartCompetition, useGetMyCompetitionResult } from '../hooks/useQueries';
-import { Calendar, Users, Trophy, Play, Loader2, BarChart3 } from 'lucide-react';
+import {
+  useGetCompetition,
+  useStartCompetition,
+  useGetUserResult,
+  useConfirmPayment,
+} from '../hooks/useQueries';
+import { useGetCallerUserProfile } from '../hooks/useCurrentUserProfile';
+import { Calendar, Users, Trophy, Play, Loader2, BarChart3, CreditCard } from 'lucide-react';
 import { formatDate } from '../lib/dateUtils';
 import RequireAuth from '../components/auth/RequireAuth';
 import { useInternetIdentity } from '../hooks/useInternetIdentity';
+import { Event } from '../backend';
+import { EVENT_LABELS, DEFAULT_EVENT } from '../types/domain';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { loadRazorpayScript, openRazorpayCheckout } from '../lib/razorpay';
+import { toast } from 'sonner';
 
 export default function CompetitionDetailPage() {
   const { competitionId } = useParams({ from: '/competition/$competitionId' });
@@ -11,25 +23,113 @@ export default function CompetitionDetailPage() {
   const { identity } = useInternetIdentity();
   const isAuthenticated = !!identity;
 
+  const [selectedEvent, setSelectedEvent] = useState<Event>(DEFAULT_EVENT);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
   const { data: competition, isLoading } = useGetCompetition(BigInt(competitionId));
-  const { data: myResult, isLoading: resultLoading } = useGetMyCompetitionResult(BigInt(competitionId));
+  const { data: userProfile } = useGetCallerUserProfile();
+  const { data: myResult, isLoading: resultLoading } = useGetUserResult(BigInt(competitionId), selectedEvent);
   const startCompetition = useStartCompetition();
+  const confirmPayment = useConfirmPayment();
+
+  useEffect(() => {
+    if (competition && competition.events.length > 0) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const eventParam = urlParams.get('event');
+      if (eventParam && competition.events.includes(eventParam as Event)) {
+        setSelectedEvent(eventParam as Event);
+      } else {
+        setSelectedEvent(competition.events[0]);
+      }
+    }
+  }, [competition]);
+
+  const handleEventChange = (event: Event) => {
+    setSelectedEvent(event);
+    const url = new URL(window.location.href);
+    url.searchParams.set('event', event);
+    window.history.pushState({}, '', url);
+  };
+
+  const handlePayment = async () => {
+    if (!competition || !competition.entryFee || !userProfile) return;
+
+    setIsProcessingPayment(true);
+    try {
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        toast.error('Failed to load payment gateway. Please try again.');
+        setIsProcessingPayment(false);
+        return;
+      }
+
+      const response = await openRazorpayCheckout({
+        amount: Number(competition.entryFee),
+        competitionName: competition.name,
+        userName: userProfile.displayName,
+      });
+
+      // Confirm payment with backend
+      await confirmPayment.mutateAsync({
+        competitionId: BigInt(competitionId),
+        event: selectedEvent,
+        razorpayOrderId: response.razorpay_order_id || '',
+        razorpayPaymentId: response.razorpay_payment_id,
+        razorpaySignature: response.razorpay_signature || '',
+      });
+
+      toast.success('Payment successful! Starting competition...');
+
+      // Now start the competition
+      await handleStart();
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      if (error.message === 'Payment cancelled by user') {
+        toast.error('Payment cancelled');
+      } else {
+        toast.error('Payment failed. Please try again.');
+      }
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
 
   const handleStart = async () => {
+    if (!competition) return;
+
+    // Check if payment is required
+    if (competition.entryFee) {
+      await handlePayment();
+      return;
+    }
+
     try {
-      await startCompetition.mutateAsync(BigInt(competitionId));
-      navigate({ to: '/competition/$competitionId/solve', params: { competitionId } });
+      await startCompetition.mutateAsync({ competitionId: BigInt(competitionId), event: selectedEvent });
+      navigate({
+        to: '/competition/$competitionId/solve',
+        params: { competitionId },
+        search: { event: selectedEvent },
+      });
     } catch (error) {
       console.error('Failed to start competition:', error);
+      toast.error('Failed to start competition. Please try again.');
     }
   };
 
   const handleContinue = () => {
-    navigate({ to: '/competition/$competitionId/solve', params: { competitionId } });
+    navigate({
+      to: '/competition/$competitionId/solve',
+      params: { competitionId },
+      search: { event: selectedEvent },
+    });
   };
 
   const handleViewLeaderboard = () => {
-    navigate({ to: '/competition/$competitionId/leaderboard', params: { competitionId } });
+    navigate({
+      to: '/competition/$competitionId/leaderboard',
+      params: { competitionId },
+      search: { event: selectedEvent },
+    });
   };
 
   if (isLoading) {
@@ -79,9 +179,29 @@ export default function CompetitionDetailPage() {
           <div className="flex items-start justify-between mb-6">
             <div className="flex-1">
               <h1 className="text-4xl font-bold mb-2">{competition.name}</h1>
-              <p className="text-muted-foreground">Event: 3x3x3 Cube</p>
+              {competition.events.length > 1 ? (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium mb-2">Select Event</label>
+                  <Select value={selectedEvent} onValueChange={handleEventChange}>
+                    <SelectTrigger className="w-64">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {competition.events.map((event) => (
+                        <SelectItem key={event} value={event}>
+                          {EVENT_LABELS[event]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">Event: {EVENT_LABELS[competition.events[0]]}</p>
+              )}
             </div>
-            <span className={`px-4 py-2 rounded-full text-sm font-medium border ${statusColors[competition.status]}`}>
+            <span
+              className={`px-4 py-2 rounded-full text-sm font-medium border ${statusColors[competition.status]}`}
+            >
               {statusLabels[competition.status]}
             </span>
           </div>
@@ -120,6 +240,15 @@ export default function CompetitionDetailPage() {
                   <p className="font-medium">Average of 5 (Ao5)</p>
                 </div>
               </div>
+              {competition.entryFee && (
+                <div className="flex items-center gap-3">
+                  <CreditCard className="w-5 h-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Entry Fee</p>
+                    <p className="font-medium">₹{competition.entryFee.toString()}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -131,6 +260,7 @@ export default function CompetitionDetailPage() {
               <li>• +2 penalty for 15-17 second inspection</li>
               <li>• DNF for inspection over 17 seconds</li>
               <li>• Final ranking based on Average of 5 (best and worst times dropped)</li>
+              {competition.entryFee && <li>• Payment required before starting the competition</li>}
             </ul>
           </div>
 
@@ -140,14 +270,19 @@ export default function CompetitionDetailPage() {
                 <div />
               </RequireAuth>
             )}
-            
+
             {canStart && (
               <button
                 onClick={handleStart}
-                disabled={startCompetition.isPending || resultLoading}
+                disabled={startCompetition.isPending || resultLoading || isProcessingPayment}
                 className="flex-1 px-8 py-4 bg-chart-1 hover:bg-chart-1/90 text-white font-bold text-lg rounded-xl transition-colors shadow-lg shadow-chart-1/20 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {startCompetition.isPending ? (
+                {isProcessingPayment ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Processing Payment...
+                  </>
+                ) : startCompetition.isPending ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
                     Starting...
@@ -155,7 +290,7 @@ export default function CompetitionDetailPage() {
                 ) : (
                   <>
                     <Play className="w-5 h-5" />
-                    Start Competition
+                    {competition.entryFee ? `Pay ₹${competition.entryFee} & Start` : 'Start Competition'}
                   </>
                 )}
               </button>

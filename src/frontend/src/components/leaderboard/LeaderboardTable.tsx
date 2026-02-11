@@ -1,24 +1,41 @@
 import { Trophy, Medal } from 'lucide-react';
 import { formatTime } from '../../lib/timeUtils';
-
-interface LeaderboardEntry {
-  rank: number;
-  displayName: string;
-  ao5: number | 'DNF';
-  attempts: Array<{ time: number; penalty: number }>;
-}
+import { calculateAo5 } from '../../lib/ao5';
+import type { ResultInput, UserProfile } from '../../backend';
 
 interface LeaderboardTableProps {
-  entries: LeaderboardEntry[];
+  results: ResultInput[];
+  userProfiles: Array<{ user: any; profile: UserProfile }>;
 }
 
-export default function LeaderboardTable({ entries }: LeaderboardTableProps) {
+export default function LeaderboardTable({ results, userProfiles }: LeaderboardTableProps) {
   const getRankIcon = (rank: number) => {
     if (rank === 1) return <Trophy className="w-5 h-5 text-chart-4" />;
     if (rank === 2) return <Medal className="w-5 h-5 text-muted-foreground" />;
     if (rank === 3) return <Medal className="w-5 h-5 text-chart-5" />;
     return null;
   };
+
+  const getDisplayName = (userPrincipal: any) => {
+    const userStr = userPrincipal.toString();
+    const profile = userProfiles.find((p) => p.user.toString() === userStr);
+    return profile?.profile.displayName || 'Anonymous';
+  };
+
+  const entries = results.map((result, index) => {
+    const attempts = result.attempts.map((a) => ({
+      time: Number(a.time),
+      penalty: Number(a.penalty),
+    }));
+    const ao5 = calculateAo5(attempts);
+
+    return {
+      rank: index + 1,
+      displayName: getDisplayName(result.user),
+      ao5,
+      attempts,
+    };
+  });
 
   return (
     <div className="overflow-x-auto">

@@ -11,7 +11,19 @@ export interface ResultInput {
     status: SolveStatus;
     user: Principal;
     attempts: Array<AttemptInput>;
+    event: Event;
     competitionId: bigint;
+}
+export interface CompetitionInput {
+    status: CompetitionStatus;
+    endDate: Time;
+    scrambles: Array<[Array<string>, Event]>;
+    name: string;
+    slug: string;
+    events: Array<Event>;
+    entryFee?: bigint;
+    participantLimit?: bigint;
+    startDate: Time;
 }
 export type Time = bigint;
 export interface AttemptInput {
@@ -22,19 +34,40 @@ export interface Competition {
     id: bigint;
     status: CompetitionStatus;
     endDate: Time;
-    scrambles: Array<string>;
+    scrambles: Array<[Array<string>, Event]>;
     name: string;
     slug: string;
+    events: Array<Event>;
+    entryFee?: bigint;
     participantLimit?: bigint;
     startDate: Time;
 }
 export interface UserProfile {
     displayName: string;
+    mcubesId: string;
+}
+export interface PaymentConfirmation {
+    razorpayPaymentId: string;
+    razorpaySignature: string;
+    event: Event;
+    razorpayOrderId: string;
+    competitionId: bigint;
 }
 export enum CompetitionStatus {
     upcoming = "upcoming",
     completed = "completed",
     running = "running"
+}
+export enum Event {
+    megaminx = "megaminx",
+    fiveByFive = "fiveByFive",
+    threeByThreeOneHanded = "threeByThreeOneHanded",
+    clock = "clock",
+    threeByThree = "threeByThree",
+    pyraminx = "pyraminx",
+    skewb = "skewb",
+    twoByTwo = "twoByTwo",
+    fourByFour = "fourByFour"
 }
 export enum SolveStatus {
     in_progress = "in_progress",
@@ -48,17 +81,20 @@ export enum UserRole {
 }
 export interface backendInterface {
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
-    createCompetition(comp: Competition): Promise<bigint>;
-    createUserProfile(profile: UserProfile): Promise<void>;
+    confirmPayment(payment: PaymentConfirmation): Promise<void>;
+    createCompetition(compInput: CompetitionInput): Promise<bigint>;
+    createUserProfile(displayName: string): Promise<void>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getCompetition(id: bigint): Promise<Competition | null>;
     getCompetitions(): Promise<Array<Competition>>;
-    getLeaderboard(competitionId: bigint): Promise<Array<ResultInput>>;
-    getResults(competitionId: bigint): Promise<Array<ResultInput>>;
+    getLeaderboard(competitionId: bigint, event: Event): Promise<Array<ResultInput>>;
+    getResults(competitionId: bigint, event: Event): Promise<Array<ResultInput>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
+    getUserResult(competitionId: bigint, event: Event): Promise<ResultInput | null>;
     isCallerAdmin(): Promise<boolean>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
-    startCompetition(competitionId: bigint): Promise<void>;
-    submitAttempt(competitionId: bigint, attemptIndex: bigint, attempt: AttemptInput): Promise<void>;
+    setUserEmail(email: string): Promise<void>;
+    startCompetition(competitionId: bigint, event: Event): Promise<void>;
+    submitAttempt(competitionId: bigint, event: Event, attemptIndex: bigint, attempt: AttemptInput): Promise<void>;
 }
