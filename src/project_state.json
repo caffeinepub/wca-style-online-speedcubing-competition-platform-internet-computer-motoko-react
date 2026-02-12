@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 13,
+  "projectStateVersion": 19,
   "summary": "Full-stack online speedcubing competition platform (Next.js + TS + PostgreSQL/Prisma + NextAuth on Vercel) with WCA-style 5-solve flow, per-user unique \"mcubes\" user ID and profile, immediate leaderboard updates on completion, multi-event competitions, paid entry via Razorpay (frontend Key ID + backend-protected secret with server-side order creation), payment-gated participation for paid competitions, and admin-only competition creation restricted via an allowlist (currently email-based) that needs to include thiirdparty.mcubes@gmail.com and/or MCUBES-0.",
   "architectural_notes": [
     "Tech stack: Next.js (App Router) + TypeScript + PostgreSQL + Prisma ORM + NextAuth; deploy on Vercel.",
@@ -17,9 +17,11 @@
   "known_issues": [
     "Creating a competition currently fails with a generic \"unable to create\" error when the logged-in user's stored email does not match the allowlisted admin email; needs clearer messaging and/or updated allowlist value.",
     "Leaderboard currently shows \"Anonymous\" instead of the user's profile/display name; needs to render the correct name from the user profile.",
-    "Razorpay live Key Secret was shared in chat; ensure keys are regenerated/rotated and never stored in code or client-exposed config."
+    "Razorpay live Key Secret was shared in chat; ensure keys are regenerated/rotated and never stored in code or client-exposed config.",
+    "Razorpay payment popup immediately shows \"Something went wrong\" with no error code; payment fails before any observable order-creation network request completes/appears.",
+    "After Version 8 deployment, the paid competition \"Pay Now\" button is now idle (no processing state, no Razorpay Checkout popup, no visible error), indicating the click handler/flow may not be firing or is being short-circuited silently."
   ],
-  "isFixRequest": false,
+  "isFixRequest": true,
   "existing_features": [
     {
       "id": "feature-implement-user-authentication-using-internet-identity-ii-and-require-login-to-participate-in-competitions-store-a-user-profile-record-keyed-by-principal-with-a-user-editable-display-name-and-ensure-only-authenticated-users-can-create-results-or-submit-solves",
@@ -162,6 +164,54 @@
       "title": "Ensure paid-competition access enforcement is consistent across navigation paths (e.g., direct navigation to solve route) by adding frontend guards and clear English messaging for payment-required states.",
       "reqIds": [
         "REQ-26"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-replace-the-current-paid-competition-razorpay-flow-that-uses-a-mock-orderid-with-a-real-server-driven-flow-create-a-razorpay-order-on-the-motoko-backend-open-razorpay-checkout-using-that-real-order-id-and-only-mark-the-user-as-paid-after-server-side-verification-succeeds",
+      "title": "Replace the current paid-competition Razorpay flow that uses a mock `orderId` with a real server-driven flow: create a Razorpay order on the Motoko backend, open Razorpay Checkout using that real order ID, and only mark the user as paid after server-side verification succeeds.",
+      "reqIds": [
+        "REQ-27"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-frontend-update-frontend-src-pages-competitiondetailpage-tsx-to-call-the-new-backend-order-creation-method-before-opening-razorpay-checkout-and-pass-the-real-order-id-into-openrazorpaycheckout-keep-user-facing-error-messages-in-english-and-route-all-exceptions-through-normalizeerror-where-possible",
+      "title": "Frontend: update `frontend/src/pages/CompetitionDetailPage.tsx` to call the new backend order-creation method before opening Razorpay Checkout, and pass the real order ID into `openRazorpayCheckout`. Keep user-facing error messages in English and route all exceptions through `normalizeError` where possible.",
+      "reqIds": [
+        "REQ-30"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-improve-the-paid-competition-pay-now-ux-on-frontend-src-pages-competitiondetailpage-tsx-so-that-when-payments-are-not-configured-server-side-the-page-shows-a-clear-english-error-state-explaining-that-payments-are-temporarily-unavailable-and-does-not-attempt-to-open-razorpay-checkout-this-should-prevent-the-current-behavior-where-the-button-shows-processing-briefly-and-then-only-a-toast-error-appears",
+      "title": "Improve the paid competition \"Pay Now\" UX on `frontend/src/pages/CompetitionDetailPage.tsx` so that when payments are not configured server-side, the page shows a clear English error state explaining that payments are temporarily unavailable, and does not attempt to open Razorpay Checkout. This should prevent the current behavior where the button shows \"Processing...\" briefly and then only a toast error appears.",
+      "reqIds": [
+        "REQ-33"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-the-paid-competition-payment-start-flow-on-frontend-src-pages-competitiondetailpage-tsx-so-the-pay-button-cannot-silently-do-nothing-remove-replace-the-current-early-return-guard-if-competition-competition-entryfee-userprofile-return-with-explicit-user-facing-feedback-english-when-prerequisites-are-missing-e-g-user-profile-not-loaded-does-not-exist-competition-data-missing-or-entry-fee-missing-ensure-that-clicking-the-pay-button-always-results-in-either-a-a-visible-loading-state-b-razorpay-checkout-opening-or-c-a-clear-visible-error-message-on-the-page-and-or-toast-routed-through-normalizeerror",
+      "title": "Fix the paid competition payment-start flow on `frontend/src/pages/CompetitionDetailPage.tsx` so the Pay button cannot silently do nothing: remove/replace the current early-return guard `if (!competition || !competition.entryFee || !userProfile) return;` with explicit user-facing feedback (English) when prerequisites are missing (e.g., user profile not loaded/does not exist, competition data missing, or entry fee missing). Ensure that clicking the Pay button always results in either (a) a visible loading state, (b) Razorpay Checkout opening, or (c) a clear visible error message on the page and/or toast routed through `normalizeError`.",
+      "reqIds": [
+        "REQ-34"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-improve-pay-button-disabled-loading-logic-in-frontend-src-pages-competitiondetailpage-tsx-to-account-for-payment-system-configuration-checks-while-useisrazorpayconfigured-is-still-loading-configloading-disable-the-pay-button-and-show-an-inline-loading-label-english-such-as-checking-payments-if-israzorpayconfigured-false-show-the-existing-page-level-error-state-via-paymenterror-and-keep-the-pay-button-disabled-without-attempting-to-open-razorpay",
+      "title": "Improve Pay button disabled/loading logic in `frontend/src/pages/CompetitionDetailPage.tsx` to account for payment-system configuration checks: while `useIsRazorpayConfigured()` is still loading (`configLoading`), disable the Pay button and show an inline loading label (English) such as \"Checking payments…\". If `isRazorpayConfigured === false`, show the existing page-level error state (via `paymentError`) and keep the Pay button disabled without attempting to open Razorpay.",
+      "reqIds": [
+        "REQ-35"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-minimal-diagnostics-for-the-payment-click-path-in-frontend-src-pages-competitiondetailpage-tsx-to-aid-future-debugging-ensure-the-click-handler-and-each-payment-step-boundary-script-load-order-creation-checkout-open-confirmation-emits-a-console-log-console-error-with-enough-context-to-identify-where-the-flow-stops-without-logging-secrets-keep-all-user-facing-text-in-english",
+      "title": "Add minimal diagnostics for the payment click path in `frontend/src/pages/CompetitionDetailPage.tsx` to aid future debugging: ensure the click handler and each payment step boundary (script load, order creation, checkout open, confirmation) emits a `console.log`/`console.error` with enough context to identify where the flow stops, without logging secrets. Keep all user-facing text in English.",
+      "reqIds": [
+        "REQ-36"
       ],
       "version": 1
     }
@@ -348,6 +398,38 @@
       "summary": "Add backend APIs and persisted records to support user-visible purchase history for paid competitions/events, designed so it can be extended for future admin management.",
       "reqIds": [
         "REQ-24"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-36",
+      "summary": "Backend: add an authenticated API to create Razorpay orders for a specific `(competitionId, event)` in paid competitions, returning all data the frontend needs to open Checkout (at minimum: `razorpayOrderId`, `amount`, `currency`). Enforce that orders can only be created for existing competitions/events that have a non-null `entryFee` and are eligible for purchase.",
+      "reqIds": [
+        "REQ-28"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-37",
+      "summary": "Backend: make payment confirmation secure by performing server-side Razorpay payment verification before persisting payment state. Update the existing `confirmPayment(payment : PaymentConfirmation)` logic so that it verifies the `(razorpayOrderId, razorpayPaymentId, razorpaySignature)` against Razorpay before writing to `payments` / `userPayments`.",
+      "reqIds": [
+        "REQ-29"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-39",
+      "summary": "Configuration/security: ensure no Razorpay Key Secret is present in the frontend, static assets, or repo. Provide a backend-only mechanism for configuring the Razorpay secret required for order creation and verification (admin-only setter or equivalent), and ensure the secret is never returned by any query/update call.",
+      "reqIds": [
+        "REQ-31"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-40",
+      "summary": "Fix backend admin allowlist logic so that Razorpay credentials can actually be configured, and ensure the allowlist matches the intended rule: allow admin access if the caller is an IC admin AND (their stored email is in the allowlist OR their `mcubesId` is exactly `MCUBES-0`). Apply this same allowlist rule consistently for `setRazorpayCredentials` and `createCompetition` (and any other \"allowlisted admin\" checks).",
+      "reqIds": [
+        "REQ-32"
       ],
       "status": "pending"
     }

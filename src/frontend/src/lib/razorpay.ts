@@ -111,7 +111,7 @@ export async function openRazorpayCheckout(params: OpenCheckoutParams): Promise<
       theme: config.theme,
       modal: {
         ondismiss: () => {
-          reject(new Error('Payment cancelled by user'));
+          reject(new Error('Payment was cancelled'));
         },
       },
     };

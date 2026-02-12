@@ -1,14 +1,12 @@
 # Specification
 
 ## Summary
-**Goal:** Enable a secure Razorpay live payment flow (server-side order creation + server-side verification) to gate access to paid competition events, and add a Profile view where users can see their payment/purchase history.
+**Goal:** Ensure the paid competition Pay button on the Competition Detail page never becomes a silent no-op, and instead always shows loading, opens Razorpay Checkout, or displays a clear English error.
 
 **Planned changes:**
-- Add authenticated backend APIs to create Razorpay orders for a specific (competitionId, event) and return order details required for checkout (order id, amount, currency).
-- Add authenticated backend API to verify/confirm payments by validating Razorpay signatures server-side before recording a purchase as verified.
-- Persist payment records per (competitionId, caller, event) including amount, currency, Razorpay order/payment ids, verification status, and timestamp; add an authenticated query for the caller’s payment history (most recent first).
-- Update frontend paid-event purchase/start flow to use backend-created order_id and handle processing/error states in English.
-- Add Profile UI Payments/Purchases section that loads and displays the user’s purchase history (competition name via lookup where possible, event, amount/currency, timestamp, status) with empty/error states in English.
-- Add/strengthen frontend guards so direct navigation to paid solve flows without verified payment shows an English payment-required message and a path back to competition details to pay/start.
+- Update the Pay click handler in `frontend/src/pages/CompetitionDetailPage.tsx` to replace the current early-return guard with explicit user-facing feedback when prerequisites are missing (competition data, entry fee, or user profile not loaded/created).
+- Improve Pay button disabled/loading states to reflect payment configuration checks: disable with an inline “Checking payments…” state while `useIsRazorpayConfigured()` is loading, and keep disabled with the existing `paymentError` when Razorpay is not configured.
+- Ensure unexpected errors in the payment-start flow are surfaced to the user via `normalizeError(error)` (toast and/or page alert), rather than being swallowed.
+- Add minimal console diagnostics (non-sensitive) for the payment click path and step boundaries (script load, order creation, checkout open, confirmation), with `console.error` on failures.
 
-**User-visible outcome:** Users must complete a verified Razorpay live payment before starting/accessing paid competition events, can’t bypass payment by direct navigation, and can view their Payments/Purchases history and statuses in their Profile.
+**User-visible outcome:** Clicking Pay on a paid competition always results in a visible state change (disabled/loading), Razorpay Checkout opening, or a clear English message explaining what’s missing or what failed—never an idle button that does nothing.

@@ -1,118 +1,55 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Razorpay live order-based checkout + payment gating + user purchase history UI",
+  "title": "Fix paid competition Pay button no-op + improve loading/disabled states and diagnostics",
   "requirements": [
     {
-      "id": "REQ-23",
-      "summary": "Update frontend payment flow to use backend-created Razorpay orders and backend verification, with live Key ID configured only via public config (no secret in client).",
+      "id": "REQ-34",
+      "summary": "Ensure Pay click in CompetitionDetailPage never silently no-ops by replacing early-return guard with explicit English UI feedback for missing prerequisites and surfacing all unexpected errors via normalizeError.",
       "acceptanceCriteria": [
-        "Frontend uses Razorpay Key ID only; Razorpay Key Secret is never present in any frontend bundle or committed source code.",
-        "Frontend checkout is opened using an order_id from the backend-created order (not a client-only amount flow)."
+        "When a paid competition is running and the Pay button is visible, clicking it never results in a no-op (no checkout + no spinner + no error).",
+        "If `userProfile` is not yet loaded, show a disabled button state and a visible message such as \"Loading your profile…\" OR show a toast explaining the user must wait.",
+        "If `userProfile` is missing (not created), show a clear English message (page-level or toast) telling the user to complete profile setup first; do not silently return.",
+        "If competition data is missing/unavailable, show a clear English error and do not attempt to load Razorpay or create an order.",
+        "All unexpected errors in the pay/start flow are surfaced using `normalizeError(error)` (toast and/or page alert), not swallowed."
       ],
       "file_operations": [
         {
-          "path": "frontend/public/razorpay.config.json",
-          "operation": "create",
-          "description": "Add a public Razorpay live configuration file containing ONLY the live Key ID (preserve exactly: rzp_live_kyn4dKuIvsesAX) plus non-secret display configuration (currency/companyName/theme). This ensures the Key ID lives in frontend/public configuration as required and no secrets are shipped."
-        },
-        {
-          "path": "frontend/src/config/razorpay.ts",
-          "operation": "modify",
-          "description": "Refactor Razorpay config to load the Key ID from frontend/public/razorpay.config.json at runtime (and remove the test key). Ensure only the live Key ID is used and no Razorpay secret is referenced anywhere."
-        },
-        {
-          "path": "frontend/src/lib/razorpay.ts",
-          "operation": "modify",
-          "description": "Update Razorpay checkout helper to accept backend-created order information (orderId, amount, currency) and pass order_id into Razorpay options (stop relying on client-only amount flow). Keep the helper limited to client-safe fields (Key ID only) and provide clear cancellation handling."
-        },
-        {
-          "path": "frontend/src/backend.d.ts",
-          "operation": "modify",
-          "description": "Update frontend backend interface typings to include the new authenticated backend capability for Razorpay order creation (for a specific competitionId + event) and any related return type needed by checkout (orderId, amount, currency)."
-        },
-        {
-          "path": "frontend/src/api/queryKeys.ts",
-          "operation": "modify",
-          "description": "Add React Query keys for Razorpay order creation and/or payment-related cache entries used by the new flow."
-        },
-        {
-          "path": "frontend/src/hooks/useQueries.ts",
-          "operation": "modify",
-          "description": "Add a React Query mutation hook for backend order creation and integrate it with existing confirmPayment usage. Ensure authorization/identity state is respected (use the app’s existing authorization/auth patterns). Verify the authorization component's usage instructions before implementing."
-        },
-        {
           "path": "frontend/src/pages/CompetitionDetailPage.tsx",
           "operation": "modify",
-          "description": "Replace the current client-amount Razorpay flow with: (1) create backend order for (competitionId, selectedEvent), (2) open Razorpay checkout using returned order_id/amount/currency, (3) submit paymentId/signature/orderId to backend verification, then (4) start competition. Add clear loading/processing states and English error messages using existing toast/error patterns. Verify the authorization component's usage instructions before implementing."
-        },
-        {
-          "path": "frontend/src/api/errors.ts",
-          "operation": "modify",
-          "description": "Extend error normalization to include readable English messaging for payment-required and payment-verification failure states that may be returned from backend traps, without exposing sensitive details."
+          "description": "Replace the current early-return guard in the paid payment-start flow with explicit prerequisite checks that always produce a visible outcome (disable + inline message, page-level alert, and/or toast) for: competition missing, entry fee missing, user profile still loading, and user profile missing (not created). Ensure any thrown/unknown errors are routed through normalizeError(error) and displayed (toast and/or alert), never swallowed."
         }
       ]
     },
     {
-      "id": "REQ-25",
-      "summary": "Add a user-visible Payments/Purchases section in the Profile UI that lists the authenticated user’s paid competition entries and their status.",
+      "id": "REQ-35",
+      "summary": "Improve Pay button disabled/loading logic to reflect Razorpay configuration loading/availability states.",
       "acceptanceCriteria": [
-        "Profile UI includes a Payments/Purchases section accessible to logged-in users.",
-        "The Payments/Purchases section loads from a backend query via React Query and displays: competition name (or competitionId if missing), event label, amount/currency, timestamp, and status (e.g., Verified / Pending / Failed).",
-        "If the user has no payments, show an English empty-state message (e.g., \"No purchases yet.\").",
-        "Errors are shown as readable English messages using the app’s existing error/toast patterns."
+        "While `configLoading === true`, the Pay button is disabled and shows a clear English loading state indicating payments are being checked.",
+        "If `isRazorpayConfigured === false`, the page shows a persistent English error message (using the existing `paymentError` alert) and the Pay button remains disabled.",
+        "When `isRazorpayConfigured === true` and prerequisites are met, clicking Pay proceeds to show \"Processing...\" and continues the payment flow (load script → create order → open checkout → confirm → start)."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/api/queryKeys.ts",
+          "path": "frontend/src/pages/CompetitionDetailPage.tsx",
           "operation": "modify",
-          "description": "Add a dedicated React Query key for the authenticated caller’s payment/purchase history list."
-        },
-        {
-          "path": "frontend/src/hooks/useQueries.ts",
-          "operation": "modify",
-          "description": "Add a React Query hook that fetches the caller’s payment history via the backend interface (authenticated query). Ensure it is enabled only when the actor is available and the user is authenticated. Verify the authorization component's usage instructions before implementing."
-        },
-        {
-          "path": "frontend/src/components/profile/PaymentsPurchasesSection.tsx",
-          "operation": "create",
-          "description": "Create a Profile UI section component that renders the purchase history list with competition name (fallback to competitionId), event label, amount/currency, formatted timestamp, and a status badge/label (Verified/Pending/Failed). Show an English empty state and use the app’s existing error/toast conventions. Verify the shadcn-ui component's usage instructions before implementing."
-        },
-        {
-          "path": "frontend/src/components/profile/ProfileMenu.tsx",
-          "operation": "modify",
-          "description": "Wire the new Payments/Purchases section into the Profile UI for authenticated users (e.g., within the existing profile dialog). Ensure it is accessible from the current navigation entry point and does not introduce a new top-level route. Verify the authorization component's usage instructions before implementing."
-        },
-        {
-          "path": "frontend/src/backend.d.ts",
-          "operation": "modify",
-          "description": "Align frontend types for the payment history item returned by the backend so the UI can display status, timestamp, amount/currency, event, and competition name/ID as required."
+          "description": "Update Pay button state computation and label rendering so that while useIsRazorpayConfigured() is loading (configLoading), the Pay button is disabled and displays an inline English label such as \"Checking payments…\". If isRazorpayConfigured is false, set/keep the existing paymentError alert visible and keep the Pay button disabled without attempting Razorpay script load/order creation."
         }
       ]
     },
     {
-      "id": "REQ-26",
-      "summary": "Add frontend guards and clear messaging to ensure paid-competition access enforcement is consistent across navigation paths (including direct solve route access).",
+      "id": "REQ-36",
+      "summary": "Add minimal, non-secret console diagnostics for each boundary in the payment click path (script load, order creation, checkout open, confirmation).",
       "acceptanceCriteria": [
-        "If a user navigates directly to the solve flow for a paid competition event without having started (and without verified payment), the UI shows an English message indicating payment is required and provides a path back to the competition detail page to pay/start.",
-        "Competition detail page payment CTA uses the new backend order-creation flow and shows clear loading/processing states.",
-        "After a successful verified payment, starting the competition navigates to the solve flow without requiring a manual page refresh."
+        "Developer console shows a clear breadcrumb trail when Pay is clicked (e.g., \"pay_click\", \"razorpay_script_loaded\", \"order_created\", \"checkout_opened\", \"payment_confirmed\").",
+        "No secrets (Razorpay key secret, signatures beyond what is already returned by Razorpay checkout, etc.) are printed to the console.",
+        "On any thrown error, a `console.error` is present and the UI shows a user-facing English error (toast and/or alert)."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/pages/SolveFlowPage.tsx",
-          "operation": "modify",
-          "description": "Add a guard state for when the user is authenticated but has no solve session/result for the selected event. If the competition has an entry fee, show an English payment-required message and a clear navigation path back to the competition detail page (preserving competitionId and event). Otherwise, show an English start-required message. Verify the authorization component's usage instructions before implementing."
-        },
-        {
           "path": "frontend/src/pages/CompetitionDetailPage.tsx",
           "operation": "modify",
-          "description": "Ensure the pay/start CTA uses the new order-creation + verification flow with clear loading/processing states and that, after successful verification + startCompetition, navigation proceeds to solve without manual refresh (invalidate/refresh relevant queries as needed). Verify the authorization component's usage instructions before implementing."
-        },
-        {
-          "path": "frontend/src/hooks/useQueries.ts",
-          "operation": "modify",
-          "description": "Ensure mutations involved in payment + start (order creation, confirm payment, start competition) invalidate/refresh userResult and related queries so the solve flow becomes available immediately after success."
+          "description": "Add console.log breadcrumbs at the start of the click handler and around each payment step boundary (script load result, order created, checkout opened/resolved, confirmation succeeded, start succeeded). Add console.error on failures with safe context (competitionId/event and high-level status only). Ensure no secrets are logged (do not print signatures/keys; avoid dumping full payment objects) and keep all user-facing text in English."
         }
       ]
     }

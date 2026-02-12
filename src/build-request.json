@@ -1,97 +1,74 @@
 {
   "kind": "build_request",
-  "title": "Enable Razorpay live payment flow (order creation + verification) and show user payment history",
-  "priority": "normal",
+  "title": "Fix paid competition Pay button becoming idle (no checkout, no error)",
+  "priority": "high",
   "requirements": [
     {
-      "id": "REQ-23",
-      "text": "Implement a secure Razorpay payment architecture for paid competitions using server-side order creation and server-side payment verification (no Razorpay Key Secret in frontend or repo), so that users must successfully pay before they can start/access a paid competition event.",
-      "target": "both",
-      "source": {
-        "messageIds": [
-          "msg-1"
-        ],
-        "quotes": [
-          "1 yes , 2 yes, 3 live payments befre accessing comp"
-        ]
-      },
-      "acceptanceCriteria": [
-        "Frontend uses Razorpay Key ID only; Razorpay Key Secret is never present in any frontend bundle or committed source code.",
-        "Backend exposes an authenticated method to create a Razorpay order for a specific (competitionId, event) and returns the Razorpay order id and amount/currency needed for checkout.",
-        "Frontend checkout is opened using an order_id from the backend-created order (not a client-only amount flow).",
-        "Backend exposes an authenticated method to verify/confirm payment that validates the Razorpay signature for the order/payment before recording the purchase.",
-        "If verification fails, backend rejects confirmation and the user cannot start the competition event.",
-        "Attempting to call startCompetition for a paid event without a verified payment continues to fail with a clear error message (English)."
-      ]
-    },
-    {
-      "id": "REQ-24",
-      "text": "Add backend APIs and persisted records to support user-visible purchase history for paid competitions/events, designed so it can be extended for future admin management.",
-      "target": "backend",
-      "source": {
-        "messageIds": [
-          "msg-1"
-        ],
-        "quotes": [
-          "2 yes"
-        ]
-      },
-      "acceptanceCriteria": [
-        "Backend stores a payment record per (competitionId, callerPrincipal, event) that includes at minimum: competitionId, event, amount, currency, razorpayOrderId, razorpayPaymentId, verification status, and a timestamp.",
-        "Backend provides an authenticated query method for the caller to fetch their payment/purchase history as a list sorted by most-recent first.",
-        "Payment-gating checks use verified payment status (not merely the presence of a client-submitted payment id).",
-        "Payment history query returns enough data for the UI to display competition name (via competitionId lookup), amount, event, and status."
-      ]
-    },
-    {
-      "id": "REQ-25",
-      "text": "Add a user-facing Payments/Purchases view in the Profile UI that lists the authenticated user’s paid competition entries and their status.",
+      "id": "REQ-34",
+      "text": "Fix the paid competition payment-start flow on `frontend/src/pages/CompetitionDetailPage.tsx` so the Pay button cannot silently do nothing: remove/replace the current early-return guard `if (!competition || !competition.entryFee || !userProfile) return;` with explicit user-facing feedback (English) when prerequisites are missing (e.g., user profile not loaded/does not exist, competition data missing, or entry fee missing). Ensure that clicking the Pay button always results in either (a) a visible loading state, (b) Razorpay Checkout opening, or (c) a clear visible error message on the page and/or toast routed through `normalizeError`.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-1"
+          "msg-5"
         ],
         "quotes": [
-          "better if user could able to see payment or purchase in their account. and in future admin could manage as welll."
+          "Pay button is idle now"
         ]
       },
       "acceptanceCriteria": [
-        "Profile UI includes a Payments/Purchases section accessible to logged-in users.",
-        "The Payments/Purchases section loads from a backend query via React Query and displays: competition name (or competitionId if missing), event label, amount/currency, timestamp, and status (e.g., Verified / Pending / Failed).",
-        "If the user has no payments, show an English empty-state message (e.g., \"No purchases yet.\").",
-        "Errors are shown as readable English messages using the app’s existing error/toast patterns."
+        "When a paid competition is running and the Pay button is visible, clicking it never results in a no-op (no checkout + no spinner + no error).",
+        "If `userProfile` is not yet loaded, show a disabled button state and a visible message such as \"Loading your profile…\" OR show a toast explaining the user must wait.",
+        "If `userProfile` is missing (not created), show a clear English message (page-level or toast) telling the user to complete profile setup first; do not silently return.",
+        "If competition data is missing/unavailable, show a clear English error and do not attempt to load Razorpay or create an order.",
+        "All unexpected errors in the pay/start flow are surfaced using `normalizeError(error)` (toast and/or page alert), not swallowed."
       ]
     },
     {
-      "id": "REQ-26",
-      "text": "Ensure paid-competition access enforcement is consistent across navigation paths (e.g., direct navigation to solve route) by adding frontend guards and clear English messaging for payment-required states.",
+      "id": "REQ-35",
+      "text": "Improve Pay button disabled/loading logic in `frontend/src/pages/CompetitionDetailPage.tsx` to account for payment-system configuration checks: while `useIsRazorpayConfigured()` is still loading (`configLoading`), disable the Pay button and show an inline loading label (English) such as \"Checking payments…\". If `isRazorpayConfigured === false`, show the existing page-level error state (via `paymentError`) and keep the Pay button disabled without attempting to open Razorpay.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-1"
+          "msg-5"
         ],
         "quotes": [
-          "3 live payments befre accessing comp"
+          "Pay button is idle now"
         ]
       },
       "acceptanceCriteria": [
-        "If a user navigates directly to the solve flow for a paid competition event without having started (and without verified payment), the UI shows an English message indicating payment is required and provides a path back to the competition detail page to pay/start.",
-        "Competition detail page payment CTA uses the new backend order-creation flow and shows clear loading/processing states.",
-        "After a successful verified payment, starting the competition navigates to the solve flow without requiring a manual page refresh."
+        "While `configLoading === true`, the Pay button is disabled and shows a clear English loading state indicating payments are being checked.",
+        "If `isRazorpayConfigured === false`, the page shows a persistent English error message (using the existing `paymentError` alert) and the Pay button remains disabled.",
+        "When `isRazorpayConfigured === true` and prerequisites are met, clicking Pay proceeds to show \"Processing...\" and continues the payment flow (load script → create order → open checkout → confirm → start)."
+      ]
+    },
+    {
+      "id": "REQ-36",
+      "text": "Add minimal diagnostics for the payment click path in `frontend/src/pages/CompetitionDetailPage.tsx` to aid future debugging: ensure the click handler and each payment step boundary (script load, order creation, checkout open, confirmation) emits a `console.log`/`console.error` with enough context to identify where the flow stops, without logging secrets. Keep all user-facing text in English.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-5"
+        ],
+        "quotes": [
+          "Pay button is idle now"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Developer console shows a clear breadcrumb trail when Pay is clicked (e.g., \"pay_click\", \"razorpay_script_loaded\", \"order_created\", \"checkout_opened\", \"payment_confirmed\").",
+        "No secrets (Razorpay key secret, signatures beyond what is already returned by Razorpay checkout, etc.) are printed to the console.",
+        "On any thrown error, a `console.error` is present and the UI shows a user-facing English error (toast and/or alert)."
       ]
     }
   ],
   "constraints": [
-    "Do not modify any frontend files under frontend/immutablePaths (compose existing components instead).",
-    "Backend must remain a single Motoko actor in backend/main.mo; do not introduce additional backend services.",
-    "Do not hardcode or commit Razorpay Key Secret anywhere in the repository or ship it to the client. The user-provided secret (\"28uEFtbhWrRp7RhPiS2uyuvY\") must be treated as compromised and must not be stored in code/config.",
-    "Preserve the user-provided Razorpay live Key ID string exactly when configuring live mode: rzp_live_kyn4dKuIvsesAX (but only in the frontend/public configuration where appropriate).",
-    "All user-facing text added/changed must be in English."
+    "Do not edit any files under `frontend/src/components/ui` (read-only components must be composed, not modified).",
+    "Do not modify immutable frontend hook files: `frontend/src/hooks/useInternetIdentity.ts`, `frontend/src/hooks/useInternetIdentity.tsx`, `frontend/src/hooks/useActor.ts`, `frontend/src/main.tsx`.",
+    "Keep user-facing text in English."
   ],
   "nonGoals": [
-    "Implementing third-party authentication providers beyond Internet Identity.",
-    "Implementing real-time payment webhooks or background reconciliation (may be added later).",
-    "Building an admin payments management dashboard (only ensure data model/API is extendable for future admin use)."
+    "Implementing real Razorpay signature verification on the backend (the current backend verification logic is acknowledged as demo-only and is not part of this request).",
+    "Changing payment configuration storage or admin allowlist rules.",
+    "Redesigning the entire Competition Detail page layout beyond the payment-button states and messaging."
   ],
   "imageRequirements": {
     "required": [],

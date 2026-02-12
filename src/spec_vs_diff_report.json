@@ -1,85 +1,48 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-12T00:34:33.194Z",
-  "summary": "Diff adds a Razorpay checkout integration and a Profile Payments UI, plus new backend types/state for payments and a migration. However, core requirements for secure server-side Razorpay order creation and signature verification are not implemented; frontend still uses a mock order id and backend verification logic/APIs are not evidenced. Payment history UI exists but appears to assume all payments are Verified and does not display required status/currency fields.",
+  "generatedAt": "2026-02-12T01:22:44.196Z",
+  "summary": "The diff shows partial updates to `CompetitionDetailPage.tsx` adding explicit prerequisite checks (competition present, entryFee present), user-facing toasts on failure, persistent `paymentError` when Razorpay is not configured, and initial console diagnostics (`[pay_click]`, `[pay_error]`). However, due to truncation, several acceptance-criteria details (configLoading button label/disable behavior, full step-boundary logs, and guaranteed `normalizeError` surfacing for unexpected errors) cannot be confirmed from the provided evidence.",
   "missing_requirements": [
     {
-      "id": "REQ-23",
-      "requirement": "Server-side Razorpay order creation and server-side payment verification (signature validation) with payment-gated startCompetition for paid events.",
-      "reason": "Frontend explicitly uses a mock order id and comments that backend createOrder is not implemented; diff provides no evidence of backend methods to create Razorpay orders or verify Razorpay signatures, nor evidence that startCompetition gating uses verified status with a clear English error.",
+      "id": "REQ-34",
+      "requirement": "Replace the early-return guard with explicit user-facing feedback for all missing prerequisites, including the cases where userProfile is still loading vs missing/not created, and ensure no click becomes a silent no-op; unexpected errors must be surfaced via normalizeError(error).",
+      "reason": "The diff snippet confirms explicit checks for missing `competition` and missing `competition.entryFee` with toast + console.error, but the `userProfile` loading/missing branches and the overall try/catch using `normalizeError(error)` are not visible due to truncation.",
       "evidence": [
-        "frontend/src/pages/CompetitionDetailPage.tsx",
-        "backend/main.mo"
+        "frontend/src/pages/CompetitionDetailPage.tsx (truncated at `if (profileLoading) { console.lo`)"
       ]
     },
     {
-      "id": "REQ-24",
-      "requirement": "Persisted backend payment records per (competitionId, callerPrincipal, event) including competitionId, event, amount, currency, razorpayOrderId, razorpayPaymentId, verification status, timestamp; provide authenticated query to fetch caller history sorted most-recent first; gating based on verified status.",
-      "reason": "Backend types shown (PaidEvent, PaymentConfirmation, userPayments map) do not include currency or explicit verification status; no backend query method for payment history is evidenced in the provided backend diff snippet. Sorting is done client-side rather than being evidenced as backend-sorted.",
+      "id": "REQ-35",
+      "requirement": "Disable the Pay button and show an inline loading label such as \"Checking payments…\" while `configLoading === true`; if `isRazorpayConfigured === false`, show persistent page-level `paymentError` and keep Pay disabled without attempting Razorpay; if configured and prerequisites met, Pay shows \"Processing...\" and proceeds.",
+      "reason": "The diff shows `useIsRazorpayConfigured()` usage and a `useEffect` setting/clearing `paymentError` based on `isRazorpayConfigured`, but does not show any Pay button rendering logic (disabled state, inline label \"Checking payments…\", or \"Processing...\") because the relevant JSX/logic is not present in the truncated excerpt.",
       "evidence": [
-        "backend/main.mo",
-        "backend/migration.mo",
-        "frontend/src/components/profile/PaymentsPurchasesSection.tsx"
+        "frontend/src/pages/CompetitionDetailPage.tsx (shows configLoading/isRazorpayConfigured state and paymentError effect, but no button JSX in provided snippet)"
       ]
     },
     {
-      "id": "REQ-25",
-      "requirement": "Payments/Purchases section displays competition name (or competitionId if missing), event label, amount/currency, timestamp, and status (Verified/Pending/Failed).",
-      "reason": "UI shows a hard-coded \"Verified\" badge and displays amount with ₹ but does not display currency or a dynamic status; it also assumes competitionName always exists (no fallback to competitionId shown).",
+      "id": "REQ-36",
+      "requirement": "Emit console.log/console.error breadcrumbs at each payment step boundary (script load, order creation, checkout open, confirmation), without logging secrets, and ensure thrown errors show console.error and user-facing error via normalizeError.",
+      "reason": "Only the initial click breadcrumb (`console.log('[pay_click]')`) and some prerequisite-failure console.errors are visible. No evidence is shown for logging at boundaries like script load/order creation/checkout open/confirmation, nor for a catch block with `console.error` + `normalizeError` handling (truncated).",
       "evidence": [
-        "frontend/src/components/profile/PaymentsPurchasesSection.tsx"
-      ]
-    },
-    {
-      "id": "REQ-26",
-      "requirement": "Competition detail payment CTA uses new backend order-creation flow (order_id returned by backend) with loading/processing states; after verified payment, start navigates to solve without refresh; solve route guard for unpaid direct navigation.",
-      "reason": "Competition detail page uses a simulated/mock Razorpay order id instead of a backend-created order. While there is an isProcessingPayment state, the required backend order-creation flow is not implemented/evidenced.",
-      "evidence": [
-        "frontend/src/pages/CompetitionDetailPage.tsx",
-        "frontend/src/pages/SolveFlowPage.tsx"
+        "frontend/src/pages/CompetitionDetailPage.tsx (only `[pay_click]` and prerequisite `[pay_error]` logs visible; remainder truncated)"
       ]
     }
   ],
   "hallucinated_features": [
     {
-      "description": "Frontend uses a simulated/mock Razorpay order id instead of calling a backend order-creation API.",
-      "reason": "BuildRequest requires server-side order creation; adding a mock order flow is not requested and conflicts with the intended architecture.",
+      "description": "Updates to repository meta/documentation/state files (`frontend-file-summaries.txt`, `project_state.json`).",
+      "reason": "The BuildRequest only asked for changes to the payment flow in `frontend/src/pages/CompetitionDetailPage.tsx` (with constraints about not editing certain files). Modifying these meta files is not requested by the BuildRequest requirements.",
       "evidence": [
-        "frontend/src/pages/CompetitionDetailPage.tsx"
-      ]
-    },
-    {
-      "description": "Hard-coded Razorpay live keyId fallback in frontend code (in addition to public config).",
-      "reason": "BuildRequest specifies preserving the Key ID in frontend/public configuration where appropriate; embedding it as a code fallback is extra behavior not requested.",
-      "evidence": [
-        "frontend/src/config/razorpay.ts"
-      ]
-    },
-    {
-      "description": "Payments UI always labels payments as \"Verified\" regardless of actual verification status.",
-      "reason": "BuildRequest requires showing status (Verified/Pending/Failed). Hard-coding status is an unrequested assumption/behavior.",
-      "evidence": [
-        "frontend/src/components/profile/PaymentsPurchasesSection.tsx"
+        "frontend-file-summaries.txt",
+        "project_state.json"
       ]
     }
   ],
-  "confidence": 0.72,
+  "confidence": 0.47,
   "changed_files": [
-    "backend/main.mo",
-    "backend/migration.mo",
     "frontend-file-summaries.txt",
-    "frontend/public/razorpay.config.json",
-    "frontend/src/api/errors.ts",
-    "frontend/src/api/queryKeys.ts",
-    "frontend/src/components/competition/CompetitionCard.tsx",
-    "frontend/src/components/profile/PaymentsPurchasesSection.tsx",
-    "frontend/src/components/profile/ProfileMenu.tsx",
-    "frontend/src/config/razorpay.ts",
-    "frontend/src/hooks/useQueries.ts",
-    "frontend/src/lib/razorpay.ts",
     "frontend/src/pages/CompetitionDetailPage.tsx",
-    "frontend/src/pages/SolveFlowPage.tsx",
     "project_state.json"
   ]
 }

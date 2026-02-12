@@ -10,4 +10,5 @@ export const QUERY_KEYS = {
   userResult: (competitionId: bigint, event: Event) => ['userResult', competitionId.toString(), event],
   publicProfiles: (principalIds: string[]) => ['publicProfiles', ...principalIds.sort()],
   paymentHistory: ['paymentHistory'],
+  razorpayConfigured: ['razorpayConfigured'],
 } as const;

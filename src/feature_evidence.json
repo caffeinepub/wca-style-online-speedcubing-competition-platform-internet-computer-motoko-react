@@ -2,15 +2,9 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-implement-a-secure-razorpay-payment-architecture-for-paid-competitions-using-server-side-order-creation-and-server-side-payment-verification-no-razorpay-key-secret-in-frontend-or-repo-so-that-users-must-successfully-pay-before-they-can-start-access-a-paid-competition-event",
-      "featureTitle": "Implement a secure Razorpay payment architecture for paid competitions using server-side order creation and server-side payment verification (no Razorpay Key Secret in frontend or repo), so that users must successfully pay before they can start/access a paid competition event.",
+      "featureId": "feature-fix-the-paid-competition-payment-start-flow-on-frontend-src-pages-competitiondetailpage-tsx-so-the-pay-button-cannot-silently-do-nothing-remove-replace-the-current-early-return-guard-if-competition-competition-entryfee-userprofile-return-with-explicit-user-facing-feedback-english-when-prerequisites-are-missing-e-g-user-profile-not-loaded-does-not-exist-competition-data-missing-or-entry-fee-missing-ensure-that-clicking-the-pay-button-always-results-in-either-a-a-visible-loading-state-b-razorpay-checkout-opening-or-c-a-clear-visible-error-message-on-the-page-and-or-toast-routed-through-normalizeerror",
+      "featureTitle": "Fix the paid competition payment-start flow on `frontend/src/pages/CompetitionDetailPage.tsx` so the Pay button cannot silently do nothing: remove/replace the current early-return guard `if (!competition || !competition.entryFee || !userProfile) return;` with explicit user-facing feedback (English) when prerequisites are missing (e.g., user profile not loaded/does not exist, competition data missing, or entry fee missing). Ensure that clicking the Pay button always results in either (a) a visible loading state, (b) Razorpay Checkout opening, or (c) a clear visible error message on the page and/or toast routed through `normalizeError`.",
       "files": [
-        "frontend/public/razorpay.config.json",
-        "frontend/src/api/errors.ts",
-        "frontend/src/api/queryKeys.ts",
-        "frontend/src/config/razorpay.ts",
-        "frontend/src/hooks/useQueries.ts",
-        "frontend/src/lib/razorpay.ts",
         "frontend/src/pages/CompetitionDetailPage.tsx"
       ],
       "components": [
@@ -23,18 +17,15 @@
         "http-outcalls@3.0.0"
       ],
       "testIds": [
-        "REQ-23"
+        "REQ-34"
       ],
       "confidence": "high"
     },
     {
-      "featureId": "feature-add-a-user-facing-payments-purchases-view-in-the-profile-ui-that-lists-the-authenticated-user-s-paid-competition-entries-and-their-status",
-      "featureTitle": "Add a user-facing Payments/Purchases view in the Profile UI that lists the authenticated user’s paid competition entries and their status.",
+      "featureId": "feature-improve-pay-button-disabled-loading-logic-in-frontend-src-pages-competitiondetailpage-tsx-to-account-for-payment-system-configuration-checks-while-useisrazorpayconfigured-is-still-loading-configloading-disable-the-pay-button-and-show-an-inline-loading-label-english-such-as-checking-payments-if-israzorpayconfigured-false-show-the-existing-page-level-error-state-via-paymenterror-and-keep-the-pay-button-disabled-without-attempting-to-open-razorpay",
+      "featureTitle": "Improve Pay button disabled/loading logic in `frontend/src/pages/CompetitionDetailPage.tsx` to account for payment-system configuration checks: while `useIsRazorpayConfigured()` is still loading (`configLoading`), disable the Pay button and show an inline loading label (English) such as \"Checking payments…\". If `isRazorpayConfigured === false`, show the existing page-level error state (via `paymentError`) and keep the Pay button disabled without attempting to open Razorpay.",
       "files": [
-        "frontend/src/api/queryKeys.ts",
-        "frontend/src/components/profile/PaymentsPurchasesSection.tsx",
-        "frontend/src/components/profile/ProfileMenu.tsx",
-        "frontend/src/hooks/useQueries.ts"
+        "frontend/src/pages/CompetitionDetailPage.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -46,17 +37,15 @@
         "http-outcalls@3.0.0"
       ],
       "testIds": [
-        "REQ-25"
+        "REQ-35"
       ],
       "confidence": "high"
     },
     {
-      "featureId": "feature-ensure-paid-competition-access-enforcement-is-consistent-across-navigation-paths-e-g-direct-navigation-to-solve-route-by-adding-frontend-guards-and-clear-english-messaging-for-payment-required-states",
-      "featureTitle": "Ensure paid-competition access enforcement is consistent across navigation paths (e.g., direct navigation to solve route) by adding frontend guards and clear English messaging for payment-required states.",
+      "featureId": "feature-add-minimal-diagnostics-for-the-payment-click-path-in-frontend-src-pages-competitiondetailpage-tsx-to-aid-future-debugging-ensure-the-click-handler-and-each-payment-step-boundary-script-load-order-creation-checkout-open-confirmation-emits-a-console-log-console-error-with-enough-context-to-identify-where-the-flow-stops-without-logging-secrets-keep-all-user-facing-text-in-english",
+      "featureTitle": "Add minimal diagnostics for the payment click path in `frontend/src/pages/CompetitionDetailPage.tsx` to aid future debugging: ensure the click handler and each payment step boundary (script load, order creation, checkout open, confirmation) emits a `console.log`/`console.error` with enough context to identify where the flow stops, without logging secrets. Keep all user-facing text in English.",
       "files": [
-        "frontend/src/hooks/useQueries.ts",
-        "frontend/src/pages/CompetitionDetailPage.tsx",
-        "frontend/src/pages/SolveFlowPage.tsx"
+        "frontend/src/pages/CompetitionDetailPage.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -68,7 +57,7 @@
         "http-outcalls@3.0.0"
       ],
       "testIds": [
-        "REQ-26"
+        "REQ-36"
       ],
       "confidence": "high"
     }

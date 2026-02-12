@@ -12,6 +12,8 @@ import type {
   Event,
   PublicProfileInfo,
   PaidEvent,
+  RazorpayOrderRequest,
+  RazorpayOrderResponse,
 } from '../backend';
 import { Principal } from '@dfinity/principal';
 
@@ -110,6 +112,31 @@ export function useCreateCompetition() {
   });
 }
 
+export function useIsRazorpayConfigured() {
+  const { actor, isFetching } = useActor();
+
+  return useQuery({
+    queryKey: QUERY_KEYS.razorpayConfigured,
+    queryFn: async () => {
+      if (!actor) return false;
+      return actor.isRazorpayConfigured();
+    },
+    enabled: !!actor && !isFetching,
+    staleTime: 30000, // Cache for 30 seconds
+  });
+}
+
+export function useCreateRazorpayOrder() {
+  const { actor } = useActor();
+
+  return useMutation({
+    mutationFn: async (request: RazorpayOrderRequest): Promise<RazorpayOrderResponse> => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.createRazorpayOrder(request);
+    },
+  });
+}
+
 export function useConfirmPayment() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
@@ -129,44 +156,12 @@ export function useConfirmPayment() {
 
 export function useStartCompetition() {
   const { actor } = useActor();
-  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ competitionId, event }: { competitionId: bigint; event: Event }) => {
       if (!actor) throw new Error('Actor not available');
       return actor.startCompetition(competitionId, event);
     },
-    onSuccess: (_, { competitionId, event }) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.results(competitionId, event) });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.userResult(competitionId, event) });
-    },
-  });
-}
-
-export function useGetResults(competitionId: bigint, event: Event) {
-  const { actor, isFetching } = useActor();
-
-  return useQuery({
-    queryKey: QUERY_KEYS.results(competitionId, event),
-    queryFn: async () => {
-      if (!actor) return [];
-      return actor.getResults(competitionId, event);
-    },
-    enabled: !!actor && !isFetching,
-  });
-}
-
-export function useGetUserResult(competitionId: bigint, event: Event) {
-  const { actor, isFetching } = useActor();
-  const { identity } = useInternetIdentity();
-
-  return useQuery({
-    queryKey: QUERY_KEYS.userResult(competitionId, event),
-    queryFn: async () => {
-      if (!actor) return null;
-      return actor.getUserResult(competitionId, event);
-    },
-    enabled: !!actor && !isFetching && !!identity,
   });
 }
 
@@ -190,10 +185,23 @@ export function useSubmitAttempt() {
       return actor.submitAttempt(competitionId, event, attemptIndex, attempt);
     },
     onSuccess: (_, { competitionId, event }) => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.userResult(competitionId, event) });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.results(competitionId, event) });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.leaderboard(competitionId, event) });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.userResult(competitionId, event) });
     },
+  });
+}
+
+export function useGetResults(competitionId: bigint, event: Event) {
+  const { actor, isFetching } = useActor();
+
+  return useQuery({
+    queryKey: QUERY_KEYS.results(competitionId, event),
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getResults(competitionId, event);
+    },
+    enabled: !!actor && !isFetching,
   });
 }
 
@@ -210,30 +218,33 @@ export function useGetLeaderboard(competitionId: bigint, event: Event) {
   });
 }
 
+export function useGetUserResult(competitionId: bigint, event: Event) {
+  const { actor, isFetching } = useActor();
+  const { identity } = useInternetIdentity();
+
+  return useQuery({
+    queryKey: QUERY_KEYS.userResult(competitionId, event),
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getUserResult(competitionId, event);
+    },
+    enabled: !!actor && !isFetching && !!identity,
+  });
+}
+
 export function useGetMultiplePublicProfiles(principals: Principal[]) {
   const { actor, isFetching } = useActor();
 
+  const principalStrings = principals.map((p) => p.toString());
+
   return useQuery({
-    queryKey: QUERY_KEYS.publicProfiles(principals.map(p => p.toString())),
+    queryKey: QUERY_KEYS.publicProfiles(principalStrings),
     queryFn: async () => {
-      if (!actor) return new Map<string, PublicProfileInfo>();
-      
-      try {
-        const profiles = await actor.getMultiplePublicProfiles(principals);
-        const profileMap = new Map<string, PublicProfileInfo>();
-        
-        profiles.forEach(([principal, profile]) => {
-          profileMap.set(principal.toString(), profile);
-        });
-        
-        return profileMap;
-      } catch (error) {
-        console.error('Failed to fetch public profiles:', error);
-        return new Map<string, PublicProfileInfo>();
-      }
+      if (!actor || principals.length === 0) return new Map<string, PublicProfileInfo>();
+      const profiles = await actor.getMultiplePublicProfiles(principals);
+      return new Map(profiles.map(([principal, profile]) => [principal.toString(), profile]));
     },
     enabled: !!actor && !isFetching && principals.length > 0,
-    retry: false,
   });
 }
 

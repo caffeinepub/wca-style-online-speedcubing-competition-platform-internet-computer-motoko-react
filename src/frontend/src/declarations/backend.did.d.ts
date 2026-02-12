@@ -79,6 +79,17 @@ export interface PublicProfileInfo {
   'displayName' : string,
   'gender' : [] | [string],
 }
+export interface RazorpayOrderRequest {
+  'event' : Event,
+  'competitionId' : bigint,
+}
+export interface RazorpayOrderResponse {
+  'orderId' : string,
+  'event' : Event,
+  'currency' : string,
+  'amount' : bigint,
+  'competitionName' : string,
+}
 export interface ResultInput {
   'status' : SolveStatus,
   'user' : Principal,
@@ -104,6 +115,10 @@ export interface _SERVICE {
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'confirmPayment' : ActorMethod<[PaymentConfirmation], undefined>,
   'createCompetition' : ActorMethod<[CompetitionInput], bigint>,
+  'createRazorpayOrder' : ActorMethod<
+    [RazorpayOrderRequest],
+    RazorpayOrderResponse
+  >,
   'createUserProfile' : ActorMethod<
     [string, [] | [string], [] | [string]],
     undefined
@@ -119,12 +134,15 @@ export interface _SERVICE {
     Array<[Principal, PublicProfileInfo]>
   >,
   'getPublicProfileInfo' : ActorMethod<[Principal], PublicProfileInfo>,
+  'getRazorpayKeyId' : ActorMethod<[], [] | [string]>,
   'getResults' : ActorMethod<[bigint, Event], Array<ResultInput>>,
   'getUserPaymentHistory' : ActorMethod<[], Array<PaidEvent>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getUserResult' : ActorMethod<[bigint, Event], [] | [ResultInput]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'isRazorpayConfigured' : ActorMethod<[], boolean>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'setRazorpayCredentials' : ActorMethod<[string, string], undefined>,
   'setUserEmail' : ActorMethod<[string], undefined>,
   'startCompetition' : ActorMethod<[bigint, Event], undefined>,
   'submitAttempt' : ActorMethod<

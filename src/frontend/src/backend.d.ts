@@ -31,6 +31,10 @@ export interface PublicProfileInfo {
     displayName: string;
     gender?: string;
 }
+export interface RazorpayOrderRequest {
+    event: Event;
+    competitionId: bigint;
+}
 export interface AttemptInput {
     penalty: bigint;
     time: bigint;
@@ -63,6 +67,13 @@ export interface PaymentConfirmation {
     razorpayOrderId: string;
     competitionId: bigint;
 }
+export interface RazorpayOrderResponse {
+    orderId: string;
+    event: Event;
+    currency: string;
+    amount: bigint;
+    competitionName: string;
+}
 export interface Competition {
     id: bigint;
     status: CompetitionStatus;
@@ -80,11 +91,6 @@ export interface UserProfile {
     displayName: string;
     gender?: string;
     mcubesId: string;
-}
-export interface RazorpayOrderResponse {
-    orderId: string;
-    amount: bigint;
-    currency: string;
 }
 export enum CompetitionStatus {
     upcoming = "upcoming",
@@ -116,6 +122,7 @@ export interface backendInterface {
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     confirmPayment(payment: PaymentConfirmation): Promise<void>;
     createCompetition(compInput: CompetitionInput): Promise<bigint>;
+    createRazorpayOrder(request: RazorpayOrderRequest): Promise<RazorpayOrderResponse>;
     createUserProfile(displayName: string, country: string | null, gender: string | null): Promise<void>;
     getAllUserPayments(): Promise<Array<PaymentConfirmation>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
@@ -125,12 +132,15 @@ export interface backendInterface {
     getLeaderboard(competitionId: bigint, event: Event): Promise<Array<ResultInput>>;
     getMultiplePublicProfiles(users: Array<Principal>): Promise<Array<[Principal, PublicProfileInfo]>>;
     getPublicProfileInfo(user: Principal): Promise<PublicProfileInfo>;
+    getRazorpayKeyId(): Promise<string | null>;
     getResults(competitionId: bigint, event: Event): Promise<Array<ResultInput>>;
     getUserPaymentHistory(): Promise<Array<PaidEvent>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     getUserResult(competitionId: bigint, event: Event): Promise<ResultInput | null>;
     isCallerAdmin(): Promise<boolean>;
+    isRazorpayConfigured(): Promise<boolean>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    setRazorpayCredentials(keyId: string, keySecret: string): Promise<void>;
     setUserEmail(email: string): Promise<void>;
     startCompetition(competitionId: bigint, event: Event): Promise<void>;
     submitAttempt(competitionId: bigint, event: Event, attemptIndex: bigint, attempt: AttemptInput): Promise<void>;

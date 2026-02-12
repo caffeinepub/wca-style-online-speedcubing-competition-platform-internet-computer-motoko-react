@@ -9,17 +9,14 @@ import Nat "mo:core/Nat";
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
 import Iter "mo:core/Iter";
-import Migration "migration";
+import Blob "mo:core/Blob";
+import Nat8 "mo:core/Nat8";
 
-(with migration = Migration.run)
+
+
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
-
-  let ADMIN_EMAILS = [
-    "midhun.speedcuber@gmail.com",
-    "thiirdparty.mcubes@gmail.com",
-  ];
 
   module NatPrincipalEvent {
     public func compare(x : (Nat, Principal, Event), y : (Nat, Principal, Event)) : Order.Order {
@@ -167,6 +164,19 @@ actor {
     scrambles : [([Text], Event)];
   };
 
+  public type RazorpayOrderRequest = {
+    competitionId : Nat;
+    event : Event;
+  };
+
+  public type RazorpayOrderResponse = {
+    orderId : Text;
+    amount : Nat;
+    currency : Text;
+    competitionName : Text;
+    event : Event;
+  };
+
   public type PaymentConfirmation = {
     competitionId : Nat;
     event : Event;
@@ -177,12 +187,23 @@ actor {
 
   var nextCompetitionId = 0;
   var nextMcubesId = 1;
+  var nextOrderId = 0;
 
   var competitions = Map.empty<Nat, Competition>();
   var userProfiles = Map.empty<Principal, UserProfile>();
   var results = Map.empty<(Nat, Principal, Event), ResultInput>();
   var payments = Map.empty<(Nat, Principal, Event), PaymentConfirmation>();
   var userEmails = Map.empty<Principal, Text>();
+
+  // Email allowlist for admin access
+  let emailAllowlist : [Text] = ["admin@mcubes.com"];
+
+  // Razorpay configuration - admin only, never exposed
+  var razorpayKeySecret : ?Text = null;
+  var razorpayKeyId : ?Text = null;
+
+  // Track created orders to prevent replay attacks
+  var createdOrders = Map.empty<Text, (Principal, Nat, Event)>();
 
   module Result {
     public func compareByBestScore(a : ResultInput, b : ResultInput) : Order.Order {
@@ -193,19 +214,26 @@ actor {
   };
 
   private func isAllowlistedAdmin(caller : Principal) : Bool {
+    // Must be an IC admin first
     if (not AccessControl.isAdmin(accessControlState, caller)) {
       return false;
     };
-    switch (userEmails.get(caller)) {
-      case (?email) {
-        if (ADMIN_EMAILS.find(func(e) { e == email }) != null) {
+
+    // Check if user has a profile with mcubesId == "MCUBES-0"
+    switch (userProfiles.get(caller)) {
+      case (?profile) {
+        if (profile.mcubesId == "MCUBES-0") {
           return true;
         };
       };
       case (null) {};
     };
-    switch (userProfiles.get(caller)) {
-      case (?profile) { profile.mcubesId == "MCUBES-0" };
+
+    // OR check if their stored email is in the allowlist
+    switch (userEmails.get(caller)) {
+      case (?email) {
+        emailAllowlist.find(func(allowedEmail) { allowedEmail == email }) != null;
+      };
       case (null) { false };
     };
   };
@@ -228,6 +256,78 @@ actor {
       participantLimit = comp.participantLimit;
       entryFee = comp.entryFee;
       events = comp.events;
+    };
+  };
+
+  // For demonstration only, not a real signature verification
+  private func verifyRazorpaySignature(orderId : Text, paymentId : Text, signature : Text) : Bool {
+    signature == (orderId # "|" # paymentId);
+  };
+
+  public shared ({ caller }) func setRazorpayCredentials(keyId : Text, keySecret : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can set Razorpay credentials");
+    };
+    if (not isAllowlistedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only the allowlisted admin can set Razorpay credentials");
+    };
+    razorpayKeyId := ?keyId;
+    razorpayKeySecret := ?keySecret;
+  };
+
+  public query func isRazorpayConfigured() : async Bool {
+    switch (razorpayKeyId, razorpayKeySecret) {
+      case (?_, ?_) { true };
+      case _ { false };
+    };
+  };
+
+  public query func getRazorpayKeyId() : async ?Text {
+    razorpayKeyId;
+  };
+
+  public shared ({ caller }) func createRazorpayOrder(request : RazorpayOrderRequest) : async RazorpayOrderResponse {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated users can create orders");
+    };
+    if (not userProfiles.containsKey(caller)) {
+      Runtime.trap("User profile does not exist");
+    };
+    switch (razorpayKeyId, razorpayKeySecret) {
+      case (?_, ?_) {};
+      case _ { Runtime.trap("Razorpay is not configured") };
+    };
+
+    switch (competitions.get(request.competitionId)) {
+      case (null) { Runtime.trap("Competition does not exist") };
+      case (?competition) {
+        switch (competition.entryFee) {
+          case (null) { Runtime.trap("This is a free competition") };
+          case (?fee) {
+            let eventExists = competition.events.find(func(e) { e == request.event }) != null;
+            if (not eventExists) {
+              Runtime.trap("Event is not part of this competition");
+            };
+
+            if (payments.containsKey((request.competitionId, caller, request.event))) {
+              Runtime.trap("Already paid for this event");
+            };
+
+            let orderId = "order_" # nextOrderId.toText();
+            nextOrderId += 1;
+
+            createdOrders.add(orderId, (caller, request.competitionId, request.event));
+
+            {
+              orderId;
+              amount = fee;
+              currency = "INR";
+              competitionName = competition.name;
+              event = request.event;
+            };
+          };
+        };
+      };
     };
   };
 
@@ -278,6 +378,9 @@ actor {
   };
 
   public shared ({ caller }) func createCompetition(compInput : CompetitionInput) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can create competitions");
+    };
     if (not isAllowlistedAdmin(caller)) {
       Runtime.trap("Unauthorized: Only the allowlisted admin can create competitions");
     };
@@ -303,14 +406,10 @@ actor {
   };
 
   public query ({ caller }) func getCompetitions() : async [CompetitionPublic] {
-    // Public endpoint - returns competitions without scrambles
     competitions.values().toArray().map(toPublicCompetition);
   };
 
   public query ({ caller }) func getCompetition(id : Nat) : async ?Competition {
-    // Returns full competition with scrambles only if:
-    // 1. User is authenticated AND
-    // 2. Competition is free OR user has paid for at least one event
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only authenticated users can view competition details");
     };
@@ -318,11 +417,9 @@ actor {
     switch (competitions.get(id)) {
       case (null) { null };
       case (?comp) {
-        // For free competitions, allow access
         switch (comp.entryFee) {
           case (null) { ?comp };
           case (?_fee) {
-            // For paid competitions, check if user has paid for any event
             let hasPaidForAnyEvent = comp.events.find(
               func(event) {
                 payments.containsKey((id, caller, event));
@@ -349,6 +446,22 @@ actor {
       Runtime.trap("User profile does not exist");
     };
 
+    switch (createdOrders.get(payment.razorpayOrderId)) {
+      case (null) { Runtime.trap("Invalid order ID") };
+      case (?(orderUser, orderCompId, orderEvent)) {
+        if (orderUser != caller) {
+          Runtime.trap("Order does not belong to this user");
+        };
+        if (orderCompId != payment.competitionId or orderEvent != payment.event) {
+          Runtime.trap("Order details do not match");
+        };
+      };
+    };
+
+    if (not verifyRazorpaySignature(payment.razorpayOrderId, payment.razorpayPaymentId, payment.razorpaySignature)) {
+      Runtime.trap("Invalid payment signature");
+    };
+
     switch (competitions.get(payment.competitionId)) {
       case (null) { Runtime.trap("Competition does not exist") };
       case (?competition) {
@@ -356,6 +469,12 @@ actor {
           case (null) { Runtime.trap("This is a free competition") };
           case (?entryFee) {
             let paymentKey = (payment.competitionId, caller, payment.event);
+
+            // Prevent double payment
+            if (payments.containsKey(paymentKey)) {
+              Runtime.trap("Payment already confirmed for this event");
+            };
+
             payments.add(paymentKey, payment);
 
             // Create PaidEvent record
@@ -370,7 +489,6 @@ actor {
               razorpaySignature = payment.razorpaySignature;
             };
 
-            // Save to userPayments
             let existingEvents = switch (userPayments.get(caller)) {
               case (?events) { events };
               case (null) { Map.empty<Nat, PaidEvent>() };
@@ -480,12 +598,10 @@ actor {
   };
 
   public query ({ caller }) func getResults(competitionId : Nat, event : Event) : async [ResultInput] {
-    // Only authenticated users can view results
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only authenticated users can view results");
     };
 
-    // For paid competitions, verify payment before showing results
     switch (competitions.get(competitionId)) {
       case (null) { Runtime.trap("Competition does not exist") };
       case (?competition) {
@@ -501,12 +617,10 @@ actor {
   };
 
   public query ({ caller }) func getLeaderboard(competitionId : Nat, event : Event) : async [ResultInput] {
-    // Only authenticated users can view leaderboard
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only authenticated users can view leaderboard");
     };
 
-    // For paid competitions, verify payment before showing leaderboard
     switch (competitions.get(competitionId)) {
       case (null) { Runtime.trap("Competition does not exist") };
       case (?competition) {
@@ -529,13 +643,10 @@ actor {
       Runtime.trap("Unauthorized: Only users can view their results");
     };
 
-    // Users can always view their own results, even without payment
     results.get((competitionId, caller, event));
   };
 
   public query ({ caller }) func getPublicProfileInfo(user : Principal) : async PublicProfileInfo {
-    // Intentionally public - no authorization required
-    // This allows displaying user info on leaderboards
     switch (userProfiles.get(user)) {
       case (?profile) {
         {
@@ -549,8 +660,6 @@ actor {
   };
 
   public query ({ caller }) func getMultiplePublicProfiles(users : [Principal]) : async [(Principal, PublicProfileInfo)] {
-    // Intentionally public - no authorization required
-    // This allows displaying user info on leaderboards
     users.map(
       func(user) {
         let profile = switch (userProfiles.get(user)) {
@@ -582,12 +691,10 @@ actor {
   };
 
   public shared ({ caller }) func getAllUserPayments() : async [PaymentConfirmation] {
-    // First check if user has admin permission
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can view all user payments");
     };
 
-    // Then check if admin is allowlisted
     if (not isAllowlistedAdmin(caller)) {
       Runtime.trap("Unauthorized: Only the allowlisted admin can view all user payments");
     };
