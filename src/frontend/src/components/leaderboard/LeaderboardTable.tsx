@@ -1,14 +1,14 @@
 import { Trophy, Medal } from 'lucide-react';
 import { formatTime } from '../../lib/timeUtils';
 import { calculateAo5 } from '../../lib/ao5';
-import type { ResultInput, UserProfile } from '../../backend';
+import type { ResultInput, PublicProfileInfo } from '../../backend';
 
 interface LeaderboardTableProps {
   results: ResultInput[];
-  userProfiles: Array<{ user: any; profile: UserProfile }>;
+  publicProfiles: Map<string, PublicProfileInfo>;
 }
 
-export default function LeaderboardTable({ results, userProfiles }: LeaderboardTableProps) {
+export default function LeaderboardTable({ results, publicProfiles }: LeaderboardTableProps) {
   const getRankIcon = (rank: number) => {
     if (rank === 1) return <Trophy className="w-5 h-5 text-chart-4" />;
     if (rank === 2) return <Medal className="w-5 h-5 text-muted-foreground" />;
@@ -16,10 +16,15 @@ export default function LeaderboardTable({ results, userProfiles }: LeaderboardT
     return null;
   };
 
-  const getDisplayName = (userPrincipal: any) => {
+  const getDisplayName = (userPrincipal: any): string => {
     const userStr = userPrincipal.toString();
-    const profile = userProfiles.find((p) => p.user.toString() === userStr);
-    return profile?.profile.displayName || 'Anonymous';
+    const profile = publicProfiles.get(userStr);
+    
+    if (profile && profile.displayName && profile.displayName.trim()) {
+      return profile.displayName.trim();
+    }
+    
+    return 'Anonymous';
   };
 
   const entries = results.map((result, index) => {
@@ -54,24 +59,19 @@ export default function LeaderboardTable({ results, userProfiles }: LeaderboardT
         </thead>
         <tbody>
           {entries.map((entry) => (
-            <tr key={entry.rank} className="border-b border-border/50 hover:bg-card/50 transition-colors">
+            <tr key={entry.rank} className="border-b border-border hover:bg-accent/50 transition-colors">
               <td className="py-4 px-4">
                 <div className="flex items-center gap-2">
                   {getRankIcon(entry.rank)}
-                  <span className="font-bold">{entry.rank}</span>
+                  <span className="font-bold text-lg">{entry.rank}</span>
                 </div>
               </td>
               <td className="py-4 px-4 font-medium">{entry.displayName}</td>
-              <td className="py-4 px-4">
-                <span className={`font-bold ${entry.rank <= 3 ? 'text-chart-1' : ''}`}>
-                  {entry.ao5 === 'DNF' ? 'DNF' : formatTime(entry.ao5)}
-                </span>
-              </td>
+              <td className="py-4 px-4 font-bold text-chart-1">{formatTime(entry.ao5)}</td>
               {entry.attempts.map((attempt, idx) => (
-                <td key={idx} className="py-4 px-4 text-sm text-muted-foreground">
+                <td key={idx} className="py-4 px-4 text-muted-foreground">
                   {formatTime(attempt.time + attempt.penalty)}
-                  {attempt.penalty === 2000 && <span className="text-chart-4 ml-1">+2</span>}
-                  {attempt.penalty === 999999 && <span className="text-destructive ml-1">DNF</span>}
+                  {attempt.penalty > 0 && <span className="text-destructive ml-1">+{attempt.penalty / 1000}</span>}
                 </td>
               ))}
             </tr>

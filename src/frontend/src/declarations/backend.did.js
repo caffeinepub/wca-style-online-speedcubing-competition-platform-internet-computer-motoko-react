@@ -49,7 +49,9 @@ export const CompetitionInput = IDL.Record({
   'startDate' : Time,
 });
 export const UserProfile = IDL.Record({
+  'country' : IDL.Opt(IDL.Text),
   'displayName' : IDL.Text,
+  'gender' : IDL.Opt(IDL.Text),
   'mcubesId' : IDL.Text,
 });
 export const Competition = IDL.Record({
@@ -80,13 +82,22 @@ export const ResultInput = IDL.Record({
   'event' : Event,
   'competitionId' : IDL.Nat,
 });
+export const PublicProfileInfo = IDL.Record({
+  'country' : IDL.Opt(IDL.Text),
+  'displayName' : IDL.Text,
+  'gender' : IDL.Opt(IDL.Text),
+});
 
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'confirmPayment' : IDL.Func([PaymentConfirmation], [], []),
   'createCompetition' : IDL.Func([CompetitionInput], [IDL.Nat], []),
-  'createUserProfile' : IDL.Func([IDL.Text], [], []),
+  'createUserProfile' : IDL.Func(
+      [IDL.Text, IDL.Opt(IDL.Text), IDL.Opt(IDL.Text)],
+      [],
+      [],
+    ),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getCompetition' : IDL.Func([IDL.Nat], [IDL.Opt(Competition)], ['query']),
@@ -94,6 +105,16 @@ export const idlService = IDL.Service({
   'getLeaderboard' : IDL.Func(
       [IDL.Nat, Event],
       [IDL.Vec(ResultInput)],
+      ['query'],
+    ),
+  'getMultiplePublicProfiles' : IDL.Func(
+      [IDL.Vec(IDL.Principal)],
+      [IDL.Vec(IDL.Tuple(IDL.Principal, PublicProfileInfo))],
+      ['query'],
+    ),
+  'getPublicProfileInfo' : IDL.Func(
+      [IDL.Principal],
+      [PublicProfileInfo],
       ['query'],
     ),
   'getResults' : IDL.Func([IDL.Nat, Event], [IDL.Vec(ResultInput)], ['query']),
@@ -158,7 +179,9 @@ export const idlFactory = ({ IDL }) => {
     'startDate' : Time,
   });
   const UserProfile = IDL.Record({
+    'country' : IDL.Opt(IDL.Text),
     'displayName' : IDL.Text,
+    'gender' : IDL.Opt(IDL.Text),
     'mcubesId' : IDL.Text,
   });
   const Competition = IDL.Record({
@@ -186,13 +209,22 @@ export const idlFactory = ({ IDL }) => {
     'event' : Event,
     'competitionId' : IDL.Nat,
   });
+  const PublicProfileInfo = IDL.Record({
+    'country' : IDL.Opt(IDL.Text),
+    'displayName' : IDL.Text,
+    'gender' : IDL.Opt(IDL.Text),
+  });
   
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'confirmPayment' : IDL.Func([PaymentConfirmation], [], []),
     'createCompetition' : IDL.Func([CompetitionInput], [IDL.Nat], []),
-    'createUserProfile' : IDL.Func([IDL.Text], [], []),
+    'createUserProfile' : IDL.Func(
+        [IDL.Text, IDL.Opt(IDL.Text), IDL.Opt(IDL.Text)],
+        [],
+        [],
+      ),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getCompetition' : IDL.Func([IDL.Nat], [IDL.Opt(Competition)], ['query']),
@@ -200,6 +232,16 @@ export const idlFactory = ({ IDL }) => {
     'getLeaderboard' : IDL.Func(
         [IDL.Nat, Event],
         [IDL.Vec(ResultInput)],
+        ['query'],
+      ),
+    'getMultiplePublicProfiles' : IDL.Func(
+        [IDL.Vec(IDL.Principal)],
+        [IDL.Vec(IDL.Tuple(IDL.Principal, PublicProfileInfo))],
+        ['query'],
+      ),
+    'getPublicProfileInfo' : IDL.Func(
+        [IDL.Principal],
+        [PublicProfileInfo],
         ['query'],
       ),
     'getResults' : IDL.Func(

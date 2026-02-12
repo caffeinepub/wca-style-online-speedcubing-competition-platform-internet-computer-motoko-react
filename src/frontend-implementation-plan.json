@@ -1,20 +1,63 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Update admin access-denied messaging for multiple allowlisted admins",
+  "title": "Profile country/gender editing and leaderboard name display",
   "requirements": [
     {
-      "id": "REQ-18",
-      "summary": "Adjust AdminGuard access-denied copy to reference multiple allowlisted administrators while continuing to block non-admin access to the admin competition creation page based on backend admin status.",
+      "id": "REQ-21",
+      "summary": "Expand the authenticated user's Profile UI to view/edit displayName, country, and gender and persist changes.",
       "acceptanceCriteria": [
-        "When a non-admin visits the admin create competition route, the page shows an access-denied message in English indicating the page is restricted to allowlisted administrators.",
-        "When an allowlisted admin visits the admin create competition route, the create competition form renders as before."
+        "Profile UI includes editable inputs for Country and Gender alongside Display Name.",
+        "Saving updates calls the existing profile save mutation and updates the cached current-user profile state (refetch/invalidate).",
+        "User-facing labels/help text are in English.",
+        "If the user has not set Country or Gender, the UI clearly shows they are unset (e.g., placeholder like \"Not set\")."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/components/auth/AdminGuard.tsx",
+          "path": "frontend/src/hooks/useQueries.ts",
           "operation": "modify",
-          "description": "Update the access-denied messaging to refer to 'allowlisted administrators' (plural) rather than a single administrator, while keeping the existing authorization check based on the backend-reported admin status (via useIsCallerAdmin/actor.isCallerAdmin). Use the existing authorization component patterns already present in the app; verify the component's usage instructions before implementing."
+          "description": "Update profile-related mutations to match the updated backend interface: (1) adjust useCreateUserProfile to pass country/gender as null when creating a profile (until the user sets them), and (2) ensure useSaveCallerUserProfile continues to invalidate QUERY_KEYS.currentUserProfile after saving so cached current-user profile state updates. Use the selected \"authorization\" component patterns for authenticated profile flows (e.g., actor availability checks and graceful handling of authorization traps). Verify the component's usage instructions before implementing."
+        },
+        {
+          "path": "frontend/src/components/profile/ProfileSetupDialog.tsx",
+          "operation": "modify",
+          "description": "Keep first-time setup UX intact while updating the create-profile call to provide country/gender as unset (null). Ensure all user-facing labels/help text remain English. Use the selected \"authorization\" component guidance for post-login profile setup and avoid showing principal IDs. Verify the component's usage instructions before implementing."
+        },
+        {
+          "path": "frontend/src/components/profile/ProfileMenu.tsx",
+          "operation": "modify",
+          "description": "Extend the existing Profile UI surfaced in the header to let an authenticated user view and edit Display Name, Country, and Gender. Show Country/Gender as clearly unset when absent (e.g., \"Not set\" placeholders). On save, call saveCallerUserProfile with mcubesId preserved and include country/gender fields when provided, then rely on query invalidation to refresh current-user profile. Use the selected \"authorization\" component guidance to handle authorization failures gracefully (no uncaught errors; show a user-friendly message). Verify the component's usage instructions before implementing."
+        }
+      ]
+    },
+    {
+      "id": "REQ-22",
+      "summary": "Load and display public competitor profile names on the leaderboard with correct fallbacks to Anonymous.",
+      "acceptanceCriteria": [
+        "When a user has a non-empty `displayName` stored in their profile, the leaderboard shows that name instead of \"Anonymous\".",
+        "If a profile cannot be found or `displayName` is empty, leaderboard shows \"Anonymous\".",
+        "No uncaught errors occur when loading the leaderboard due to profile fetch authorization failures."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/api/queryKeys.ts",
+          "operation": "modify",
+          "description": "Add a dedicated React Query key for fetching public profiles for a set of leaderboard principals (separate from the existing allUserProfiles key) to support caching and refetching without relying on privileged profile reads. Verify the component's usage instructions before implementing."
+        },
+        {
+          "path": "frontend/src/hooks/useQueries.ts",
+          "operation": "modify",
+          "description": "Replace/augment the current leaderboard-related profile loading approach so it fetches public profile info using the backend capability intended for public reads (e.g., getMultiplePublicProfiles or getPublicProfileInfo) rather than getUserProfile. Ensure the query is resilient: handle authorization traps/errors by returning an empty mapping and letting the UI fall back to \"Anonymous\" without uncaught errors. Use the selected \"authorization\" component guidance for handling authorization errors gracefully in the UI. Verify the component's usage instructions before implementing."
+        },
+        {
+          "path": "frontend/src/pages/LeaderboardPage.tsx",
+          "operation": "modify",
+          "description": "Update leaderboard data-loading to fetch public profile info for the principals present in the loaded leaderboard results, then pass the resolved public profile data to the table. Ensure failures or missing profiles do not break rendering and allow fallback to \"Anonymous\". Verify the component's usage instructions before implementing."
+        },
+        {
+          "path": "frontend/src/components/leaderboard/LeaderboardTable.tsx",
+          "operation": "modify",
+          "description": "Update row display logic to use competitor displayName from fetched public profile info when it is non-empty (trimmed). Only show \"Anonymous\" when no public profile is found or when displayName is empty. Ensure the component tolerates missing profile data without throwing. Verify the component's usage instructions before implementing."
         }
       ]
     }

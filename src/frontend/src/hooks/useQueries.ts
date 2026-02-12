@@ -10,7 +10,9 @@ import type {
   CompetitionInput,
   PaymentConfirmation,
   Event,
+  PublicProfileInfo,
 } from '../backend';
+import { Principal } from '@dfinity/principal';
 
 export function useIsCallerAdmin() {
   const { actor, isFetching } = useActor();
@@ -43,7 +45,7 @@ export function useCreateUserProfile() {
   return useMutation({
     mutationFn: async (displayName: string) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.createUserProfile(displayName);
+      return actor.createUserProfile(displayName, null, null);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.currentUserProfile });
@@ -201,39 +203,29 @@ export function useGetLeaderboard(competitionId: bigint, event: Event) {
   });
 }
 
-export function useGetAllUserProfiles() {
+export function useGetMultiplePublicProfiles(principals: Principal[]) {
   const { actor, isFetching } = useActor();
-  const { data: competitions } = useGetCompetitions();
 
   return useQuery({
-    queryKey: QUERY_KEYS.allUserProfiles,
+    queryKey: QUERY_KEYS.publicProfiles(principals.map(p => p.toString())),
     queryFn: async () => {
-      if (!actor || !competitions) return [];
-
-      const allResultsPromises = competitions.flatMap((comp) =>
-        comp.events.map((event) => actor.getResults(comp.id, event))
-      );
-
-      const allResults = await Promise.all(allResultsPromises);
-
-      const uniqueUsers = new Set<string>();
-      allResults.flat().forEach((result) => {
-        uniqueUsers.add(result.user.toString());
-      });
-
-      const profiles = await Promise.all(
-        Array.from(uniqueUsers).map(async (userStr) => {
-          const principal = { toString: () => userStr } as any;
-          const profile = await actor.getUserProfile(principal);
-          return { user: principal, profile };
-        })
-      );
-
-      return profiles.filter((p) => p.profile !== null) as Array<{
-        user: any;
-        profile: UserProfile;
-      }>;
+      if (!actor) return new Map<string, PublicProfileInfo>();
+      
+      try {
+        const profiles = await actor.getMultiplePublicProfiles(principals);
+        const profileMap = new Map<string, PublicProfileInfo>();
+        
+        profiles.forEach(([principal, profile]) => {
+          profileMap.set(principal.toString(), profile);
+        });
+        
+        return profileMap;
+      } catch (error) {
+        console.error('Failed to fetch public profiles:', error);
+        return new Map<string, PublicProfileInfo>();
+      }
     },
-    enabled: !!actor && !isFetching && !!competitions,
+    enabled: !!actor && !isFetching && principals.length > 0,
+    retry: false,
   });
 }

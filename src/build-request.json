@@ -1,56 +1,107 @@
 {
   "kind": "build_request",
-  "title": "Expand admin allowlist to include thiirdparty.mcubes@gmail.com and/or MCUBES-0",
+  "title": "Add country & gender to user profiles and show profile names on leaderboard",
   "priority": "normal",
   "requirements": [
     {
-      "id": "REQ-17",
-      "text": "Update admin authorization so that competition-creation/admin access is granted to either (a) users whose stored email is allowlisted, including \"midhun.speedcuber@gmail.com\" and \"thiirdparty.mcubes@gmail.com\", OR (b) users whose stored mcubes user ID is exactly \"MCUBES-0\".",
+      "id": "REQ-19",
+      "text": "Extend the backend user profile model to store additional optional fields for `country` and `gender`, and ensure existing profiles continue to work after the schema change.",
       "target": "backend",
       "source": {
         "messageIds": [
-          "msg-8"
+          "msg-1"
         ],
         "quotes": [
-          "add thiirdparty.mcubes@gmail.com or MCUBES-0 as admin"
+          "Add a profile section for the user to add country and gender."
         ]
       },
       "acceptanceCriteria": [
-        "A caller with stored email \"midhun.speedcuber@gmail.com\" is recognized as admin (no regression).",
-        "A caller with stored email \"thiirdparty.mcubes@gmail.com\" is recognized as admin and can successfully call createCompetition.",
-        "A caller whose stored profile mcubesId is exactly \"MCUBES-0\" is recognized as admin and can successfully call createCompetition even if their stored email is not allowlisted.",
-        "A caller who matches none of the allowlist rules is denied with an \"Unauthorized\" error when calling createCompetition."
+        "`UserProfile` in `backend/main.mo` includes `country` and `gender` fields (optional) in addition to existing `displayName` and `mcubesId`.",
+        "`createUserProfile` initializes `country` and `gender` to empty/none values without breaking profile creation.",
+        "`saveCallerUserProfile` persists `country` and `gender` updates.",
+        "Existing stored profiles from before this change can still be read without trapping (use a state migration if required by Motoko stable-type changes)."
       ]
     },
     {
-      "id": "REQ-18",
-      "text": "Update the frontend admin gating messaging to reflect that there can be multiple allowlisted administrators (not just a single admin), and ensure the AdminGuard continues to block access to the admin competition creation page when the backend reports the caller is not an admin.",
-      "target": "frontend",
+      "id": "REQ-20",
+      "text": "Fix leaderboard name resolution by providing a backend query API that allows reading public profile info (at minimum `displayName`, plus `country`/`gender` if available) for any competitor principal, so the leaderboard does not show \"Anonymous\" when a user has a display name set.",
+      "target": "backend",
       "source": {
         "messageIds": [
-          "msg-8"
+          "msg-1"
         ],
         "quotes": [
-          "add thiirdparty.mcubes@gmail.com or MCUBES-0 as admin"
+          "Currently using anonymous in the leadboard section instead of the name."
         ]
       },
       "acceptanceCriteria": [
-        "When a non-admin visits the admin create competition route, the page shows an access-denied message in English indicating the page is restricted to allowlisted administrators.",
-        "When an allowlisted admin visits the admin create competition route, the create competition form renders as before."
+        "There is a query method that the frontend can call to fetch another user's public profile info by Principal without requiring the caller to be that user or an admin.",
+        "The method does not expose user emails and does not allow profile mutation.",
+        "Leaderboard flows can fetch and display competitor names without backend authorization traps."
+      ]
+    },
+    {
+      "id": "REQ-21",
+      "text": "Add a user-facing Profile section in the UI where an authenticated user can view and edit their `displayName`, `country`, and `gender`, and persist changes to the backend.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-1"
+        ],
+        "quotes": [
+          "Add a profile section for the user to add country and gender."
+        ]
+      },
+      "acceptanceCriteria": [
+        "Profile UI includes editable inputs for Country and Gender alongside Display Name.",
+        "Saving updates calls the existing profile save mutation and updates the cached current-user profile state (refetch/invalidate).",
+        "User-facing labels/help text are in English.",
+        "If the user has not set Country or Gender, the UI clearly shows they are unset (e.g., placeholder like \"Not set\")."
+      ]
+    },
+    {
+      "id": "REQ-22",
+      "text": "Update the leaderboard UI data-loading and display logic so that each row shows the competitor’s profile display name when available, and only falls back to \"Anonymous\" when no display name exists.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-1"
+        ],
+        "quotes": [
+          "Currently using anonymous in the leadboard section instead of the name."
+        ]
+      },
+      "acceptanceCriteria": [
+        "When a user has a non-empty `displayName` stored in their profile, the leaderboard shows that name instead of \"Anonymous\".",
+        "If a profile cannot be found or `displayName` is empty, leaderboard shows \"Anonymous\".",
+        "No uncaught errors occur when loading the leaderboard due to profile fetch authorization failures."
       ]
     }
   ],
   "constraints": [
-    "Backend must remain a single Motoko actor (all logic in backend/main.mo); add migration code only if existing stable state needs changes.",
-    "Do not edit any frontend files under frontend/src/components/ui or other paths listed as immutable in SYSTEM_CONTEXT."
+    "Backend must remain a single Motoko actor in `backend/main.mo` (no additional backend services).",
+    "Only generate/update `backend/migration.mo` if needed for safe state upgrade due to the `UserProfile` type change.",
+    "Do not edit files under `frontend/src/components/ui` or any other immutable paths listed in SYSTEM_CONTEXT."
   ],
   "nonGoals": [
-    "Do not add new authentication providers (Internet Identity remains the only auth).",
-    "Do not change competition creation fields/validation beyond what is required for admin allowlist expansion.",
-    "Do not implement any new admin roles/permissions system beyond the requested allowlist expansion."
+    "Do not implement the previously requested custom formatted user ID (e.g., 2026MIDR01) as part of this change.",
+    "Do not add any third-party authentication providers or external databases.",
+    "Do not add country/gender filtering, searching, or analytics on the leaderboard."
   ],
   "imageRequirements": {
     "required": [],
     "edits": []
+  },
+  "userProfileUpdate": {
+    "goalsToAdd": [],
+    "goalsToRemove": [],
+    "preferencesToAdd": [
+      "User-facing text should be English."
+    ],
+    "preferencesToRemove": [],
+    "miscToAdd": [],
+    "miscToRemove": [],
+    "fieldsToSet": {},
+    "fieldsToDelete": []
   }
 }

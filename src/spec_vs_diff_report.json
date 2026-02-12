@@ -1,32 +1,37 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-11T23:35:52.115Z",
-  "summary": "Backend updated to include a second admin email in an allowlist and frontend AdminGuard messaging was updated to refer to multiple allowlisted administrators. However, the diff does not clearly show implementation of the mcubesId-based admin rule (MCUBES-0) or the exact authorization behavior for createCompetition. A new backend migration module was added, which appears unrequested and may violate the constraint that backend logic remain in a single Motoko actor file unless necessary for stable-state changes.",
+  "generatedAt": "2026-02-11T23:58:46.861Z",
+  "summary": "Diff implements user profile schema extension with country/gender and adds a migration module; frontend adds profile editing UI and updates leaderboard to display names via a new public-profiles fetch flow. However, backend public-profile query API and backend mutation changes are not evidenced in the provided (truncated) backend diff, so REQ-20 and parts of REQ-19/REQ-22 cannot be fully verified from the diff summary alone.",
   "missing_requirements": [
     {
-      "id": "REQ-17",
-      "requirement": "Admin access must be granted if the caller's stored mcubes user ID is exactly \"MCUBES-0\" (even if email is not allowlisted), and createCompetition must enforce this allowlist (Unauthorized otherwise).",
-      "reason": "The shown backend change only clearly adds \"thiirdparty.mcubes@gmail.com\" to an ADMIN_EMAILS list; the diff is truncated inside isAllowlistedAdmin and does not provide evidence that mcubesId == \"MCUBES-0\" is checked or that createCompetition returns an \"Unauthorized\" error for non-admins under the new rules.",
+      "id": "REQ-20",
+      "requirement": "Provide a backend query API to fetch another user's public profile info (displayName, country, gender) by Principal without requiring the caller to be that user/admin, for leaderboard name resolution.",
+      "reason": "Frontend changes reference fetching multiple public profiles, but the diff summary does not show any new/updated backend query method implementation (only types and migration are visible; backend/main.mo is truncated before methods).",
       "evidence": [
-        "backend/main.mo (truncated)"
+        "backend/main.mo (truncated)",
+        "frontend/src/hooks/useQueries.ts (truncated)",
+        "frontend/src/pages/LeaderboardPage.tsx",
+        "frontend/src/api/queryKeys.ts"
+      ]
+    },
+    {
+      "id": "REQ-19",
+      "requirement": "Update backend profile creation and save flows to initialize/persist country and gender, and ensure existing stored profiles can still be read safely after schema change.",
+      "reason": "UserProfile type update and a migration module are present, but the diff summary does not show the implementations of createUserProfile and saveCallerUserProfile to confirm they initialize/persist the new fields (backend/main.mo is truncated before method bodies).",
+      "evidence": [
+        "backend/main.mo (truncated)",
+        "backend/migration.mo",
+        "frontend/src/hooks/useQueries.ts (truncated)"
       ]
     }
   ],
   "hallucinated_features": [
     {
-      "description": "Added a backend migration module and wired it into the actor.",
-      "reason": "BuildRequest did not request any stable-state migration and explicitly constrained backend logic to remain in a single Motoko actor file (backend/main.mo) with migration code only if stable state needs changes. The diff adds backend/migration.mo and imports/uses it from backend/main.mo without clear necessity from the request.",
+      "description": "Change to time formatting logic to treat 999999 and values >= 999999 as DNF.",
+      "reason": "Not requested by any REQ (REQ-19..REQ-22 are about profile fields and leaderboard name resolution).",
       "evidence": [
-        "backend/migration.mo",
-        "backend/main.mo (truncated)"
-      ]
-    },
-    {
-      "description": "Changed/introduced an AccessControl.isAdmin gate inside isAllowlistedAdmin before applying allowlist logic.",
-      "reason": "REQ-17 describes admin authorization based on stored email allowlist OR mcubesId == \"MCUBES-0\"; it does not mention requiring an existing AccessControl admin flag. The diff shows an early return if not AccessControl.isAdmin, which could be an unrequested extra constraint (though the remainder of the function is truncated).",
-      "evidence": [
-        "backend/main.mo (truncated)"
+        "frontend/src/lib/timeUtils.ts"
       ]
     }
   ],
@@ -35,7 +40,13 @@
     "backend/main.mo",
     "backend/migration.mo",
     "frontend-file-summaries.txt",
-    "frontend/src/components/auth/AdminGuard.tsx",
+    "frontend/src/api/queryKeys.ts",
+    "frontend/src/components/leaderboard/LeaderboardTable.tsx",
+    "frontend/src/components/profile/ProfileMenu.tsx",
+    "frontend/src/components/profile/ProfileSetupDialog.tsx",
+    "frontend/src/hooks/useQueries.ts",
+    "frontend/src/lib/timeUtils.ts",
+    "frontend/src/pages/LeaderboardPage.tsx",
     "project_state.json"
   ]
 }

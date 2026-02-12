@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 9,
+  "projectStateVersion": 11,
   "summary": "Full-stack online speedcubing competition platform (Next.js + TS + PostgreSQL/Prisma + NextAuth on Vercel) with WCA-style 5-solve flow, per-user unique \"mcubes\" user ID and profile, immediate leaderboard updates on completion, multi-event competitions, optional paid entry via Razorpay (test keys for now), and admin-only competition creation restricted via an allowlist (currently email-based) that needs to include thiirdparty.mcubes@gmail.com and/or MCUBES-0.",
   "architectural_notes": [
     "Tech stack: Next.js (App Router) + TypeScript + PostgreSQL + Prisma ORM + NextAuth; deploy on Vercel.",
@@ -11,10 +11,12 @@
     "Introduce paid competitions via Razorpay integration (test credentials first), with a competition entry fee and payment-gated participation where applicable.",
     "Extend data model to support multiple events per competition (event catalog includes 2x2, 3x3, 4x4, 5x5, Skewb, Megaminx, Clock, 3x3 OH, Pyraminx).",
     "Admin authorization allowlist email should be midhun.speedcuber@gmail.com (used for competition creation and admin UI guards).",
-    "Admin authorization should support expanding the allowlist beyond a single email, potentially including multiple emails and/or specific mcubes user IDs (e.g., MCUBES-0)."
+    "Admin authorization should support expanding the allowlist beyond a single email, potentially including multiple emails and/or specific mcubes user IDs (e.g., MCUBES-0).",
+    "Extend User/Profile model to include optional country and gender fields; ensure leaderboard joins results with user profile for display name (fallback to \"Anonymous\" only if missing)."
   ],
   "known_issues": [
-    "Creating a competition currently fails with a generic \"unable to create\" error when the logged-in user's stored email does not match the allowlisted admin email; needs clearer messaging and/or updated allowlist value."
+    "Creating a competition currently fails with a generic \"unable to create\" error when the logged-in user's stored email does not match the allowlisted admin email; needs clearer messaging and/or updated allowlist value.",
+    "Leaderboard currently shows \"Anonymous\" instead of the user's profile/display name; needs to render the correct name from the user profile."
   ],
   "isFixRequest": true,
   "existing_features": [
@@ -119,6 +121,22 @@
       "title": "Update the frontend admin gating messaging to reflect that there can be multiple allowlisted administrators (not just a single admin), and ensure the AdminGuard continues to block access to the admin competition creation page when the backend reports the caller is not an admin.",
       "reqIds": [
         "REQ-18"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-user-facing-profile-section-in-the-ui-where-an-authenticated-user-can-view-and-edit-their-displayname-country-and-gender-and-persist-changes-to-the-backend",
+      "title": "Add a user-facing Profile section in the UI where an authenticated user can view and edit their `displayName`, `country`, and `gender`, and persist changes to the backend.",
+      "reqIds": [
+        "REQ-21"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-the-leaderboard-ui-data-loading-and-display-logic-so-that-each-row-shows-the-competitor-s-profile-display-name-when-available-and-only-falls-back-to-anonymous-when-no-display-name-exists",
+      "title": "Update the leaderboard UI data-loading and display logic so that each row shows the competitor’s profile display name when available, and only falls back to \"Anonymous\" when no display name exists.",
+      "reqIds": [
+        "REQ-22"
       ],
       "version": 1
     }
@@ -257,6 +275,28 @@
       "summary": "Update admin authorization so that competition-creation/admin access is granted to either (a) users whose stored email is allowlisted, including \"midhun.speedcuber@gmail.com\" and \"thiirdparty.mcubes@gmail.com\", OR (b) users whose stored mcubes user ID is exactly \"MCUBES-0\".",
       "reqIds": [
         "REQ-17"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-27",
+      "summary": "Add/edit user profile section to capture additional fields (country, gender) and update leaderboard to display the user's profile name instead of \"Anonymous\" (fall back to Anonymous only when no name is set).",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-28",
+      "summary": "Extend the backend user profile model to store additional optional fields for `country` and `gender`, and ensure existing profiles continue to work after the schema change.",
+      "reqIds": [
+        "REQ-19"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-29",
+      "summary": "Fix leaderboard name resolution by providing a backend query API that allows reading public profile info (at minimum `displayName`, plus `country`/`gender` if available) for any competitor principal, so the leaderboard does not show \"Anonymous\" when a user has a display name set.",
+      "reqIds": [
+        "REQ-20"
       ],
       "status": "pending"
     }

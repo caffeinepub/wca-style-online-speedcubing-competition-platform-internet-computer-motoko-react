@@ -1,5 +1,5 @@
-export function formatTime(ms: number): string {
-  if (ms === 999999 || ms >= 999999) return 'DNF';
+export function formatTime(ms: number | 'DNF'): string {
+  if (ms === 'DNF' || ms === 999999 || ms >= 999999) return 'DNF';
   
   const seconds = Math.floor(ms / 1000);
   const milliseconds = Math.floor((ms % 1000) / 10);

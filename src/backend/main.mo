@@ -8,6 +8,7 @@ import Time "mo:core/Time";
 import Nat "mo:core/Nat";
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
+import Iter "mo:core/Iter";
 import Migration "migration";
 
 (with migration = Migration.run)
@@ -80,6 +81,14 @@ actor {
   public type UserProfile = {
     displayName : Text;
     mcubesId : Text;
+    country : ?Text;
+    gender : ?Text;
+  };
+
+  public type PublicProfileInfo = {
+    displayName : Text;
+    country : ?Text;
+    gender : ?Text;
   };
 
   public type Competition = {
@@ -211,7 +220,7 @@ actor {
     userProfiles.add(caller, profile);
   };
 
-  public shared ({ caller }) func createUserProfile(displayName : Text) : async () {
+  public shared ({ caller }) func createUserProfile(displayName : Text, country : ?Text, gender : ?Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can create profiles");
     };
@@ -223,6 +232,8 @@ actor {
     let newProfile : UserProfile = {
       displayName;
       mcubesId;
+      country;
+      gender;
     };
     userProfiles.add(caller, newProfile);
   };
@@ -398,5 +409,44 @@ actor {
       Runtime.trap("Unauthorized: Only users can view their results");
     };
     results.get((competitionId, caller, event));
+  };
+
+  public query ({ caller }) func getPublicProfileInfo(user : Principal) : async PublicProfileInfo {
+    switch (userProfiles.get(user)) {
+      case (?profile) {
+        {
+          displayName = profile.displayName;
+          country = profile.country;
+          gender = profile.gender;
+        };
+      };
+      case (null) { defaultPublicProfile() };
+    };
+  };
+
+  public query ({ caller }) func getMultiplePublicProfiles(users : [Principal]) : async [(Principal, PublicProfileInfo)] {
+    users.map(
+      func(user) {
+        let profile = switch (userProfiles.get(user)) {
+          case (?profile) {
+            {
+              displayName = profile.displayName;
+              country = profile.country;
+              gender = profile.gender;
+            };
+          };
+          case (null) { defaultPublicProfile() };
+        };
+        (user, profile);
+      }
+    );
+  };
+
+  func defaultPublicProfile() : PublicProfileInfo {
+    {
+      displayName = "Anonymous";
+      country = null;
+      gender = null;
+    };
   };
 };

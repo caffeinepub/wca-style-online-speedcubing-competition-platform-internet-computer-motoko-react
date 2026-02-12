@@ -26,6 +26,11 @@ export interface CompetitionInput {
     startDate: Time;
 }
 export type Time = bigint;
+export interface PublicProfileInfo {
+    country?: string;
+    displayName: string;
+    gender?: string;
+}
 export interface AttemptInput {
     penalty: bigint;
     time: bigint;
@@ -43,7 +48,9 @@ export interface Competition {
     startDate: Time;
 }
 export interface UserProfile {
+    country?: string;
     displayName: string;
+    gender?: string;
     mcubesId: string;
 }
 export interface PaymentConfirmation {
@@ -83,12 +90,14 @@ export interface backendInterface {
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     confirmPayment(payment: PaymentConfirmation): Promise<void>;
     createCompetition(compInput: CompetitionInput): Promise<bigint>;
-    createUserProfile(displayName: string): Promise<void>;
+    createUserProfile(displayName: string, country: string | null, gender: string | null): Promise<void>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getCompetition(id: bigint): Promise<Competition | null>;
     getCompetitions(): Promise<Array<Competition>>;
     getLeaderboard(competitionId: bigint, event: Event): Promise<Array<ResultInput>>;
+    getMultiplePublicProfiles(users: Array<Principal>): Promise<Array<[Principal, PublicProfileInfo]>>;
+    getPublicProfileInfo(user: Principal): Promise<PublicProfileInfo>;
     getResults(competitionId: bigint, event: Event): Promise<Array<ResultInput>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     getUserResult(competitionId: bigint, event: Event): Promise<ResultInput | null>;

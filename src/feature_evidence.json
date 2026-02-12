@@ -2,10 +2,12 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-update-the-frontend-admin-gating-messaging-to-reflect-that-there-can-be-multiple-allowlisted-administrators-not-just-a-single-admin-and-ensure-the-adminguard-continues-to-block-access-to-the-admin-competition-creation-page-when-the-backend-reports-the-caller-is-not-an-admin",
-      "featureTitle": "Update the frontend admin gating messaging to reflect that there can be multiple allowlisted administrators (not just a single admin), and ensure the AdminGuard continues to block access to the admin competition creation page when the backend reports the caller is not an admin.",
+      "featureId": "feature-add-a-user-facing-profile-section-in-the-ui-where-an-authenticated-user-can-view-and-edit-their-displayname-country-and-gender-and-persist-changes-to-the-backend",
+      "featureTitle": "Add a user-facing Profile section in the UI where an authenticated user can view and edit their `displayName`, `country`, and `gender`, and persist changes to the backend.",
       "files": [
-        "frontend/src/components/auth/AdminGuard.tsx"
+        "frontend/src/components/profile/ProfileMenu.tsx",
+        "frontend/src/components/profile/ProfileSetupDialog.tsx",
+        "frontend/src/hooks/useQueries.ts"
       ],
       "components": [
         "authorization@4.0.0",
@@ -16,7 +18,29 @@
         "github-export-icp-cli@1.0.0"
       ],
       "testIds": [
-        "REQ-18"
+        "REQ-21"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-update-the-leaderboard-ui-data-loading-and-display-logic-so-that-each-row-shows-the-competitor-s-profile-display-name-when-available-and-only-falls-back-to-anonymous-when-no-display-name-exists",
+      "featureTitle": "Update the leaderboard UI data-loading and display logic so that each row shows the competitor’s profile display name when available, and only falls back to \"Anonymous\" when no display name exists.",
+      "files": [
+        "frontend/src/api/queryKeys.ts",
+        "frontend/src/components/leaderboard/LeaderboardTable.tsx",
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/pages/LeaderboardPage.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-22"
       ],
       "confidence": "high"
     }

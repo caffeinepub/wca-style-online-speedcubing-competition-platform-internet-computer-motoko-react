@@ -1,9 +1,10 @@
 import { useParams, useSearch } from '@tanstack/react-router';
-import { useGetCompetition, useGetLeaderboard, useGetAllUserProfiles } from '../hooks/useQueries';
+import { useGetCompetition, useGetLeaderboard, useGetMultiplePublicProfiles } from '../hooks/useQueries';
 import LeaderboardTable from '../components/leaderboard/LeaderboardTable';
 import { Loader2, Trophy } from 'lucide-react';
 import { Event } from '../backend';
 import { DEFAULT_EVENT, EVENT_LABELS } from '../types/domain';
+import { useMemo } from 'react';
 
 export default function LeaderboardPage() {
   const { competitionId } = useParams({ from: '/competition/$competitionId/leaderboard' });
@@ -15,7 +16,16 @@ export default function LeaderboardPage() {
     BigInt(competitionId),
     selectedEvent
   );
-  const { data: userProfiles } = useGetAllUserProfiles();
+
+  const completedResults = useMemo(() => {
+    return leaderboard?.filter((r) => r.status === 'completed') || [];
+  }, [leaderboard]);
+
+  const principals = useMemo(() => {
+    return completedResults.map((r) => r.user);
+  }, [completedResults]);
+
+  const { data: publicProfiles, isLoading: profilesLoading } = useGetMultiplePublicProfiles(principals);
 
   if (compLoading || leaderboardLoading) {
     return (
@@ -41,8 +51,6 @@ export default function LeaderboardPage() {
     );
   }
 
-  const completedResults = leaderboard?.filter((r) => r.status === 'completed') || [];
-
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="max-w-6xl mx-auto">
@@ -64,8 +72,12 @@ export default function LeaderboardPage() {
               Be the first to complete this competition and claim the top spot!
             </p>
           </div>
+        ) : profilesLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-chart-1" />
+          </div>
         ) : (
-          <LeaderboardTable results={completedResults} userProfiles={userProfiles || []} />
+          <LeaderboardTable results={completedResults} publicProfiles={publicProfiles || new Map()} />
         )}
       </div>
     </div>

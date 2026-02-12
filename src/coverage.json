@@ -1,31 +1,59 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-11T23:35:52.118Z",
+  "generatedAt": "2026-02-11T23:58:46.864Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 2,
-    "implemented": 1,
+    "total": 4,
+    "implemented": 2,
     "items": [
       {
-        "id": "REQ-17",
-        "summary": "Update admin authorization so that competition-creation/admin access is granted to either (a) users whose stored email is allowlisted, including \"midhun.speedcuber@gmail.com\" and \"thiirdparty.mcubes@gmail.com\", OR (b) users whose stored mcubes user ID is exactly \"MCUBES-0\".",
+        "id": "REQ-19",
+        "summary": "Extend the backend user profile model to store additional optional fields for `country` and `gender`, and ensure existing profiles continue to work after the schema change.",
         "status": "unknown",
         "plannedFiles": [],
         "matchedFiles": []
       },
       {
-        "id": "REQ-18",
-        "summary": "Update the frontend admin gating messaging to reflect that there can be multiple allowlisted administrators (not just a single admin), and ensure the AdminGuard continues to block access to the admin competition creation page when the backend reports the caller is not an admin.",
+        "id": "REQ-20",
+        "summary": "Fix leaderboard name resolution by providing a backend query API that allows reading public profile info (at minimum `displayName`, plus `country`/`gender` if available) for any competitor principal, so the leaderboard does not show \"Anonymous\" when a user has a display name set.",
+        "status": "unknown",
+        "plannedFiles": [],
+        "matchedFiles": []
+      },
+      {
+        "id": "REQ-21",
+        "summary": "Add a user-facing Profile section in the UI where an authenticated user can view and edit their `displayName`, `country`, and `gender`, and persist changes to the backend.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/components/auth/AdminGuard.tsx"
+          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/components/profile/ProfileSetupDialog.tsx",
+          "frontend/src/components/profile/ProfileMenu.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/components/auth/AdminGuard.tsx"
+          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/components/profile/ProfileSetupDialog.tsx",
+          "frontend/src/components/profile/ProfileMenu.tsx"
+        ]
+      },
+      {
+        "id": "REQ-22",
+        "summary": "Update the leaderboard UI data-loading and display logic so that each row shows the competitor’s profile display name when available, and only falls back to \"Anonymous\" when no display name exists.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/api/queryKeys.ts",
+          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/pages/LeaderboardPage.tsx",
+          "frontend/src/components/leaderboard/LeaderboardTable.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/api/queryKeys.ts",
+          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/pages/LeaderboardPage.tsx",
+          "frontend/src/components/leaderboard/LeaderboardTable.tsx"
         ]
       }
     ]
@@ -37,7 +65,17 @@
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
-    "frontend/src/components/auth/AdminGuard.tsx",
+    "frontend/src/api/queryKeys.ts",
+    "frontend/src/backend.d.ts",
+    "frontend/src/backend.ts",
+    "frontend/src/components/leaderboard/LeaderboardTable.tsx",
+    "frontend/src/components/profile/ProfileMenu.tsx",
+    "frontend/src/components/profile/ProfileSetupDialog.tsx",
+    "frontend/src/declarations/backend.did.d.ts",
+    "frontend/src/declarations/backend.did.js",
+    "frontend/src/hooks/useQueries.ts",
+    "frontend/src/lib/timeUtils.ts",
+    "frontend/src/pages/LeaderboardPage.tsx",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

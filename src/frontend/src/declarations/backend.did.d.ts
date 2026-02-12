@@ -53,6 +53,11 @@ export interface PaymentConfirmation {
   'razorpayOrderId' : string,
   'competitionId' : bigint,
 }
+export interface PublicProfileInfo {
+  'country' : [] | [string],
+  'displayName' : string,
+  'gender' : [] | [string],
+}
 export interface ResultInput {
   'status' : SolveStatus,
   'user' : Principal,
@@ -64,7 +69,12 @@ export type SolveStatus = { 'in_progress' : null } |
   { 'completed' : null } |
   { 'not_started' : null };
 export type Time = bigint;
-export interface UserProfile { 'displayName' : string, 'mcubesId' : string }
+export interface UserProfile {
+  'country' : [] | [string],
+  'displayName' : string,
+  'gender' : [] | [string],
+  'mcubesId' : string,
+}
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
@@ -73,12 +83,20 @@ export interface _SERVICE {
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'confirmPayment' : ActorMethod<[PaymentConfirmation], undefined>,
   'createCompetition' : ActorMethod<[CompetitionInput], bigint>,
-  'createUserProfile' : ActorMethod<[string], undefined>,
+  'createUserProfile' : ActorMethod<
+    [string, [] | [string], [] | [string]],
+    undefined
+  >,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getCompetition' : ActorMethod<[bigint], [] | [Competition]>,
   'getCompetitions' : ActorMethod<[], Array<Competition>>,
   'getLeaderboard' : ActorMethod<[bigint, Event], Array<ResultInput>>,
+  'getMultiplePublicProfiles' : ActorMethod<
+    [Array<Principal>],
+    Array<[Principal, PublicProfileInfo]>
+  >,
+  'getPublicProfileInfo' : ActorMethod<[Principal], PublicProfileInfo>,
   'getResults' : ActorMethod<[bigint, Event], Array<ResultInput>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getUserResult' : ActorMethod<[bigint, Event], [] | [ResultInput]>,
