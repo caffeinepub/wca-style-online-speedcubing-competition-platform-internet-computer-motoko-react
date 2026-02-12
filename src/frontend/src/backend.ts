@@ -89,31 +89,11 @@ export class ExternalBlob {
         return this;
     }
 }
-export interface ResultInput {
-    ao5?: bigint;
-    status: SolveStatus;
-    user: Principal;
-    attempts: Array<AttemptInput>;
-    event: Event;
-    competitionId: bigint;
-}
 export interface RazorpayCredentials {
     keyId: string;
     keySecret: string;
 }
 export type Time = bigint;
-export interface CompetitionInput {
-    status: CompetitionStatus;
-    endDate: Time;
-    scrambles: Array<[Array<string>, Event]>;
-    name: string;
-    slug: string;
-    feeMode?: FeeMode;
-    events: Array<Event>;
-    participantLimit?: bigint;
-    registrationStartDate?: Time;
-    startDate: Time;
-}
 export interface RazorpayOrderRequest {
     event: Event;
     competitionId: bigint;
@@ -155,10 +135,6 @@ export interface CompetitionPublic {
     registrationStartDate?: Time;
     startDate: Time;
 }
-export interface AttemptInput {
-    penalty: bigint;
-    time: bigint;
-}
 export interface PaymentConfirmation {
     razorpayPaymentId: string;
     razorpaySignature: string;
@@ -172,21 +148,6 @@ export interface RazorpayOrderResponse {
     currency: string;
     amount: bigint;
     competitionName: string;
-}
-export interface AdminResultEntry {
-    ao5?: bigint;
-    status: SolveStatus;
-    user: Principal;
-    attempts: Array<Attempt>;
-    event: Event;
-    isHidden: boolean;
-    competitionId: bigint;
-}
-export interface UserSummary {
-    principal: Principal;
-    isBlocked: boolean;
-    email?: string;
-    profile?: UserProfile;
 }
 export interface Competition {
     id: bigint;
@@ -241,19 +202,9 @@ export enum UserRole {
 }
 export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
-    activateCompetition(competitionId: bigint, active: boolean): Promise<void>;
-    adminBlockUser(user: Principal, blocked: boolean): Promise<void>;
-    adminDeleteUser(user: Principal): Promise<void>;
-    adminGetUserSolveHistory(user: Principal): Promise<Array<[bigint, Event, ResultInput]>>;
-    adminListCompetitionResults(competitionId: bigint): Promise<Array<AdminResultEntry>>;
-    adminListUsers(): Promise<Array<UserSummary>>;
-    adminResetUserCompetitionStatus(user: Principal, competitionId: bigint, event: Event): Promise<void>;
-    adminToggleResultVisibility(user: Principal, competitionId: bigint, event: Event, hidden: boolean): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     confirmPayment(confirmation: PaymentConfirmation): Promise<void>;
-    createCompetition(comp: Competition): Promise<bigint>;
     createRazorpayOrder(request: RazorpayOrderRequest): Promise<RazorpayOrderResponse>;
-    deleteCompetition(competitionId: bigint): Promise<void>;
     getAllCompetitions(): Promise<Array<CompetitionPublic>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
@@ -263,14 +214,11 @@ export interface backendInterface {
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     hasRazorpayConfig(): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
-    lockCompetition(competitionId: bigint, locked: boolean): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setRazorpayCredentials(credentials: RazorpayCredentials): Promise<void>;
     startOrResumeCompetitionSession(competitionId: bigint, event: Event): Promise<Uint8Array>;
-    submitResult(result: ResultInput): Promise<bigint>;
-    updateCompetition(competitionId: bigint, comp: CompetitionInput): Promise<void>;
 }
-import type { AdminResultEntry as _AdminResultEntry, Attempt as _Attempt, AttemptInput as _AttemptInput, Competition as _Competition, CompetitionInput as _CompetitionInput, CompetitionPublic as _CompetitionPublic, CompetitionResult as _CompetitionResult, CompetitionStatus as _CompetitionStatus, CompetitorResults as _CompetitorResults, Event as _Event, FeeMode as _FeeMode, PaymentConfirmation as _PaymentConfirmation, RazorpayOrderRequest as _RazorpayOrderRequest, RazorpayOrderResponse as _RazorpayOrderResponse, ResultInput as _ResultInput, SolveStatus as _SolveStatus, Time as _Time, UserProfile as _UserProfile, UserRole as _UserRole, UserSummary as _UserSummary } from "./declarations/backend.did.d.ts";
+import type { Attempt as _Attempt, Competition as _Competition, CompetitionPublic as _CompetitionPublic, CompetitionResult as _CompetitionResult, CompetitionStatus as _CompetitionStatus, CompetitorResults as _CompetitorResults, Event as _Event, FeeMode as _FeeMode, PaymentConfirmation as _PaymentConfirmation, RazorpayOrderRequest as _RazorpayOrderRequest, RazorpayOrderResponse as _RazorpayOrderResponse, SolveStatus as _SolveStatus, Time as _Time, UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async _initializeAccessControlWithSecret(arg0: string): Promise<void> {
@@ -287,284 +235,144 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async activateCompetition(arg0: bigint, arg1: boolean): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.activateCompetition(arg0, arg1);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.activateCompetition(arg0, arg1);
-            return result;
-        }
-    }
-    async adminBlockUser(arg0: Principal, arg1: boolean): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.adminBlockUser(arg0, arg1);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.adminBlockUser(arg0, arg1);
-            return result;
-        }
-    }
-    async adminDeleteUser(arg0: Principal): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.adminDeleteUser(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.adminDeleteUser(arg0);
-            return result;
-        }
-    }
-    async adminGetUserSolveHistory(arg0: Principal): Promise<Array<[bigint, Event, ResultInput]>> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.adminGetUserSolveHistory(arg0);
-                return from_candid_vec_n1(this._uploadFile, this._downloadFile, result);
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.adminGetUserSolveHistory(arg0);
-            return from_candid_vec_n1(this._uploadFile, this._downloadFile, result);
-        }
-    }
-    async adminListCompetitionResults(arg0: bigint): Promise<Array<AdminResultEntry>> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.adminListCompetitionResults(arg0);
-                return from_candid_vec_n10(this._uploadFile, this._downloadFile, result);
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.adminListCompetitionResults(arg0);
-            return from_candid_vec_n10(this._uploadFile, this._downloadFile, result);
-        }
-    }
-    async adminListUsers(): Promise<Array<UserSummary>> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.adminListUsers();
-                return from_candid_vec_n13(this._uploadFile, this._downloadFile, result);
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.adminListUsers();
-            return from_candid_vec_n13(this._uploadFile, this._downloadFile, result);
-        }
-    }
-    async adminResetUserCompetitionStatus(arg0: Principal, arg1: bigint, arg2: Event): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.adminResetUserCompetitionStatus(arg0, arg1, to_candid_Event_n20(this._uploadFile, this._downloadFile, arg2));
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.adminResetUserCompetitionStatus(arg0, arg1, to_candid_Event_n20(this._uploadFile, this._downloadFile, arg2));
-            return result;
-        }
-    }
-    async adminToggleResultVisibility(arg0: Principal, arg1: bigint, arg2: Event, arg3: boolean): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.adminToggleResultVisibility(arg0, arg1, to_candid_Event_n20(this._uploadFile, this._downloadFile, arg2), arg3);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.adminToggleResultVisibility(arg0, arg1, to_candid_Event_n20(this._uploadFile, this._downloadFile, arg2), arg3);
-            return result;
-        }
-    }
     async assignCallerUserRole(arg0: Principal, arg1: UserRole): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n22(this._uploadFile, this._downloadFile, arg1));
+                const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n1(this._uploadFile, this._downloadFile, arg1));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n22(this._uploadFile, this._downloadFile, arg1));
+            const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n1(this._uploadFile, this._downloadFile, arg1));
             return result;
         }
     }
     async confirmPayment(arg0: PaymentConfirmation): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.confirmPayment(to_candid_PaymentConfirmation_n24(this._uploadFile, this._downloadFile, arg0));
+                const result = await this.actor.confirmPayment(to_candid_PaymentConfirmation_n3(this._uploadFile, this._downloadFile, arg0));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.confirmPayment(to_candid_PaymentConfirmation_n24(this._uploadFile, this._downloadFile, arg0));
-            return result;
-        }
-    }
-    async createCompetition(arg0: Competition): Promise<bigint> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.createCompetition(to_candid_Competition_n26(this._uploadFile, this._downloadFile, arg0));
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.createCompetition(to_candid_Competition_n26(this._uploadFile, this._downloadFile, arg0));
+            const result = await this.actor.confirmPayment(to_candid_PaymentConfirmation_n3(this._uploadFile, this._downloadFile, arg0));
             return result;
         }
     }
     async createRazorpayOrder(arg0: RazorpayOrderRequest): Promise<RazorpayOrderResponse> {
         if (this.processError) {
             try {
-                const result = await this.actor.createRazorpayOrder(to_candid_RazorpayOrderRequest_n35(this._uploadFile, this._downloadFile, arg0));
-                return from_candid_RazorpayOrderResponse_n37(this._uploadFile, this._downloadFile, result);
+                const result = await this.actor.createRazorpayOrder(to_candid_RazorpayOrderRequest_n7(this._uploadFile, this._downloadFile, arg0));
+                return from_candid_RazorpayOrderResponse_n9(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.createRazorpayOrder(to_candid_RazorpayOrderRequest_n35(this._uploadFile, this._downloadFile, arg0));
-            return from_candid_RazorpayOrderResponse_n37(this._uploadFile, this._downloadFile, result);
-        }
-    }
-    async deleteCompetition(arg0: bigint): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.deleteCompetition(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.deleteCompetition(arg0);
-            return result;
+            const result = await this.actor.createRazorpayOrder(to_candid_RazorpayOrderRequest_n7(this._uploadFile, this._downloadFile, arg0));
+            return from_candid_RazorpayOrderResponse_n9(this._uploadFile, this._downloadFile, result);
         }
     }
     async getAllCompetitions(): Promise<Array<CompetitionPublic>> {
         if (this.processError) {
             try {
                 const result = await this.actor.getAllCompetitions();
-                return from_candid_vec_n39(this._uploadFile, this._downloadFile, result);
+                return from_candid_vec_n13(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getAllCompetitions();
-            return from_candid_vec_n39(this._uploadFile, this._downloadFile, result);
+            return from_candid_vec_n13(this._uploadFile, this._downloadFile, result);
         }
     }
     async getCallerUserProfile(): Promise<UserProfile | null> {
         if (this.processError) {
             try {
                 const result = await this.actor.getCallerUserProfile();
-                return from_candid_opt_n17(this._uploadFile, this._downloadFile, result);
+                return from_candid_opt_n24(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCallerUserProfile();
-            return from_candid_opt_n17(this._uploadFile, this._downloadFile, result);
+            return from_candid_opt_n24(this._uploadFile, this._downloadFile, result);
         }
     }
     async getCallerUserRole(): Promise<UserRole> {
         if (this.processError) {
             try {
                 const result = await this.actor.getCallerUserRole();
-                return from_candid_UserRole_n49(this._uploadFile, this._downloadFile, result);
+                return from_candid_UserRole_n28(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCallerUserRole();
-            return from_candid_UserRole_n49(this._uploadFile, this._downloadFile, result);
+            return from_candid_UserRole_n28(this._uploadFile, this._downloadFile, result);
         }
     }
     async getCompetition(arg0: bigint): Promise<Competition> {
         if (this.processError) {
             try {
                 const result = await this.actor.getCompetition(arg0);
-                return from_candid_Competition_n51(this._uploadFile, this._downloadFile, result);
+                return from_candid_Competition_n30(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCompetition(arg0);
-            return from_candid_Competition_n51(this._uploadFile, this._downloadFile, result);
+            return from_candid_Competition_n30(this._uploadFile, this._downloadFile, result);
         }
     }
     async getCompetitionResults(arg0: bigint, arg1: Event): Promise<Array<CompetitionResult>> {
         if (this.processError) {
             try {
-                const result = await this.actor.getCompetitionResults(arg0, to_candid_Event_n20(this._uploadFile, this._downloadFile, arg1));
-                return from_candid_vec_n55(this._uploadFile, this._downloadFile, result);
+                const result = await this.actor.getCompetitionResults(arg0, to_candid_Event_n5(this._uploadFile, this._downloadFile, arg1));
+                return from_candid_vec_n34(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.getCompetitionResults(arg0, to_candid_Event_n20(this._uploadFile, this._downloadFile, arg1));
-            return from_candid_vec_n55(this._uploadFile, this._downloadFile, result);
+            const result = await this.actor.getCompetitionResults(arg0, to_candid_Event_n5(this._uploadFile, this._downloadFile, arg1));
+            return from_candid_vec_n34(this._uploadFile, this._downloadFile, result);
         }
     }
     async getCompetitorResults(arg0: Principal): Promise<CompetitorResults> {
         if (this.processError) {
             try {
                 const result = await this.actor.getCompetitorResults(arg0);
-                return from_candid_CompetitorResults_n58(this._uploadFile, this._downloadFile, result);
+                return from_candid_CompetitorResults_n39(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCompetitorResults(arg0);
-            return from_candid_CompetitorResults_n58(this._uploadFile, this._downloadFile, result);
+            return from_candid_CompetitorResults_n39(this._uploadFile, this._downloadFile, result);
         }
     }
     async getUserProfile(arg0: Principal): Promise<UserProfile | null> {
         if (this.processError) {
             try {
                 const result = await this.actor.getUserProfile(arg0);
-                return from_candid_opt_n17(this._uploadFile, this._downloadFile, result);
+                return from_candid_opt_n24(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getUserProfile(arg0);
-            return from_candid_opt_n17(this._uploadFile, this._downloadFile, result);
+            return from_candid_opt_n24(this._uploadFile, this._downloadFile, result);
         }
     }
     async hasRazorpayConfig(): Promise<boolean> {
@@ -595,31 +403,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async lockCompetition(arg0: bigint, arg1: boolean): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.lockCompetition(arg0, arg1);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.lockCompetition(arg0, arg1);
-            return result;
-        }
-    }
     async saveCallerUserProfile(arg0: UserProfile): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n60(this._uploadFile, this._downloadFile, arg0));
+                const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n41(this._uploadFile, this._downloadFile, arg0));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n60(this._uploadFile, this._downloadFile, arg0));
+            const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n41(this._uploadFile, this._downloadFile, arg0));
             return result;
         }
     }
@@ -640,167 +434,67 @@ export class Backend implements backendInterface {
     async startOrResumeCompetitionSession(arg0: bigint, arg1: Event): Promise<Uint8Array> {
         if (this.processError) {
             try {
-                const result = await this.actor.startOrResumeCompetitionSession(arg0, to_candid_Event_n20(this._uploadFile, this._downloadFile, arg1));
+                const result = await this.actor.startOrResumeCompetitionSession(arg0, to_candid_Event_n5(this._uploadFile, this._downloadFile, arg1));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.startOrResumeCompetitionSession(arg0, to_candid_Event_n20(this._uploadFile, this._downloadFile, arg1));
-            return result;
-        }
-    }
-    async submitResult(arg0: ResultInput): Promise<bigint> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.submitResult(to_candid_ResultInput_n62(this._uploadFile, this._downloadFile, arg0));
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.submitResult(to_candid_ResultInput_n62(this._uploadFile, this._downloadFile, arg0));
-            return result;
-        }
-    }
-    async updateCompetition(arg0: bigint, arg1: CompetitionInput): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.updateCompetition(arg0, to_candid_CompetitionInput_n66(this._uploadFile, this._downloadFile, arg1));
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.updateCompetition(arg0, to_candid_CompetitionInput_n66(this._uploadFile, this._downloadFile, arg1));
+            const result = await this.actor.startOrResumeCompetitionSession(arg0, to_candid_Event_n5(this._uploadFile, this._downloadFile, arg1));
             return result;
         }
     }
 }
-function from_candid_AdminResultEntry_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _AdminResultEntry): AdminResultEntry {
-    return from_candid_record_n12(_uploadFile, _downloadFile, value);
-}
-function from_candid_CompetitionPublic_n40(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _CompetitionPublic): CompetitionPublic {
-    return from_candid_record_n41(_uploadFile, _downloadFile, value);
-}
-function from_candid_CompetitionResult_n56(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _CompetitionResult): CompetitionResult {
-    return from_candid_record_n57(_uploadFile, _downloadFile, value);
-}
-function from_candid_CompetitionStatus_n42(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _CompetitionStatus): CompetitionStatus {
-    return from_candid_variant_n43(_uploadFile, _downloadFile, value);
-}
-function from_candid_Competition_n51(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Competition): Competition {
-    return from_candid_record_n52(_uploadFile, _downloadFile, value);
-}
-function from_candid_CompetitorResults_n58(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _CompetitorResults): CompetitorResults {
-    return from_candid_record_n59(_uploadFile, _downloadFile, value);
-}
-function from_candid_Event_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Event): Event {
-    return from_candid_variant_n4(_uploadFile, _downloadFile, value);
-}
-function from_candid_FeeMode_n45(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _FeeMode): FeeMode {
-    return from_candid_variant_n46(_uploadFile, _downloadFile, value);
-}
-function from_candid_RazorpayOrderResponse_n37(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _RazorpayOrderResponse): RazorpayOrderResponse {
-    return from_candid_record_n38(_uploadFile, _downloadFile, value);
-}
-function from_candid_ResultInput_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _ResultInput): ResultInput {
-    return from_candid_record_n6(_uploadFile, _downloadFile, value);
-}
-function from_candid_SolveStatus_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _SolveStatus): SolveStatus {
-    return from_candid_variant_n9(_uploadFile, _downloadFile, value);
-}
-function from_candid_UserProfile_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserProfile): UserProfile {
-    return from_candid_record_n19(_uploadFile, _downloadFile, value);
-}
-function from_candid_UserRole_n49(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
-    return from_candid_variant_n50(_uploadFile, _downloadFile, value);
-}
-function from_candid_UserSummary_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserSummary): UserSummary {
+function from_candid_CompetitionPublic_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _CompetitionPublic): CompetitionPublic {
     return from_candid_record_n15(_uploadFile, _downloadFile, value);
 }
-function from_candid_opt_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [string]): string | null {
+function from_candid_CompetitionResult_n35(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _CompetitionResult): CompetitionResult {
+    return from_candid_record_n36(_uploadFile, _downloadFile, value);
+}
+function from_candid_CompetitionStatus_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _CompetitionStatus): CompetitionStatus {
+    return from_candid_variant_n17(_uploadFile, _downloadFile, value);
+}
+function from_candid_Competition_n30(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Competition): Competition {
+    return from_candid_record_n31(_uploadFile, _downloadFile, value);
+}
+function from_candid_CompetitorResults_n39(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _CompetitorResults): CompetitorResults {
+    return from_candid_record_n40(_uploadFile, _downloadFile, value);
+}
+function from_candid_Event_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _Event): Event {
+    return from_candid_variant_n12(_uploadFile, _downloadFile, value);
+}
+function from_candid_FeeMode_n19(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _FeeMode): FeeMode {
+    return from_candid_variant_n20(_uploadFile, _downloadFile, value);
+}
+function from_candid_RazorpayOrderResponse_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _RazorpayOrderResponse): RazorpayOrderResponse {
+    return from_candid_record_n10(_uploadFile, _downloadFile, value);
+}
+function from_candid_SolveStatus_n37(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _SolveStatus): SolveStatus {
+    return from_candid_variant_n38(_uploadFile, _downloadFile, value);
+}
+function from_candid_UserProfile_n25(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserProfile): UserProfile {
+    return from_candid_record_n26(_uploadFile, _downloadFile, value);
+}
+function from_candid_UserRole_n28(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
+    return from_candid_variant_n29(_uploadFile, _downloadFile, value);
+}
+function from_candid_opt_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_FeeMode]): FeeMode | null {
+    return value.length === 0 ? null : from_candid_FeeMode_n19(_uploadFile, _downloadFile, value[0]);
+}
+function from_candid_opt_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [bigint]): bigint | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
-    return value.length === 0 ? null : from_candid_UserProfile_n18(_uploadFile, _downloadFile, value[0]);
-}
-function from_candid_opt_n44(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_FeeMode]): FeeMode | null {
-    return value.length === 0 ? null : from_candid_FeeMode_n45(_uploadFile, _downloadFile, value[0]);
-}
-function from_candid_opt_n48(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Time]): Time | null {
+function from_candid_opt_n23(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Time]): Time | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [bigint]): bigint | null {
+function from_candid_opt_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
+    return value.length === 0 ? null : from_candid_UserProfile_n25(_uploadFile, _downloadFile, value[0]);
+}
+function from_candid_opt_n27(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [string]): string | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_record_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
-    ao5: [] | [bigint];
-    status: _SolveStatus;
-    user: Principal;
-    attempts: Array<_Attempt>;
-    event: _Event;
-    isHidden: boolean;
-    competitionId: bigint;
-}): {
-    ao5?: bigint;
-    status: SolveStatus;
-    user: Principal;
-    attempts: Array<Attempt>;
-    event: Event;
-    isHidden: boolean;
-    competitionId: bigint;
-} {
-    return {
-        ao5: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.ao5)),
-        status: from_candid_SolveStatus_n8(_uploadFile, _downloadFile, value.status),
-        user: value.user,
-        attempts: value.attempts,
-        event: from_candid_Event_n3(_uploadFile, _downloadFile, value.event),
-        isHidden: value.isHidden,
-        competitionId: value.competitionId
-    };
-}
-function from_candid_record_n15(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
-    principal: Principal;
-    isBlocked: boolean;
-    email: [] | [string];
-    profile: [] | [_UserProfile];
-}): {
-    principal: Principal;
-    isBlocked: boolean;
-    email?: string;
-    profile?: UserProfile;
-} {
-    return {
-        principal: value.principal,
-        isBlocked: value.isBlocked,
-        email: record_opt_to_undefined(from_candid_opt_n16(_uploadFile, _downloadFile, value.email)),
-        profile: record_opt_to_undefined(from_candid_opt_n17(_uploadFile, _downloadFile, value.profile))
-    };
-}
-function from_candid_record_n19(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
-    country: [] | [string];
-    displayName: string;
-    gender: [] | [string];
-    mcubesId: string;
-}): {
-    country?: string;
-    displayName: string;
-    gender?: string;
-    mcubesId: string;
-} {
-    return {
-        country: record_opt_to_undefined(from_candid_opt_n16(_uploadFile, _downloadFile, value.country)),
-        displayName: value.displayName,
-        gender: record_opt_to_undefined(from_candid_opt_n16(_uploadFile, _downloadFile, value.gender)),
-        mcubesId: value.mcubesId
-    };
-}
-function from_candid_record_n38(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_record_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     orderId: string;
     event: _Event;
     currency: string;
@@ -815,13 +509,13 @@ function from_candid_record_n38(_uploadFile: (file: ExternalBlob) => Promise<Uin
 } {
     return {
         orderId: value.orderId,
-        event: from_candid_Event_n3(_uploadFile, _downloadFile, value.event),
+        event: from_candid_Event_n11(_uploadFile, _downloadFile, value.event),
         currency: value.currency,
         amount: value.amount,
         competitionName: value.competitionName
     };
 }
-function from_candid_record_n41(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_record_n15(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     id: bigint;
     status: _CompetitionStatus;
     endDate: _Time;
@@ -846,18 +540,36 @@ function from_candid_record_n41(_uploadFile: (file: ExternalBlob) => Promise<Uin
 } {
     return {
         id: value.id,
-        status: from_candid_CompetitionStatus_n42(_uploadFile, _downloadFile, value.status),
+        status: from_candid_CompetitionStatus_n16(_uploadFile, _downloadFile, value.status),
         endDate: value.endDate,
         name: value.name,
         slug: value.slug,
-        feeMode: record_opt_to_undefined(from_candid_opt_n44(_uploadFile, _downloadFile, value.feeMode)),
-        events: from_candid_vec_n47(_uploadFile, _downloadFile, value.events),
-        participantLimit: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.participantLimit)),
-        registrationStartDate: record_opt_to_undefined(from_candid_opt_n48(_uploadFile, _downloadFile, value.registrationStartDate)),
+        feeMode: record_opt_to_undefined(from_candid_opt_n18(_uploadFile, _downloadFile, value.feeMode)),
+        events: from_candid_vec_n21(_uploadFile, _downloadFile, value.events),
+        participantLimit: record_opt_to_undefined(from_candid_opt_n22(_uploadFile, _downloadFile, value.participantLimit)),
+        registrationStartDate: record_opt_to_undefined(from_candid_opt_n23(_uploadFile, _downloadFile, value.registrationStartDate)),
         startDate: value.startDate
     };
 }
-function from_candid_record_n52(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_record_n26(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    country: [] | [string];
+    displayName: string;
+    gender: [] | [string];
+    mcubesId: string;
+}): {
+    country?: string;
+    displayName: string;
+    gender?: string;
+    mcubesId: string;
+} {
+    return {
+        country: record_opt_to_undefined(from_candid_opt_n27(_uploadFile, _downloadFile, value.country)),
+        displayName: value.displayName,
+        gender: record_opt_to_undefined(from_candid_opt_n27(_uploadFile, _downloadFile, value.gender)),
+        mcubesId: value.mcubesId
+    };
+}
+function from_candid_record_n31(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     id: bigint;
     status: _CompetitionStatus;
     endDate: _Time;
@@ -888,21 +600,21 @@ function from_candid_record_n52(_uploadFile: (file: ExternalBlob) => Promise<Uin
 } {
     return {
         id: value.id,
-        status: from_candid_CompetitionStatus_n42(_uploadFile, _downloadFile, value.status),
+        status: from_candid_CompetitionStatus_n16(_uploadFile, _downloadFile, value.status),
         endDate: value.endDate,
-        scrambles: from_candid_vec_n53(_uploadFile, _downloadFile, value.scrambles),
+        scrambles: from_candid_vec_n32(_uploadFile, _downloadFile, value.scrambles),
         name: value.name,
         slug: value.slug,
-        feeMode: record_opt_to_undefined(from_candid_opt_n44(_uploadFile, _downloadFile, value.feeMode)),
+        feeMode: record_opt_to_undefined(from_candid_opt_n18(_uploadFile, _downloadFile, value.feeMode)),
         isActive: value.isActive,
-        events: from_candid_vec_n47(_uploadFile, _downloadFile, value.events),
+        events: from_candid_vec_n21(_uploadFile, _downloadFile, value.events),
         isLocked: value.isLocked,
-        participantLimit: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.participantLimit)),
-        registrationStartDate: record_opt_to_undefined(from_candid_opt_n48(_uploadFile, _downloadFile, value.registrationStartDate)),
+        participantLimit: record_opt_to_undefined(from_candid_opt_n22(_uploadFile, _downloadFile, value.participantLimit)),
+        registrationStartDate: record_opt_to_undefined(from_candid_opt_n23(_uploadFile, _downloadFile, value.registrationStartDate)),
         startDate: value.startDate
     };
 }
-function from_candid_record_n57(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_record_n36(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     ao5: [] | [bigint];
     status: _SolveStatus;
     user: Principal;
@@ -918,15 +630,15 @@ function from_candid_record_n57(_uploadFile: (file: ExternalBlob) => Promise<Uin
     userProfile?: UserProfile;
 } {
     return {
-        ao5: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.ao5)),
-        status: from_candid_SolveStatus_n8(_uploadFile, _downloadFile, value.status),
+        ao5: record_opt_to_undefined(from_candid_opt_n22(_uploadFile, _downloadFile, value.ao5)),
+        status: from_candid_SolveStatus_n37(_uploadFile, _downloadFile, value.status),
         user: value.user,
         attempts: value.attempts,
-        event: from_candid_Event_n3(_uploadFile, _downloadFile, value.event),
-        userProfile: record_opt_to_undefined(from_candid_opt_n17(_uploadFile, _downloadFile, value.userProfile))
+        event: from_candid_Event_n11(_uploadFile, _downloadFile, value.event),
+        userProfile: record_opt_to_undefined(from_candid_opt_n24(_uploadFile, _downloadFile, value.userProfile))
     };
 }
-function from_candid_record_n59(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_record_n40(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     results: Array<_CompetitionResult>;
     competitor: Principal;
 }): {
@@ -934,48 +646,17 @@ function from_candid_record_n59(_uploadFile: (file: ExternalBlob) => Promise<Uin
     competitor: Principal;
 } {
     return {
-        results: from_candid_vec_n55(_uploadFile, _downloadFile, value.results),
+        results: from_candid_vec_n34(_uploadFile, _downloadFile, value.results),
         competitor: value.competitor
     };
 }
-function from_candid_record_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
-    ao5: [] | [bigint];
-    status: _SolveStatus;
-    user: Principal;
-    attempts: Array<_AttemptInput>;
-    event: _Event;
-    competitionId: bigint;
-}): {
-    ao5?: bigint;
-    status: SolveStatus;
-    user: Principal;
-    attempts: Array<AttemptInput>;
-    event: Event;
-    competitionId: bigint;
-} {
-    return {
-        ao5: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.ao5)),
-        status: from_candid_SolveStatus_n8(_uploadFile, _downloadFile, value.status),
-        user: value.user,
-        attempts: value.attempts,
-        event: from_candid_Event_n3(_uploadFile, _downloadFile, value.event),
-        competitionId: value.competitionId
-    };
-}
-function from_candid_tuple_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [bigint, _Event, _ResultInput]): [bigint, Event, ResultInput] {
+function from_candid_tuple_n33(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [Array<string>, _Event]): [Array<string>, Event] {
     return [
         value[0],
-        from_candid_Event_n3(_uploadFile, _downloadFile, value[1]),
-        from_candid_ResultInput_n5(_uploadFile, _downloadFile, value[2])
+        from_candid_Event_n11(_uploadFile, _downloadFile, value[1])
     ];
 }
-function from_candid_tuple_n54(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [Array<string>, _Event]): [Array<string>, Event] {
-    return [
-        value[0],
-        from_candid_Event_n3(_uploadFile, _downloadFile, value[1])
-    ];
-}
-function from_candid_variant_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     megaminx: null;
 } | {
     fiveByFive: null;
@@ -996,7 +677,7 @@ function from_candid_variant_n4(_uploadFile: (file: ExternalBlob) => Promise<Uin
 }): Event {
     return "megaminx" in value ? Event.megaminx : "fiveByFive" in value ? Event.fiveByFive : "threeByThreeOneHanded" in value ? Event.threeByThreeOneHanded : "clock" in value ? Event.clock : "threeByThree" in value ? Event.threeByThree : "pyraminx" in value ? Event.pyraminx : "skewb" in value ? Event.skewb : "twoByTwo" in value ? Event.twoByTwo : "fourByFour" in value ? Event.fourByFour : value;
 }
-function from_candid_variant_n43(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     upcoming: null;
 } | {
     completed: null;
@@ -1005,7 +686,7 @@ function from_candid_variant_n43(_uploadFile: (file: ExternalBlob) => Promise<Ui
 }): CompetitionStatus {
     return "upcoming" in value ? CompetitionStatus.upcoming : "completed" in value ? CompetitionStatus.completed : "running" in value ? CompetitionStatus.running : value;
 }
-function from_candid_variant_n46(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     perEvent: bigint;
 } | {
     allEventsFlat: bigint;
@@ -1038,7 +719,7 @@ function from_candid_variant_n46(_uploadFile: (file: ExternalBlob) => Promise<Ui
         basePlusAdditional: value.basePlusAdditional
     } : value;
 }
-function from_candid_variant_n50(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n29(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     admin: null;
 } | {
     user: null;
@@ -1047,7 +728,7 @@ function from_candid_variant_n50(_uploadFile: (file: ExternalBlob) => Promise<Ui
 }): UserRole {
     return "admin" in value ? UserRole.admin : "user" in value ? UserRole.user : "guest" in value ? UserRole.guest : value;
 }
-function from_candid_variant_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n38(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     in_progress: null;
 } | {
     completed: null;
@@ -1056,61 +737,34 @@ function from_candid_variant_n9(_uploadFile: (file: ExternalBlob) => Promise<Uin
 }): SolveStatus {
     return "in_progress" in value ? SolveStatus.in_progress : "completed" in value ? SolveStatus.completed : "not_started" in value ? SolveStatus.not_started : value;
 }
-function from_candid_vec_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<[bigint, _Event, _ResultInput]>): Array<[bigint, Event, ResultInput]> {
-    return value.map((x)=>from_candid_tuple_n2(_uploadFile, _downloadFile, x));
+function from_candid_vec_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_CompetitionPublic>): Array<CompetitionPublic> {
+    return value.map((x)=>from_candid_CompetitionPublic_n14(_uploadFile, _downloadFile, x));
 }
-function from_candid_vec_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_AdminResultEntry>): Array<AdminResultEntry> {
-    return value.map((x)=>from_candid_AdminResultEntry_n11(_uploadFile, _downloadFile, x));
+function from_candid_vec_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_Event>): Array<Event> {
+    return value.map((x)=>from_candid_Event_n11(_uploadFile, _downloadFile, x));
 }
-function from_candid_vec_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_UserSummary>): Array<UserSummary> {
-    return value.map((x)=>from_candid_UserSummary_n14(_uploadFile, _downloadFile, x));
+function from_candid_vec_n32(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<[Array<string>, _Event]>): Array<[Array<string>, Event]> {
+    return value.map((x)=>from_candid_tuple_n33(_uploadFile, _downloadFile, x));
 }
-function from_candid_vec_n39(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_CompetitionPublic>): Array<CompetitionPublic> {
-    return value.map((x)=>from_candid_CompetitionPublic_n40(_uploadFile, _downloadFile, x));
+function from_candid_vec_n34(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_CompetitionResult>): Array<CompetitionResult> {
+    return value.map((x)=>from_candid_CompetitionResult_n35(_uploadFile, _downloadFile, x));
 }
-function from_candid_vec_n47(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_Event>): Array<Event> {
-    return value.map((x)=>from_candid_Event_n3(_uploadFile, _downloadFile, x));
+function to_candid_Event_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Event): _Event {
+    return to_candid_variant_n6(_uploadFile, _downloadFile, value);
 }
-function from_candid_vec_n53(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<[Array<string>, _Event]>): Array<[Array<string>, Event]> {
-    return value.map((x)=>from_candid_tuple_n54(_uploadFile, _downloadFile, x));
+function to_candid_PaymentConfirmation_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: PaymentConfirmation): _PaymentConfirmation {
+    return to_candid_record_n4(_uploadFile, _downloadFile, value);
 }
-function from_candid_vec_n55(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_CompetitionResult>): Array<CompetitionResult> {
-    return value.map((x)=>from_candid_CompetitionResult_n56(_uploadFile, _downloadFile, x));
+function to_candid_RazorpayOrderRequest_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: RazorpayOrderRequest): _RazorpayOrderRequest {
+    return to_candid_record_n8(_uploadFile, _downloadFile, value);
 }
-function to_candid_CompetitionInput_n66(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: CompetitionInput): _CompetitionInput {
-    return to_candid_record_n67(_uploadFile, _downloadFile, value);
+function to_candid_UserProfile_n41(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserProfile): _UserProfile {
+    return to_candid_record_n42(_uploadFile, _downloadFile, value);
 }
-function to_candid_CompetitionStatus_n28(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: CompetitionStatus): _CompetitionStatus {
-    return to_candid_variant_n29(_uploadFile, _downloadFile, value);
+function to_candid_UserRole_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
+    return to_candid_variant_n2(_uploadFile, _downloadFile, value);
 }
-function to_candid_Competition_n26(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Competition): _Competition {
-    return to_candid_record_n27(_uploadFile, _downloadFile, value);
-}
-function to_candid_Event_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Event): _Event {
-    return to_candid_variant_n21(_uploadFile, _downloadFile, value);
-}
-function to_candid_FeeMode_n32(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: FeeMode): _FeeMode {
-    return to_candid_variant_n33(_uploadFile, _downloadFile, value);
-}
-function to_candid_PaymentConfirmation_n24(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: PaymentConfirmation): _PaymentConfirmation {
-    return to_candid_record_n25(_uploadFile, _downloadFile, value);
-}
-function to_candid_RazorpayOrderRequest_n35(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: RazorpayOrderRequest): _RazorpayOrderRequest {
-    return to_candid_record_n36(_uploadFile, _downloadFile, value);
-}
-function to_candid_ResultInput_n62(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: ResultInput): _ResultInput {
-    return to_candid_record_n63(_uploadFile, _downloadFile, value);
-}
-function to_candid_SolveStatus_n64(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: SolveStatus): _SolveStatus {
-    return to_candid_variant_n65(_uploadFile, _downloadFile, value);
-}
-function to_candid_UserProfile_n60(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserProfile): _UserProfile {
-    return to_candid_record_n61(_uploadFile, _downloadFile, value);
-}
-function to_candid_UserRole_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
-    return to_candid_variant_n23(_uploadFile, _downloadFile, value);
-}
-function to_candid_record_n25(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function to_candid_record_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     razorpayPaymentId: string;
     razorpaySignature: string;
     event: Event;
@@ -1126,69 +780,12 @@ function to_candid_record_n25(_uploadFile: (file: ExternalBlob) => Promise<Uint8
     return {
         razorpayPaymentId: value.razorpayPaymentId,
         razorpaySignature: value.razorpaySignature,
-        event: to_candid_Event_n20(_uploadFile, _downloadFile, value.event),
+        event: to_candid_Event_n5(_uploadFile, _downloadFile, value.event),
         razorpayOrderId: value.razorpayOrderId,
         competitionId: value.competitionId
     };
 }
-function to_candid_record_n27(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
-    id: bigint;
-    status: CompetitionStatus;
-    endDate: Time;
-    scrambles: Array<[Array<string>, Event]>;
-    name: string;
-    slug: string;
-    feeMode?: FeeMode;
-    isActive: boolean;
-    events: Array<Event>;
-    isLocked: boolean;
-    participantLimit?: bigint;
-    registrationStartDate?: Time;
-    startDate: Time;
-}): {
-    id: bigint;
-    status: _CompetitionStatus;
-    endDate: _Time;
-    scrambles: Array<[Array<string>, _Event]>;
-    name: string;
-    slug: string;
-    feeMode: [] | [_FeeMode];
-    isActive: boolean;
-    events: Array<_Event>;
-    isLocked: boolean;
-    participantLimit: [] | [bigint];
-    registrationStartDate: [] | [_Time];
-    startDate: _Time;
-} {
-    return {
-        id: value.id,
-        status: to_candid_CompetitionStatus_n28(_uploadFile, _downloadFile, value.status),
-        endDate: value.endDate,
-        scrambles: to_candid_vec_n30(_uploadFile, _downloadFile, value.scrambles),
-        name: value.name,
-        slug: value.slug,
-        feeMode: value.feeMode ? candid_some(to_candid_FeeMode_n32(_uploadFile, _downloadFile, value.feeMode)) : candid_none(),
-        isActive: value.isActive,
-        events: to_candid_vec_n34(_uploadFile, _downloadFile, value.events),
-        isLocked: value.isLocked,
-        participantLimit: value.participantLimit ? candid_some(value.participantLimit) : candid_none(),
-        registrationStartDate: value.registrationStartDate ? candid_some(value.registrationStartDate) : candid_none(),
-        startDate: value.startDate
-    };
-}
-function to_candid_record_n36(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
-    event: Event;
-    competitionId: bigint;
-}): {
-    event: _Event;
-    competitionId: bigint;
-} {
-    return {
-        event: to_candid_Event_n20(_uploadFile, _downloadFile, value.event),
-        competitionId: value.competitionId
-    };
-}
-function to_candid_record_n61(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function to_candid_record_n42(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     country?: string;
     displayName: string;
     gender?: string;
@@ -1206,73 +803,34 @@ function to_candid_record_n61(_uploadFile: (file: ExternalBlob) => Promise<Uint8
         mcubesId: value.mcubesId
     };
 }
-function to_candid_record_n63(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
-    ao5?: bigint;
-    status: SolveStatus;
-    user: Principal;
-    attempts: Array<AttemptInput>;
+function to_candid_record_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     event: Event;
     competitionId: bigint;
 }): {
-    ao5: [] | [bigint];
-    status: _SolveStatus;
-    user: Principal;
-    attempts: Array<_AttemptInput>;
     event: _Event;
     competitionId: bigint;
 } {
     return {
-        ao5: value.ao5 ? candid_some(value.ao5) : candid_none(),
-        status: to_candid_SolveStatus_n64(_uploadFile, _downloadFile, value.status),
-        user: value.user,
-        attempts: value.attempts,
-        event: to_candid_Event_n20(_uploadFile, _downloadFile, value.event),
+        event: to_candid_Event_n5(_uploadFile, _downloadFile, value.event),
         competitionId: value.competitionId
     };
 }
-function to_candid_record_n67(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
-    status: CompetitionStatus;
-    endDate: Time;
-    scrambles: Array<[Array<string>, Event]>;
-    name: string;
-    slug: string;
-    feeMode?: FeeMode;
-    events: Array<Event>;
-    participantLimit?: bigint;
-    registrationStartDate?: Time;
-    startDate: Time;
-}): {
-    status: _CompetitionStatus;
-    endDate: _Time;
-    scrambles: Array<[Array<string>, _Event]>;
-    name: string;
-    slug: string;
-    feeMode: [] | [_FeeMode];
-    events: Array<_Event>;
-    participantLimit: [] | [bigint];
-    registrationStartDate: [] | [_Time];
-    startDate: _Time;
+function to_candid_variant_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): {
+    admin: null;
+} | {
+    user: null;
+} | {
+    guest: null;
 } {
-    return {
-        status: to_candid_CompetitionStatus_n28(_uploadFile, _downloadFile, value.status),
-        endDate: value.endDate,
-        scrambles: to_candid_vec_n30(_uploadFile, _downloadFile, value.scrambles),
-        name: value.name,
-        slug: value.slug,
-        feeMode: value.feeMode ? candid_some(to_candid_FeeMode_n32(_uploadFile, _downloadFile, value.feeMode)) : candid_none(),
-        events: to_candid_vec_n34(_uploadFile, _downloadFile, value.events),
-        participantLimit: value.participantLimit ? candid_some(value.participantLimit) : candid_none(),
-        registrationStartDate: value.registrationStartDate ? candid_some(value.registrationStartDate) : candid_none(),
-        startDate: value.startDate
-    };
+    return value == UserRole.admin ? {
+        admin: null
+    } : value == UserRole.user ? {
+        user: null
+    } : value == UserRole.guest ? {
+        guest: null
+    } : value;
 }
-function to_candid_tuple_n31(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [Array<string>, Event]): [Array<string>, _Event] {
-    return [
-        value[0],
-        to_candid_Event_n20(_uploadFile, _downloadFile, value[1])
-    ];
-}
-function to_candid_variant_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Event): {
+function to_candid_variant_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Event): {
     megaminx: null;
 } | {
     fiveByFive: null;
@@ -1310,87 +868,6 @@ function to_candid_variant_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint
     } : value == Event.fourByFour ? {
         fourByFour: null
     } : value;
-}
-function to_candid_variant_n23(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): {
-    admin: null;
-} | {
-    user: null;
-} | {
-    guest: null;
-} {
-    return value == UserRole.admin ? {
-        admin: null
-    } : value == UserRole.user ? {
-        user: null
-    } : value == UserRole.guest ? {
-        guest: null
-    } : value;
-}
-function to_candid_variant_n29(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: CompetitionStatus): {
-    upcoming: null;
-} | {
-    completed: null;
-} | {
-    running: null;
-} {
-    return value == CompetitionStatus.upcoming ? {
-        upcoming: null
-    } : value == CompetitionStatus.completed ? {
-        completed: null
-    } : value == CompetitionStatus.running ? {
-        running: null
-    } : value;
-}
-function to_candid_variant_n33(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
-    __kind__: "perEvent";
-    perEvent: bigint;
-} | {
-    __kind__: "allEventsFlat";
-    allEventsFlat: bigint;
-} | {
-    __kind__: "basePlusAdditional";
-    basePlusAdditional: {
-        baseFee: bigint;
-        additionalFee: bigint;
-    };
-}): {
-    perEvent: bigint;
-} | {
-    allEventsFlat: bigint;
-} | {
-    basePlusAdditional: {
-        baseFee: bigint;
-        additionalFee: bigint;
-    };
-} {
-    return value.__kind__ === "perEvent" ? {
-        perEvent: value.perEvent
-    } : value.__kind__ === "allEventsFlat" ? {
-        allEventsFlat: value.allEventsFlat
-    } : value.__kind__ === "basePlusAdditional" ? {
-        basePlusAdditional: value.basePlusAdditional
-    } : value;
-}
-function to_candid_variant_n65(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: SolveStatus): {
-    in_progress: null;
-} | {
-    completed: null;
-} | {
-    not_started: null;
-} {
-    return value == SolveStatus.in_progress ? {
-        in_progress: null
-    } : value == SolveStatus.completed ? {
-        completed: null
-    } : value == SolveStatus.not_started ? {
-        not_started: null
-    } : value;
-}
-function to_candid_vec_n30(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<[Array<string>, Event]>): Array<[Array<string>, _Event]> {
-    return value.map((x)=>to_candid_tuple_n31(_uploadFile, _downloadFile, x));
-}
-function to_candid_vec_n34(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<Event>): Array<_Event> {
-    return value.map((x)=>to_candid_Event_n20(_uploadFile, _downloadFile, x));
 }
 export interface CreateActorOptions {
     agent?: Agent;

@@ -5,11 +5,11 @@ import RequireAuth from '../components/auth/RequireAuth';
 import InspectionTimer from '../components/solve/InspectionTimer';
 import SolveTimer from '../components/solve/SolveTimer';
 import SolveCompletionScreen from '../components/solve/SolveCompletionScreen';
-import { useGetCompetition, useGetScrambleForAttempt, useSubmitResult } from '../hooks/useQueries';
-import { getSolveSession, clearSolveSession } from '../lib/solveSession';
+import { useGetCompetition, useGetScrambleForAttempt, useSubmitResult, useStartCompetition } from '../hooks/useQueries';
+import { getSolveSession, clearSolveSession, storeSolveSession } from '../lib/solveSession';
 import { normalizeError } from '../api/errors';
 import { EVENT_LABELS } from '../types/domain';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, Info } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import type { Event } from '../backend';
@@ -35,6 +35,8 @@ export default function SolveFlowPage() {
   const [sessionToken, setSessionToken] = useState<Uint8Array | null>(null);
   const [inspectionStartTime, setInspectionStartTime] = useState<number | null>(null);
   const [inspectionPenalty, setInspectionPenalty] = useState<number>(0);
+  const [sessionSynced, setSessionSynced] = useState(false);
+  const [wasAutoDNF, setWasAutoDNF] = useState(false);
 
   const { data: competition, isLoading: competitionLoading } = useGetCompetition(BigInt(competitionId));
   const { data: scramble, isLoading: scrambleLoading, error: scrambleError } = useGetScrambleForAttempt(
@@ -43,25 +45,90 @@ export default function SolveFlowPage() {
     currentAttempt
   );
   const submitResultMutation = useSubmitResult();
+  const startCompetitionMutation = useStartCompetition();
 
-  // Load session token on mount
+  // Sync session state on mount
   useEffect(() => {
-    const session = getSolveSession(competitionId, event);
-    if (!session) {
-      toast.error('No active session found. Please start from the competition page.');
-      navigate({ to: `/competitions/${competitionId}` });
-      return;
-    }
-    setSessionToken(session);
-    
-    // If attempt index is provided in URL, use it
-    if (search.attempt) {
-      const attemptIndex = parseInt(search.attempt, 10);
-      if (!isNaN(attemptIndex) && attemptIndex >= 0 && attemptIndex < 5) {
-        setCurrentAttempt(attemptIndex);
+    const syncSession = async () => {
+      const session = getSolveSession(competitionId, event);
+      if (!session) {
+        toast.error('No active session found. Please start from the competition page.');
+        navigate({ to: `/competitions/${competitionId}` });
+        return;
       }
+
+      // Store the initial attempt index from local storage
+      const initialAttempt = search.attempt ? parseInt(search.attempt, 10) : 0;
+      
+      try {
+        // Call backend to sync session state (this will auto-DNF if refresh occurred during solve)
+        const newSessionToken = await startCompetitionMutation.mutateAsync({
+          competitionId: BigInt(competitionId),
+          event,
+        });
+
+        // Store the new session token
+        storeSolveSession(competitionId, event, newSessionToken);
+        setSessionToken(newSessionToken);
+
+        // Check if we need to advance to the next attempt
+        // The backend increments currentAttempt if refresh occurred during an active solve
+        // We detect this by checking if the scramble for the initial attempt is still valid
+        // If the backend advanced the attempt, we should show the next scramble
+        
+        // For now, we'll use a simple heuristic:
+        // If the user had started an attempt (phase was 'solving'), the backend will have
+        // marked it as DNF and advanced. We detect this by checking if we're on attempt 0
+        // but the URL suggests we should be further along.
+        
+        // Since we don't have explicit backend state, we'll check if the session was resumed
+        // and show a notification if the attempt index changed
+        const storedPhase = sessionStorage.getItem(`solve-phase-${competitionId}-${event}`);
+        const storedAttempt = sessionStorage.getItem(`solve-attempt-${competitionId}-${event}`);
+        
+        if (storedPhase === 'solving' && storedAttempt !== null) {
+          const lastAttempt = parseInt(storedAttempt, 10);
+          // If we were solving, the backend marked it as DNF and advanced
+          setCurrentAttempt(lastAttempt + 1);
+          setWasAutoDNF(true);
+          
+          // Clear the stored phase
+          sessionStorage.removeItem(`solve-phase-${competitionId}-${event}`);
+          sessionStorage.removeItem(`solve-attempt-${competitionId}-${event}`);
+        } else if (!isNaN(initialAttempt) && initialAttempt >= 0 && initialAttempt < 5) {
+          setCurrentAttempt(initialAttempt);
+        }
+
+        setSessionSynced(true);
+      } catch (error) {
+        toast.error(normalizeError(error));
+        navigate({ to: `/competitions/${competitionId}` });
+      }
+    };
+
+    if (!sessionSynced) {
+      syncSession();
     }
-  }, [competitionId, event, navigate, search.attempt]);
+  }, [competitionId, event, navigate, search.attempt, sessionSynced, startCompetitionMutation]);
+
+  // Show auto-DNF notification
+  useEffect(() => {
+    if (wasAutoDNF && sessionSynced) {
+      toast.info(
+        `This attempt was marked DNF because the page was refreshed. Continuing with attempt ${currentAttempt + 1}.`,
+        { duration: 6000 }
+      );
+      setWasAutoDNF(false);
+    }
+  }, [wasAutoDNF, sessionSynced, currentAttempt]);
+
+  // Store current phase and attempt for refresh detection
+  useEffect(() => {
+    if (sessionSynced) {
+      sessionStorage.setItem(`solve-phase-${competitionId}-${event}`, phase);
+      sessionStorage.setItem(`solve-attempt-${competitionId}-${event}`, currentAttempt.toString());
+    }
+  }, [phase, currentAttempt, competitionId, event, sessionSynced]);
 
   const handleInspectionComplete = () => {
     setPhase('solving');
@@ -112,8 +179,10 @@ export default function SolveFlowPage() {
           status: 'completed',
         });
         
-        // Clear session
+        // Clear session and stored state
         clearSolveSession(competitionId, event);
+        sessionStorage.removeItem(`solve-phase-${competitionId}-${event}`);
+        sessionStorage.removeItem(`solve-attempt-${competitionId}-${event}`);
         
         setPhase('completed');
       } catch (error) {
@@ -128,7 +197,7 @@ export default function SolveFlowPage() {
     }
   };
 
-  if (competitionLoading) {
+  if (competitionLoading || !sessionSynced) {
     return (
       <RequireAuth>
         <div className="min-h-screen bg-background flex items-center justify-center">

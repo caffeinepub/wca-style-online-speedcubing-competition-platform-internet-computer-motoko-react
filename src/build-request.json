@@ -1,43 +1,70 @@
 {
   "kind": "build_request",
-  "title": "Fix inspection penalty timing to stop at solve start (do not include solve time)",
+  "title": "Mark current attempt as DNF when user refreshes during an in-progress solve, then continue to next attempt",
   "priority": "normal",
   "requirements": [
     {
-      "id": "REQ-116",
-      "text": "Fix the inspection-time penalty calculation so that inspection timing stops exactly when the solve timer starts (not when the solve ends), ensuring WCA inspection penalties are applied based only on the duration from inspection start to solve start.",
-      "target": "frontend",
+      "id": "REQ-117",
+      "text": "Update solve-session recovery behavior so that if an authenticated user refreshes/reloads the page during an in-progress event attempt, the backend automatically marks the currently in-progress attempt as DNF (server-side) and advances the session to the next attempt, so the user continues from the next solve rather than resuming the interrupted solve.",
+      "target": "backend",
       "source": {
         "messageIds": [
-          "msg-1"
+          "msg-6"
         ],
         "quotes": [
-          "Please try again. Also, ensure the instructions are accurate, which means the calculation of time inspection stops and timer starts . no other changes"
+          "one imporant thing is if user refresh during event that particular solve will be dfn and next solve will be continued."
         ]
       },
       "acceptanceCriteria": [
-        "When a user starts inspection (InspectionTimer onStart), the app records an inspectionStart timestamp.",
-        "When the user starts the solve timer (SolveTimer start action), the app records a solveStart timestamp and uses (solveStart - inspectionStart) as the inspection duration for penalty logic.",
-        "The inspection duration used for penalty logic MUST NOT include the time spent solving (i.e., it must not reference the time at solve completion).",
-        "If inspection duration is >= 15,000ms and < 17,000ms, apply +2 seconds to the attempt (same penalty semantics currently used).",
-        "If inspection duration is >= 17,000ms, mark the attempt as DNF (same DNF marker semantics currently used).",
-        "The existing user-facing messages/toasts for +2 and DNF remain in English and are triggered based on the corrected timing.",
-        "No other behavior changes to solve flow, session handling, scramble fetching, result submission, or navigation beyond what is necessary to correct the inspection timing measurement."
+        "Given an active solve session for (competitionId,event) where the user has started an attempt (inspection started and/or solve started) but has not successfully submitted a completed attempt yet, then after a page refresh the next session-state retrieval causes the backend to persist a DNF for that interrupted attempt and increment the session’s currentAttempt by 1.",
+        "The DNF applied due to refresh is stored in the user’s attempts list in canister state using the existing DNF marker convention already used by the app (do not invent a new penalty scheme).",
+        "The auto-DNF-on-refresh behavior is idempotent: repeated session-state fetches after refresh do not create multiple DNFs for the same attempt index.",
+        "If the session is already between attempts (no in-progress attempt underway), refreshing does not create an extra DNF and the user continues on the currentAttempt unchanged.",
+        "If the session is already completed, refreshing does not modify attempts or status."
+      ]
+    },
+    {
+      "id": "REQ-118",
+      "text": "Update the Solve Flow frontend to align with the new refresh handling: on SolveFlowPage load, fetch the current server session state and render the correct next attempt index after any auto-DNF-on-refresh advance, showing a clear English message to the user when a refresh caused the previous attempt to be marked DNF and the flow continued.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-6"
+        ],
+        "quotes": [
+          "if user refresh during event that particular solve will be dfn and next solve will be continued."
+        ]
+      },
+      "acceptanceCriteria": [
+        "On SolveFlowPage mount, the page uses the existing session token (from sessionStorage) to fetch server session state and sets `currentAttempt`/phase based on the server response, not only on local component state.",
+        "If the backend indicates the previous attempt was auto-marked DNF due to refresh, the UI shows a clear English notification (toast and/or inline) such as: \"This attempt was marked DNF because the page was refreshed. Continuing with attempt <n>.\"",
+        "After refresh, the scramble shown and the attempt counter reflect the advanced attempt index (i.e., user proceeds to the next scramble/attempt).",
+        "All user-facing errors/messages shown for this flow remain English-only and any surfaced errors continue to go through `normalizeError` where applicable."
       ]
     }
   ],
   "constraints": [
-    "Make no functional changes other than correcting when inspection timing stops and when solve timing starts for penalty calculation.",
-    "Do not edit files under frontend immutablePaths.",
+    "Backend must remain a single Motoko actor; implement logic in backend/main.mo only (add backend/migration.mo only if state schema changes require it per the conditional migration policy).",
+    "Do not edit any frontend files under frontend.immutablePaths (compose existing UI components instead).",
     "Keep all user-facing text in English."
   ],
   "nonGoals": [
-    "Changing backend Ao5 / penalty logic or any backend validation behavior.",
-    "Changing the inspection countdown UI/behavior (other than wiring accurate timestamps).",
-    "Fixing unrelated issues such as competition start/resume UX, admin flows, payment flows, or leaderboard behavior."
+    "Do not implement a new authentication system or any third-party auth providers.",
+    "Do not add real-time connectivity/heartbeat mechanisms (e.g., WebSockets) to detect refresh; rely on existing session-state interactions.",
+    "Do not change WCA inspection penalty rules beyond the refresh->DNF behavior requested."
   ],
   "imageRequirements": {
     "required": [],
     "edits": []
+  },
+  "userProfileUpdate": {
+    "goalsToAdd": [],
+    "goalsToRemove": [],
+    "preferencesToAdd": [],
+    "preferencesToRemove": [],
+    "miscToAdd": [],
+    "miscToRemove": [],
+    "fieldsToSet": {},
+    "fieldsToDelete": []
   }
 }

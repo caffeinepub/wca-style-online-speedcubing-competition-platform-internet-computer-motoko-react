@@ -91,6 +91,7 @@ export interface SessionStateResponse {
   attempts: Attempt[];
   isCompleted: boolean;
   event: Event;
+  wasAutoDNF?: boolean; // Optional flag indicating if the previous attempt was auto-marked DNF due to refresh
 }
 
 // Re-export commonly used types

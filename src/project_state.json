@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 59,
+  "projectStateVersion": 61,
   "summary": "Full-stack online speedcubing competition platform with multi-event, WCA-style 5-solve flow, manual external payment-link based entry (replacing Razorpay checkout) with user “Request approval” flow and admin approvals panel, strong integrity controls (session lock, progressive scrambles, recovery), WCA Ao5 rules server-side validated, post-completion UX enhancements, leaderboard discoverability, pricing enhancements, and a registration-start date feature that gates starting until a specified datetime and auto-transitions upcoming competitions to running at that time.",
   "architectural_notes": [
     "Tech stack: Next.js (App Router) + TypeScript + PostgreSQL + Prisma ORM + NextAuth; deploy on Vercel.",
@@ -651,6 +651,14 @@
         "REQ-116"
       ],
       "version": 1
+    },
+    {
+      "id": "feature-update-the-solve-flow-frontend-to-align-with-the-new-refresh-handling-on-solveflowpage-load-fetch-the-current-server-session-state-and-render-the-correct-next-attempt-index-after-any-auto-dnf-on-refresh-advance-showing-a-clear-english-message-to-the-user-when-a-refresh-caused-the-previous-attempt-to-be-marked-dnf-and-the-flow-continued",
+      "title": "Update the Solve Flow frontend to align with the new refresh handling: on SolveFlowPage load, fetch the current server session state and render the correct next attempt index after any auto-DNF-on-refresh advance, showing a clear English message to the user when a refresh caused the previous attempt to be marked DNF and the flow continued.",
+      "reqIds": [
+        "REQ-118"
+      ],
+      "version": 1
     }
   ],
   "new_feature_requests": [
@@ -1189,6 +1197,20 @@
       "summary": "Implement and enforce a WCA Average of 5 (Ao5) calculation/validation engine on the Motoko backend, so results and leaderboard scoring are server-side validated (not only computed in the frontend). The engine must: (1) compute Ao5 by dropping best and worst of 5, (2) include +2 penalties in time calculations, (3) handle DNF attempts, (4) return Ao5 as DNF if there are 2 or more DNFs, and (5) apply WCA inspection overage rules server-side for each solve: if the competitor does not start the solve within 15 seconds of inspection start, auto-apply +2 to that solve; if the competitor exceeds 17 seconds, auto-mark that solve as DNF. If these rules are already correctly implemented in current server logic, do not change them.",
       "reqIds": [
         "REQ-114"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-118",
+      "summary": "Solve-flow refresh handling: if a user refreshes during an in-progress event/solve, mark that particular current solve as DNF automatically and then continue the session from the next solve (do not resume the interrupted solve).",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-119",
+      "summary": "Update solve-session recovery behavior so that if an authenticated user refreshes/reloads the page during an in-progress event attempt, the backend automatically marks the currently in-progress attempt as DNF (server-side) and advances the session to the next attempt, so the user continues from the next solve rather than resuming the interrupted solve.",
+      "reqIds": [
+        "REQ-117"
       ],
       "status": "pending"
     }

@@ -1,32 +1,68 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-12T22:25:55.320Z",
-  "summary": "REQ-116 is largely implemented by recording an inspectionStart timestamp on inspection start and calculating the inspection duration at solve start (SolveTimer onStart) to determine +2/DNF. However, the diff introduces new user-facing toast text for penalties, which conflicts with the requirement to keep existing messages/toasts unchanged.",
+  "generatedAt": "2026-02-12T23:43:57.672Z",
+  "summary": "Diff shows substantial frontend changes (including SolveFlowPage refresh handling heuristics and new extended types) and an added backend/migration.mo stub, but the provided backend/main.mo snippet is truncated and contains no visible implementation of the required server-side auto-DNF-on-refresh recovery. The changes also violate the BuildRequest constraint to implement backend logic only in backend/main.mo and not edit frontend files.",
   "missing_requirements": [
     {
-      "id": "REQ-116",
-      "requirement": "The existing user-facing messages/toasts for +2 and DNF remain in English and are triggered based on the corrected timing.",
-      "reason": "The diff shows new toast message strings being introduced for the +2 and DNF inspection penalties, rather than preserving the existing user-facing messages/toasts.",
+      "id": "REQ-117",
+      "requirement": "Backend must auto-mark the currently in-progress attempt as DNF on next session-state retrieval after a refresh, persist it using existing DNF convention, advance currentAttempt by 1, and do so idempotently without affecting between-attempt/completed sessions.",
+      "reason": "The diff summary for backend/main.mo is truncated and the visible portion contains only type/import definitions and migration wiring; there is no visible code showing session-state retrieval logic, auto-DNF persistence to attempts, currentAttempt incrementing, or idempotency checks.",
       "evidence": [
-        "frontend/src/pages/SolveFlowPage.tsx"
+        "backend/main.mo (truncated; no session recovery logic shown)"
+      ]
+    },
+    {
+      "id": "REQ-118",
+      "requirement": "Frontend SolveFlowPage must fetch current server session state using existing session token on mount, set currentAttempt/phase from server response, and show a clear English notification when backend indicates auto-DNF due to refresh (errors through normalizeError).",
+      "reason": "SolveFlowPage changes shown rely on calling startCompetitionMutation and a local heuristic/commentary stating there is no explicit backend state; the diff does not show a dedicated session-state fetch using the existing session token nor a confirmed UI notification driven by a backend-provided 'wasAutoDNF' indicator.",
+      "evidence": [
+        "frontend/src/pages/SolveFlowPage.tsx (truncated; heuristic-based detection; comments: 'Since we don't have explicit backend state')",
+        "frontend/src/types/backend-extended.ts (adds wasAutoDNF?: boolean but no evidence it is actually used/returned by backend)"
       ]
     }
   ],
   "hallucinated_features": [
     {
-      "description": "Introduced new inspection penalty toast copy (“Inspection time exceeded 15s: +2 penalty applied” and “Inspection time exceeded 17s: DNF applied”).",
-      "reason": "BuildRequest requires keeping existing user-facing messages/toasts (only wiring accurate timestamps). Adding/replacing toast copy is a user-facing change not explicitly requested.",
+      "description": "Added/modified multiple frontend files despite the constraint 'Do not edit any frontend files under frontend.immutablePaths' and requirement to implement logic in backend/main.mo only.",
+      "reason": "Diff includes modifications to several frontend files unrelated to an allowed backend-only change set.",
       "evidence": [
-        "frontend/src/pages/SolveFlowPage.tsx"
+        "frontend/src/pages/SolveFlowPage.tsx",
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/api/errors.ts",
+        "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
+        "frontend/src/types/backend-extended.ts",
+        "frontend-file-summaries.txt"
+      ]
+    },
+    {
+      "description": "Introduced a migration module stub without clear evidence of a required state schema change related to the requested refresh->DNF behavior.",
+      "reason": "backend/migration.mo was added but appears to be a no-op passthrough and the BuildRequest allows migration only if state schema changes require it; the diff summary does not show such a schema change.",
+      "evidence": [
+        "backend/migration.mo"
+      ]
+    },
+    {
+      "description": "Implemented/modified various frontend/admin/payment/error-normalization behaviors not requested by REQ-117/REQ-118 (beyond the specific solve-flow refresh messaging requirement).",
+      "reason": "The BuildRequest is narrowly focused on refresh->DNF behavior; the diff shows broader frontend changes (admin edit page, extended types, many normalizeError mappings) without being requested.",
+      "evidence": [
+        "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
+        "frontend/src/api/errors.ts",
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/types/backend-extended.ts"
       ]
     }
   ],
-  "confidence": 0.67,
+  "confidence": 0.74,
   "changed_files": [
+    "backend/main.mo",
+    "backend/migration.mo",
     "frontend-file-summaries.txt",
-    "frontend/src/components/solve/SolveTimer.tsx",
+    "frontend/src/api/errors.ts",
+    "frontend/src/hooks/useQueries.ts",
     "frontend/src/pages/SolveFlowPage.tsx",
+    "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
+    "frontend/src/types/backend-extended.ts",
     "project_state.json"
   ]
 }

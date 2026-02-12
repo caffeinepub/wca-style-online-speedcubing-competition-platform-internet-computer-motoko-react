@@ -7,31 +7,11 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
-export interface ResultInput {
-    ao5?: bigint;
-    status: SolveStatus;
-    user: Principal;
-    attempts: Array<AttemptInput>;
-    event: Event;
-    competitionId: bigint;
-}
 export interface RazorpayCredentials {
     keyId: string;
     keySecret: string;
 }
 export type Time = bigint;
-export interface CompetitionInput {
-    status: CompetitionStatus;
-    endDate: Time;
-    scrambles: Array<[Array<string>, Event]>;
-    name: string;
-    slug: string;
-    feeMode?: FeeMode;
-    events: Array<Event>;
-    participantLimit?: bigint;
-    registrationStartDate?: Time;
-    startDate: Time;
-}
 export interface RazorpayOrderRequest {
     event: Event;
     competitionId: bigint;
@@ -73,10 +53,6 @@ export interface CompetitionPublic {
     registrationStartDate?: Time;
     startDate: Time;
 }
-export interface AttemptInput {
-    penalty: bigint;
-    time: bigint;
-}
 export interface PaymentConfirmation {
     razorpayPaymentId: string;
     razorpaySignature: string;
@@ -90,21 +66,6 @@ export interface RazorpayOrderResponse {
     currency: string;
     amount: bigint;
     competitionName: string;
-}
-export interface AdminResultEntry {
-    ao5?: bigint;
-    status: SolveStatus;
-    user: Principal;
-    attempts: Array<Attempt>;
-    event: Event;
-    isHidden: boolean;
-    competitionId: bigint;
-}
-export interface UserSummary {
-    principal: Principal;
-    isBlocked: boolean;
-    email?: string;
-    profile?: UserProfile;
 }
 export interface Competition {
     id: bigint;
@@ -158,19 +119,9 @@ export enum UserRole {
     guest = "guest"
 }
 export interface backendInterface {
-    activateCompetition(competitionId: bigint, active: boolean): Promise<void>;
-    adminBlockUser(user: Principal, blocked: boolean): Promise<void>;
-    adminDeleteUser(user: Principal): Promise<void>;
-    adminGetUserSolveHistory(user: Principal): Promise<Array<[bigint, Event, ResultInput]>>;
-    adminListCompetitionResults(competitionId: bigint): Promise<Array<AdminResultEntry>>;
-    adminListUsers(): Promise<Array<UserSummary>>;
-    adminResetUserCompetitionStatus(user: Principal, competitionId: bigint, event: Event): Promise<void>;
-    adminToggleResultVisibility(user: Principal, competitionId: bigint, event: Event, hidden: boolean): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     confirmPayment(confirmation: PaymentConfirmation): Promise<void>;
-    createCompetition(comp: Competition): Promise<bigint>;
     createRazorpayOrder(request: RazorpayOrderRequest): Promise<RazorpayOrderResponse>;
-    deleteCompetition(competitionId: bigint): Promise<void>;
     getAllCompetitions(): Promise<Array<CompetitionPublic>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
@@ -180,10 +131,7 @@ export interface backendInterface {
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     hasRazorpayConfig(): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
-    lockCompetition(competitionId: bigint, locked: boolean): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setRazorpayCredentials(credentials: RazorpayCredentials): Promise<void>;
     startOrResumeCompetitionSession(competitionId: bigint, event: Event): Promise<Uint8Array>;
-    submitResult(result: ResultInput): Promise<bigint>;
-    updateCompetition(competitionId: bigint, comp: CompetitionInput): Promise<void>;
 }

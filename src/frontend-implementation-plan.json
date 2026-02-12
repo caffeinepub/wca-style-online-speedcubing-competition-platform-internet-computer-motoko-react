@@ -1,30 +1,37 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Stop inspection penalty timing at solve start (exclude solve time)",
+  "title": "SolveFlow refresh recovery: sync from server session state and notify auto-DNF advance",
   "requirements": [
     {
-      "id": "REQ-116",
-      "summary": "Measure inspection duration from inspection start to solve start (not solve end) and apply WCA +2/DNF penalties based on that duration only.",
+      "id": "REQ-118",
+      "summary": "On SolveFlowPage load, sync attempt/phase from server session state (using the existing session token) and notify the user if refresh auto-marked the prior attempt as DNF and advanced.",
       "acceptanceCriteria": [
-        "When a user starts inspection (InspectionTimer onStart), the app records an inspectionStart timestamp.",
-        "When the user starts the solve timer (SolveTimer start action), the app records a solveStart timestamp and uses (solveStart - inspectionStart) as the inspection duration for penalty logic.",
-        "The inspection duration used for penalty logic MUST NOT include the time spent solving (i.e., it must not reference the time at solve completion).",
-        "If inspection duration is >= 15,000ms and < 17,000ms, apply +2 seconds to the attempt (same penalty semantics currently used).",
-        "If inspection duration is >= 17,000ms, mark the attempt as DNF (same DNF marker semantics currently used).",
-        "The existing user-facing messages/toasts for +2 and DNF remain in English and are triggered based on the corrected timing.",
-        "No other behavior changes to solve flow, session handling, scramble fetching, result submission, or navigation beyond what is necessary to correct the inspection timing measurement."
+        "On SolveFlowPage mount, the page uses the existing session token (from sessionStorage) to fetch server session state and sets `currentAttempt`/phase based on the server response, not only on local component state.",
+        "If the backend indicates the previous attempt was auto-marked DNF due to refresh, the UI shows a clear English notification (toast and/or inline) such as: \"This attempt was marked DNF because the page was refreshed. Continuing with attempt <n>.\"",
+        "After refresh, the scramble shown and the attempt counter reflect the advanced attempt index (i.e., user proceeds to the next scramble/attempt).",
+        "All user-facing errors/messages shown for this flow remain English-only and any surfaced errors continue to go through `normalizeError` where applicable."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/components/solve/SolveTimer.tsx",
+          "path": "frontend/src/hooks/useQueries.ts",
           "operation": "modify",
-          "description": "Add an optional onStart callback prop (or equivalent) that is invoked exactly when the solve timer starts, passing/recording the solve start timestamp so the parent can stop inspection timing at this moment. Ensure existing solve timer start/stop behavior and UI remain unchanged besides emitting this start signal."
+          "description": "Add a solve-session state query hook (e.g., `useGetSolveSessionState`) that uses the stored session token to request the current server session state for (competitionId,event), returning attempt index, attempts list, completion status, and any backend-provided \"auto DNF due to refresh\" indicator so SolveFlowPage can render based on server truth."
+        },
+        {
+          "path": "frontend/src/types/backend-extended.ts",
+          "operation": "modify",
+          "description": "Extend `SessionStateResponse` typing to include any additional optional fields required for the new refresh handling UI (e.g., a boolean/metadata flag indicating an auto-DNF-on-refresh occurred and what attempt index the user is continuing with), while keeping backward compatibility if the backend does not provide the flag."
         },
         {
           "path": "frontend/src/pages/SolveFlowPage.tsx",
           "operation": "modify",
-          "description": "Update inspection penalty calculation to use (solveStartTime - inspectionStartTime) captured at the moment the solve starts (from SolveTimer start action), and store the resulting inspection penalty/DNF marker to apply on solve completion without referencing completion time. Keep existing +2/DNF toast messages in English and trigger them based on the corrected inspection duration. Ensure no other solve flow behaviors change (session handling, scrambles, submission, navigation)."
+          "description": "On mount (after retrieving the session token from sessionStorage), fetch server session state via the new hook and set `currentAttempt`, `attempts`, and `phase` from the server response (including showing the advanced attempt index after refresh). If the response indicates the previous attempt was auto-marked DNF due to refresh, show an English-only notification (toast and/or inline `Alert`) and ensure scramble fetching uses the updated `currentAttempt`. Ensure any displayed errors are passed through `normalizeError`."
+        },
+        {
+          "path": "frontend/src/api/errors.ts",
+          "operation": "modify",
+          "description": "If needed for clearer SolveFlow recovery UX, add/adjust English-only normalization for any new/changed backend error messages surfaced by the session-state retrieval so SolveFlowPage continues to show user-friendly messages via `normalizeError`."
         }
       ]
     }

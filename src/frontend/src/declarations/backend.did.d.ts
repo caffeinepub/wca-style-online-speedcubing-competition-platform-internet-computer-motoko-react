@@ -10,17 +10,7 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
-export interface AdminResultEntry {
-  'ao5' : [] | [bigint],
-  'status' : SolveStatus,
-  'user' : Principal,
-  'attempts' : Array<Attempt>,
-  'event' : Event,
-  'isHidden' : boolean,
-  'competitionId' : bigint,
-}
 export interface Attempt { 'penalty' : bigint, 'time' : bigint }
-export interface AttemptInput { 'penalty' : bigint, 'time' : bigint }
 export interface Competition {
   'id' : bigint,
   'status' : CompetitionStatus,
@@ -32,18 +22,6 @@ export interface Competition {
   'isActive' : boolean,
   'events' : Array<Event>,
   'isLocked' : boolean,
-  'participantLimit' : [] | [bigint],
-  'registrationStartDate' : [] | [Time],
-  'startDate' : Time,
-}
-export interface CompetitionInput {
-  'status' : CompetitionStatus,
-  'endDate' : Time,
-  'scrambles' : Array<[Array<string>, Event]>,
-  'name' : string,
-  'slug' : string,
-  'feeMode' : [] | [FeeMode],
-  'events' : Array<Event>,
   'participantLimit' : [] | [bigint],
   'registrationStartDate' : [] | [Time],
   'startDate' : Time,
@@ -106,14 +84,6 @@ export interface RazorpayOrderResponse {
   'amount' : bigint,
   'competitionName' : string,
 }
-export interface ResultInput {
-  'ao5' : [] | [bigint],
-  'status' : SolveStatus,
-  'user' : Principal,
-  'attempts' : Array<AttemptInput>,
-  'event' : Event,
-  'competitionId' : bigint,
-}
 export type SolveStatus = { 'in_progress' : null } |
   { 'completed' : null } |
   { 'not_started' : null };
@@ -127,42 +97,14 @@ export interface UserProfile {
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
-export interface UserSummary {
-  'principal' : Principal,
-  'isBlocked' : boolean,
-  'email' : [] | [string],
-  'profile' : [] | [UserProfile],
-}
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
-  'activateCompetition' : ActorMethod<[bigint, boolean], undefined>,
-  'adminBlockUser' : ActorMethod<[Principal, boolean], undefined>,
-  'adminDeleteUser' : ActorMethod<[Principal], undefined>,
-  'adminGetUserSolveHistory' : ActorMethod<
-    [Principal],
-    Array<[bigint, Event, ResultInput]>
-  >,
-  'adminListCompetitionResults' : ActorMethod<
-    [bigint],
-    Array<AdminResultEntry>
-  >,
-  'adminListUsers' : ActorMethod<[], Array<UserSummary>>,
-  'adminResetUserCompetitionStatus' : ActorMethod<
-    [Principal, bigint, Event],
-    undefined
-  >,
-  'adminToggleResultVisibility' : ActorMethod<
-    [Principal, bigint, Event, boolean],
-    undefined
-  >,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'confirmPayment' : ActorMethod<[PaymentConfirmation], undefined>,
-  'createCompetition' : ActorMethod<[Competition], bigint>,
   'createRazorpayOrder' : ActorMethod<
     [RazorpayOrderRequest],
     RazorpayOrderResponse
   >,
-  'deleteCompetition' : ActorMethod<[bigint], undefined>,
   'getAllCompetitions' : ActorMethod<[], Array<CompetitionPublic>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
@@ -175,12 +117,9 @@ export interface _SERVICE {
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'hasRazorpayConfig' : ActorMethod<[], boolean>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
-  'lockCompetition' : ActorMethod<[bigint, boolean], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'setRazorpayCredentials' : ActorMethod<[RazorpayCredentials], undefined>,
   'startOrResumeCompetitionSession' : ActorMethod<[bigint, Event], Uint8Array>,
-  'submitResult' : ActorMethod<[ResultInput], bigint>,
-  'updateCompetition' : ActorMethod<[bigint, CompetitionInput], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

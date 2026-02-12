@@ -115,7 +115,7 @@ export default function AdminEditCompetitionPage() {
     try {
       await updateCompetitionMutation.mutateAsync({
         id: BigInt(competitionId),
-        competition: competitionInput,
+        updates: competitionInput,
       });
       toast.success('Competition updated successfully');
       navigate({ to: '/admin/competitions' });

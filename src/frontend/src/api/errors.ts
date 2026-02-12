@@ -129,6 +129,11 @@ export function normalizeError(error: unknown): string {
       return 'Invalid attempt number.';
     }
 
+    // Refresh recovery
+    if (message.includes('marked DNF because the page was refreshed')) {
+      return 'This attempt was marked DNF because the page was refreshed.';
+    }
+
     // Generic error message
     return message;
   }
