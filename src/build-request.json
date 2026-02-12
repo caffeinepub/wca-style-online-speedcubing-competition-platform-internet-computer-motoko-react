@@ -1,92 +1,97 @@
 {
   "kind": "build_request",
-  "title": "Add country & gender to user profiles and show profile names on leaderboard",
+  "title": "Enable Razorpay live payment flow (order creation + verification) and show user payment history",
   "priority": "normal",
   "requirements": [
     {
-      "id": "REQ-19",
-      "text": "Extend the backend user profile model to store additional optional fields for `country` and `gender`, and ensure existing profiles continue to work after the schema change.",
+      "id": "REQ-23",
+      "text": "Implement a secure Razorpay payment architecture for paid competitions using server-side order creation and server-side payment verification (no Razorpay Key Secret in frontend or repo), so that users must successfully pay before they can start/access a paid competition event.",
+      "target": "both",
+      "source": {
+        "messageIds": [
+          "msg-1"
+        ],
+        "quotes": [
+          "1 yes , 2 yes, 3 live payments befre accessing comp"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Frontend uses Razorpay Key ID only; Razorpay Key Secret is never present in any frontend bundle or committed source code.",
+        "Backend exposes an authenticated method to create a Razorpay order for a specific (competitionId, event) and returns the Razorpay order id and amount/currency needed for checkout.",
+        "Frontend checkout is opened using an order_id from the backend-created order (not a client-only amount flow).",
+        "Backend exposes an authenticated method to verify/confirm payment that validates the Razorpay signature for the order/payment before recording the purchase.",
+        "If verification fails, backend rejects confirmation and the user cannot start the competition event.",
+        "Attempting to call startCompetition for a paid event without a verified payment continues to fail with a clear error message (English)."
+      ]
+    },
+    {
+      "id": "REQ-24",
+      "text": "Add backend APIs and persisted records to support user-visible purchase history for paid competitions/events, designed so it can be extended for future admin management.",
       "target": "backend",
       "source": {
         "messageIds": [
           "msg-1"
         ],
         "quotes": [
-          "Add a profile section for the user to add country and gender."
+          "2 yes"
         ]
       },
       "acceptanceCriteria": [
-        "`UserProfile` in `backend/main.mo` includes `country` and `gender` fields (optional) in addition to existing `displayName` and `mcubesId`.",
-        "`createUserProfile` initializes `country` and `gender` to empty/none values without breaking profile creation.",
-        "`saveCallerUserProfile` persists `country` and `gender` updates.",
-        "Existing stored profiles from before this change can still be read without trapping (use a state migration if required by Motoko stable-type changes)."
+        "Backend stores a payment record per (competitionId, callerPrincipal, event) that includes at minimum: competitionId, event, amount, currency, razorpayOrderId, razorpayPaymentId, verification status, and a timestamp.",
+        "Backend provides an authenticated query method for the caller to fetch their payment/purchase history as a list sorted by most-recent first.",
+        "Payment-gating checks use verified payment status (not merely the presence of a client-submitted payment id).",
+        "Payment history query returns enough data for the UI to display competition name (via competitionId lookup), amount, event, and status."
       ]
     },
     {
-      "id": "REQ-20",
-      "text": "Fix leaderboard name resolution by providing a backend query API that allows reading public profile info (at minimum `displayName`, plus `country`/`gender` if available) for any competitor principal, so the leaderboard does not show \"Anonymous\" when a user has a display name set.",
-      "target": "backend",
-      "source": {
-        "messageIds": [
-          "msg-1"
-        ],
-        "quotes": [
-          "Currently using anonymous in the leadboard section instead of the name."
-        ]
-      },
-      "acceptanceCriteria": [
-        "There is a query method that the frontend can call to fetch another user's public profile info by Principal without requiring the caller to be that user or an admin.",
-        "The method does not expose user emails and does not allow profile mutation.",
-        "Leaderboard flows can fetch and display competitor names without backend authorization traps."
-      ]
-    },
-    {
-      "id": "REQ-21",
-      "text": "Add a user-facing Profile section in the UI where an authenticated user can view and edit their `displayName`, `country`, and `gender`, and persist changes to the backend.",
+      "id": "REQ-25",
+      "text": "Add a user-facing Payments/Purchases view in the Profile UI that lists the authenticated user’s paid competition entries and their status.",
       "target": "frontend",
       "source": {
         "messageIds": [
           "msg-1"
         ],
         "quotes": [
-          "Add a profile section for the user to add country and gender."
+          "better if user could able to see payment or purchase in their account. and in future admin could manage as welll."
         ]
       },
       "acceptanceCriteria": [
-        "Profile UI includes editable inputs for Country and Gender alongside Display Name.",
-        "Saving updates calls the existing profile save mutation and updates the cached current-user profile state (refetch/invalidate).",
-        "User-facing labels/help text are in English.",
-        "If the user has not set Country or Gender, the UI clearly shows they are unset (e.g., placeholder like \"Not set\")."
+        "Profile UI includes a Payments/Purchases section accessible to logged-in users.",
+        "The Payments/Purchases section loads from a backend query via React Query and displays: competition name (or competitionId if missing), event label, amount/currency, timestamp, and status (e.g., Verified / Pending / Failed).",
+        "If the user has no payments, show an English empty-state message (e.g., \"No purchases yet.\").",
+        "Errors are shown as readable English messages using the app’s existing error/toast patterns."
       ]
     },
     {
-      "id": "REQ-22",
-      "text": "Update the leaderboard UI data-loading and display logic so that each row shows the competitor’s profile display name when available, and only falls back to \"Anonymous\" when no display name exists.",
+      "id": "REQ-26",
+      "text": "Ensure paid-competition access enforcement is consistent across navigation paths (e.g., direct navigation to solve route) by adding frontend guards and clear English messaging for payment-required states.",
       "target": "frontend",
       "source": {
         "messageIds": [
           "msg-1"
         ],
         "quotes": [
-          "Currently using anonymous in the leadboard section instead of the name."
+          "3 live payments befre accessing comp"
         ]
       },
       "acceptanceCriteria": [
-        "When a user has a non-empty `displayName` stored in their profile, the leaderboard shows that name instead of \"Anonymous\".",
-        "If a profile cannot be found or `displayName` is empty, leaderboard shows \"Anonymous\".",
-        "No uncaught errors occur when loading the leaderboard due to profile fetch authorization failures."
+        "If a user navigates directly to the solve flow for a paid competition event without having started (and without verified payment), the UI shows an English message indicating payment is required and provides a path back to the competition detail page to pay/start.",
+        "Competition detail page payment CTA uses the new backend order-creation flow and shows clear loading/processing states.",
+        "After a successful verified payment, starting the competition navigates to the solve flow without requiring a manual page refresh."
       ]
     }
   ],
   "constraints": [
-    "Backend must remain a single Motoko actor in `backend/main.mo` (no additional backend services).",
-    "Only generate/update `backend/migration.mo` if needed for safe state upgrade due to the `UserProfile` type change.",
-    "Do not edit files under `frontend/src/components/ui` or any other immutable paths listed in SYSTEM_CONTEXT."
+    "Do not modify any frontend files under frontend/immutablePaths (compose existing components instead).",
+    "Backend must remain a single Motoko actor in backend/main.mo; do not introduce additional backend services.",
+    "Do not hardcode or commit Razorpay Key Secret anywhere in the repository or ship it to the client. The user-provided secret (\"28uEFtbhWrRp7RhPiS2uyuvY\") must be treated as compromised and must not be stored in code/config.",
+    "Preserve the user-provided Razorpay live Key ID string exactly when configuring live mode: rzp_live_kyn4dKuIvsesAX (but only in the frontend/public configuration where appropriate).",
+    "All user-facing text added/changed must be in English."
   ],
   "nonGoals": [
-    "Do not implement the previously requested custom formatted user ID (e.g., 2026MIDR01) as part of this change.",
-    "Do not add any third-party authentication providers or external databases.",
-    "Do not add country/gender filtering, searching, or analytics on the leaderboard."
+    "Implementing third-party authentication providers beyond Internet Identity.",
+    "Implementing real-time payment webhooks or background reconciliation (may be added later).",
+    "Building an admin payments management dashboard (only ensure data model/API is extendable for future admin use)."
   ],
   "imageRequirements": {
     "required": [],
@@ -95,9 +100,7 @@
   "userProfileUpdate": {
     "goalsToAdd": [],
     "goalsToRemove": [],
-    "preferencesToAdd": [
-      "User-facing text should be English."
-    ],
+    "preferencesToAdd": [],
     "preferencesToRemove": [],
     "miscToAdd": [],
     "miscToRemove": [],

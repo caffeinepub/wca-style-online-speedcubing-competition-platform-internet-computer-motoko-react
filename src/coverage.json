@@ -1,81 +1,107 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-11T23:58:46.864Z",
+  "generatedAt": "2026-02-12T00:34:33.197Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
     "total": 4,
-    "implemented": 2,
+    "implemented": 3,
     "items": [
       {
-        "id": "REQ-19",
-        "summary": "Extend the backend user profile model to store additional optional fields for `country` and `gender`, and ensure existing profiles continue to work after the schema change.",
-        "status": "unknown",
-        "plannedFiles": [],
-        "matchedFiles": []
-      },
-      {
-        "id": "REQ-20",
-        "summary": "Fix leaderboard name resolution by providing a backend query API that allows reading public profile info (at minimum `displayName`, plus `country`/`gender` if available) for any competitor principal, so the leaderboard does not show \"Anonymous\" when a user has a display name set.",
-        "status": "unknown",
-        "plannedFiles": [],
-        "matchedFiles": []
-      },
-      {
-        "id": "REQ-21",
-        "summary": "Add a user-facing Profile section in the UI where an authenticated user can view and edit their `displayName`, `country`, and `gender`, and persist changes to the backend.",
+        "id": "REQ-23",
+        "summary": "Implement a secure Razorpay payment architecture for paid competitions using server-side order creation and server-side payment verification (no Razorpay Key Secret in frontend or repo), so that users must successfully pay before they can start/access a paid competition event.",
         "status": "implemented",
         "plannedFiles": [
+          "frontend/public/razorpay.config.json",
+          "frontend/src/config/razorpay.ts",
+          "frontend/src/lib/razorpay.ts",
+          "frontend/src/backend.d.ts",
+          "frontend/src/api/queryKeys.ts",
           "frontend/src/hooks/useQueries.ts",
-          "frontend/src/components/profile/ProfileSetupDialog.tsx",
-          "frontend/src/components/profile/ProfileMenu.tsx"
+          "frontend/src/pages/CompetitionDetailPage.tsx",
+          "frontend/src/api/errors.ts"
         ],
         "matchedFiles": [
+          "frontend/public/razorpay.config.json",
+          "frontend/src/config/razorpay.ts",
+          "frontend/src/lib/razorpay.ts",
+          "frontend/src/backend.d.ts",
+          "frontend/src/api/queryKeys.ts",
           "frontend/src/hooks/useQueries.ts",
-          "frontend/src/components/profile/ProfileSetupDialog.tsx",
-          "frontend/src/components/profile/ProfileMenu.tsx"
+          "frontend/src/pages/CompetitionDetailPage.tsx",
+          "frontend/src/api/errors.ts"
         ]
       },
       {
-        "id": "REQ-22",
-        "summary": "Update the leaderboard UI data-loading and display logic so that each row shows the competitor’s profile display name when available, and only falls back to \"Anonymous\" when no display name exists.",
+        "id": "REQ-24",
+        "summary": "Add backend APIs and persisted records to support user-visible purchase history for paid competitions/events, designed so it can be extended for future admin management.",
+        "status": "unknown",
+        "plannedFiles": [],
+        "matchedFiles": []
+      },
+      {
+        "id": "REQ-25",
+        "summary": "Add a user-facing Payments/Purchases view in the Profile UI that lists the authenticated user’s paid competition entries and their status.",
         "status": "implemented",
         "plannedFiles": [
           "frontend/src/api/queryKeys.ts",
           "frontend/src/hooks/useQueries.ts",
-          "frontend/src/pages/LeaderboardPage.tsx",
-          "frontend/src/components/leaderboard/LeaderboardTable.tsx"
+          "frontend/src/components/profile/PaymentsPurchasesSection.tsx",
+          "frontend/src/components/profile/ProfileMenu.tsx",
+          "frontend/src/backend.d.ts"
         ],
         "matchedFiles": [
           "frontend/src/api/queryKeys.ts",
           "frontend/src/hooks/useQueries.ts",
-          "frontend/src/pages/LeaderboardPage.tsx",
-          "frontend/src/components/leaderboard/LeaderboardTable.tsx"
+          "frontend/src/components/profile/PaymentsPurchasesSection.tsx",
+          "frontend/src/components/profile/ProfileMenu.tsx",
+          "frontend/src/backend.d.ts"
+        ]
+      },
+      {
+        "id": "REQ-26",
+        "summary": "Ensure paid-competition access enforcement is consistent across navigation paths (e.g., direct navigation to solve route) by adding frontend guards and clear English messaging for payment-required states.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/pages/SolveFlowPage.tsx",
+          "frontend/src/pages/CompetitionDetailPage.tsx",
+          "frontend/src/hooks/useQueries.ts"
+        ],
+        "matchedFiles": [
+          "frontend/src/pages/SolveFlowPage.tsx",
+          "frontend/src/pages/CompetitionDetailPage.tsx",
+          "frontend/src/hooks/useQueries.ts"
         ]
       }
     ]
   },
   "changedFiles": [
+    "backend/http-outcalls/outcall.mo",
     "backend/main.mo",
     "backend/migration.mo",
     "build-request.json",
+    "caffeine.lock.json",
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
+    "frontend/public/razorpay.config.json",
+    "frontend/src/api/errors.ts",
     "frontend/src/api/queryKeys.ts",
     "frontend/src/backend.d.ts",
     "frontend/src/backend.ts",
-    "frontend/src/components/leaderboard/LeaderboardTable.tsx",
+    "frontend/src/components/competition/CompetitionCard.tsx",
+    "frontend/src/components/profile/PaymentsPurchasesSection.tsx",
     "frontend/src/components/profile/ProfileMenu.tsx",
-    "frontend/src/components/profile/ProfileSetupDialog.tsx",
+    "frontend/src/config/razorpay.ts",
     "frontend/src/declarations/backend.did.d.ts",
     "frontend/src/declarations/backend.did.js",
     "frontend/src/hooks/useQueries.ts",
-    "frontend/src/lib/timeUtils.ts",
-    "frontend/src/pages/LeaderboardPage.tsx",
+    "frontend/src/lib/razorpay.ts",
+    "frontend/src/pages/CompetitionDetailPage.tsx",
+    "frontend/src/pages/SolveFlowPage.tsx",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

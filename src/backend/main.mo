@@ -66,6 +66,19 @@ actor {
     #pyraminx;
   };
 
+  public type PaidEvent = {
+    id : Nat;
+    competitionName : Text;
+    event : Event;
+    entryFee : Nat;
+    paymentDate : Time.Time;
+    razorpayOrderId : Text;
+    razorpayPaymentId : Text;
+    razorpaySignature : Text;
+  };
+
+  var userPayments = Map.empty<Principal, Map.Map<Nat, PaidEvent>>();
+
   public type CompetitionStatus = {
     #upcoming;
     #running;
@@ -102,6 +115,18 @@ actor {
     entryFee : ?Nat;
     events : [Event];
     scrambles : [([Text], Event)];
+  };
+
+  public type CompetitionPublic = {
+    id : Nat;
+    name : Text;
+    slug : Text;
+    startDate : Time.Time;
+    endDate : Time.Time;
+    status : CompetitionStatus;
+    participantLimit : ?Nat;
+    entryFee : ?Nat;
+    events : [Event];
   };
 
   public type Attempt = {
@@ -192,6 +217,20 @@ actor {
     };
   };
 
+  private func toPublicCompetition(comp : Competition) : CompetitionPublic {
+    {
+      id = comp.id;
+      name = comp.name;
+      slug = comp.slug;
+      startDate = comp.startDate;
+      endDate = comp.endDate;
+      status = comp.status;
+      participantLimit = comp.participantLimit;
+      entryFee = comp.entryFee;
+      events = comp.events;
+    };
+  };
+
   public shared ({ caller }) func setUserEmail(email : Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can set email");
@@ -263,12 +302,42 @@ actor {
     competitionId;
   };
 
-  public query ({ caller }) func getCompetitions() : async [Competition] {
-    competitions.values().toArray();
+  public query ({ caller }) func getCompetitions() : async [CompetitionPublic] {
+    // Public endpoint - returns competitions without scrambles
+    competitions.values().toArray().map(toPublicCompetition);
   };
 
   public query ({ caller }) func getCompetition(id : Nat) : async ?Competition {
-    competitions.get(id);
+    // Returns full competition with scrambles only if:
+    // 1. User is authenticated AND
+    // 2. Competition is free OR user has paid for at least one event
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated users can view competition details");
+    };
+
+    switch (competitions.get(id)) {
+      case (null) { null };
+      case (?comp) {
+        // For free competitions, allow access
+        switch (comp.entryFee) {
+          case (null) { ?comp };
+          case (?_fee) {
+            // For paid competitions, check if user has paid for any event
+            let hasPaidForAnyEvent = comp.events.find(
+              func(event) {
+                payments.containsKey((id, caller, event));
+              }
+            ) != null;
+
+            if (hasPaidForAnyEvent or isAllowlistedAdmin(caller)) {
+              ?comp;
+            } else {
+              Runtime.trap("Unauthorized: Payment required to access competition scrambles");
+            };
+          };
+        };
+      };
+    };
   };
 
   public shared ({ caller }) func confirmPayment(payment : PaymentConfirmation) : async () {
@@ -285,9 +354,30 @@ actor {
       case (?competition) {
         switch (competition.entryFee) {
           case (null) { Runtime.trap("This is a free competition") };
-          case (?_fee) {
+          case (?entryFee) {
             let paymentKey = (payment.competitionId, caller, payment.event);
             payments.add(paymentKey, payment);
+
+            // Create PaidEvent record
+            let paidEvent : PaidEvent = {
+              id = payment.competitionId;
+              competitionName = competition.name;
+              event = payment.event;
+              entryFee;
+              paymentDate = Time.now();
+              razorpayOrderId = payment.razorpayOrderId;
+              razorpayPaymentId = payment.razorpayPaymentId;
+              razorpaySignature = payment.razorpaySignature;
+            };
+
+            // Save to userPayments
+            let existingEvents = switch (userPayments.get(caller)) {
+              case (?events) { events };
+              case (null) { Map.empty<Nat, PaidEvent>() };
+            };
+
+            existingEvents.add(payment.competitionId, paidEvent);
+            userPayments.add(caller, existingEvents);
           };
         };
       };
@@ -390,12 +480,42 @@ actor {
   };
 
   public query ({ caller }) func getResults(competitionId : Nat, event : Event) : async [ResultInput] {
+    // Only authenticated users can view results
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated users can view results");
+    };
+
+    // For paid competitions, verify payment before showing results
+    switch (competitions.get(competitionId)) {
+      case (null) { Runtime.trap("Competition does not exist") };
+      case (?competition) {
+        if (not hasCompletedPayment(caller, competitionId, event, competition.entryFee) and not isAllowlistedAdmin(caller)) {
+          Runtime.trap("Unauthorized: Payment required to view results");
+        };
+      };
+    };
+
     results.toArray().filter(func((key, _)) { key.0 == competitionId and key.2 == event }).map(
       func((_, resultInput)) { resultInput }
     );
   };
 
   public query ({ caller }) func getLeaderboard(competitionId : Nat, event : Event) : async [ResultInput] {
+    // Only authenticated users can view leaderboard
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated users can view leaderboard");
+    };
+
+    // For paid competitions, verify payment before showing leaderboard
+    switch (competitions.get(competitionId)) {
+      case (null) { Runtime.trap("Competition does not exist") };
+      case (?competition) {
+        if (not hasCompletedPayment(caller, competitionId, event, competition.entryFee) and not isAllowlistedAdmin(caller)) {
+          Runtime.trap("Unauthorized: Payment required to view leaderboard");
+        };
+      };
+    };
+
     let filteredResults = results.values().toArray().filter(
       func(result) {
         result.competitionId == competitionId and result.event == event and result.status == #completed
@@ -408,10 +528,14 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view their results");
     };
+
+    // Users can always view their own results, even without payment
     results.get((competitionId, caller, event));
   };
 
   public query ({ caller }) func getPublicProfileInfo(user : Principal) : async PublicProfileInfo {
+    // Intentionally public - no authorization required
+    // This allows displaying user info on leaderboards
     switch (userProfiles.get(user)) {
       case (?profile) {
         {
@@ -425,6 +549,8 @@ actor {
   };
 
   public query ({ caller }) func getMultiplePublicProfiles(users : [Principal]) : async [(Principal, PublicProfileInfo)] {
+    // Intentionally public - no authorization required
+    // This allows displaying user info on leaderboards
     users.map(
       func(user) {
         let profile = switch (userProfiles.get(user)) {
@@ -440,6 +566,33 @@ actor {
         (user, profile);
       }
     );
+  };
+
+  public query ({ caller }) func getUserPaymentHistory() : async [PaidEvent] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view payment history");
+    };
+
+    let payments = switch (userPayments.get(caller)) {
+      case (?events) { events.values().toArray() };
+      case (null) { [] };
+    };
+
+    payments;
+  };
+
+  public shared ({ caller }) func getAllUserPayments() : async [PaymentConfirmation] {
+    // First check if user has admin permission
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can view all user payments");
+    };
+
+    // Then check if admin is allowlisted
+    if (not isAllowlistedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only the allowlisted admin can view all user payments");
+    };
+
+    payments.values().toArray();
   };
 
   func defaultPublicProfile() : PublicProfileInfo {

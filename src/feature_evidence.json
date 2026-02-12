@@ -2,11 +2,38 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-add-a-user-facing-profile-section-in-the-ui-where-an-authenticated-user-can-view-and-edit-their-displayname-country-and-gender-and-persist-changes-to-the-backend",
-      "featureTitle": "Add a user-facing Profile section in the UI where an authenticated user can view and edit their `displayName`, `country`, and `gender`, and persist changes to the backend.",
+      "featureId": "feature-implement-a-secure-razorpay-payment-architecture-for-paid-competitions-using-server-side-order-creation-and-server-side-payment-verification-no-razorpay-key-secret-in-frontend-or-repo-so-that-users-must-successfully-pay-before-they-can-start-access-a-paid-competition-event",
+      "featureTitle": "Implement a secure Razorpay payment architecture for paid competitions using server-side order creation and server-side payment verification (no Razorpay Key Secret in frontend or repo), so that users must successfully pay before they can start/access a paid competition event.",
       "files": [
+        "frontend/public/razorpay.config.json",
+        "frontend/src/api/errors.ts",
+        "frontend/src/api/queryKeys.ts",
+        "frontend/src/config/razorpay.ts",
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/lib/razorpay.ts",
+        "frontend/src/pages/CompetitionDetailPage.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "http-outcalls@3.0.0"
+      ],
+      "testIds": [
+        "REQ-23"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-add-a-user-facing-payments-purchases-view-in-the-profile-ui-that-lists-the-authenticated-user-s-paid-competition-entries-and-their-status",
+      "featureTitle": "Add a user-facing Payments/Purchases view in the Profile UI that lists the authenticated user’s paid competition entries and their status.",
+      "files": [
+        "frontend/src/api/queryKeys.ts",
+        "frontend/src/components/profile/PaymentsPurchasesSection.tsx",
         "frontend/src/components/profile/ProfileMenu.tsx",
-        "frontend/src/components/profile/ProfileSetupDialog.tsx",
         "frontend/src/hooks/useQueries.ts"
       ],
       "components": [
@@ -15,21 +42,21 @@
         "shadcn-ui@1.0.0",
         "build-template-react@1.0.0",
         "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
+        "github-export-icp-cli@1.0.0",
+        "http-outcalls@3.0.0"
       ],
       "testIds": [
-        "REQ-21"
+        "REQ-25"
       ],
       "confidence": "high"
     },
     {
-      "featureId": "feature-update-the-leaderboard-ui-data-loading-and-display-logic-so-that-each-row-shows-the-competitor-s-profile-display-name-when-available-and-only-falls-back-to-anonymous-when-no-display-name-exists",
-      "featureTitle": "Update the leaderboard UI data-loading and display logic so that each row shows the competitor’s profile display name when available, and only falls back to \"Anonymous\" when no display name exists.",
+      "featureId": "feature-ensure-paid-competition-access-enforcement-is-consistent-across-navigation-paths-e-g-direct-navigation-to-solve-route-by-adding-frontend-guards-and-clear-english-messaging-for-payment-required-states",
+      "featureTitle": "Ensure paid-competition access enforcement is consistent across navigation paths (e.g., direct navigation to solve route) by adding frontend guards and clear English messaging for payment-required states.",
       "files": [
-        "frontend/src/api/queryKeys.ts",
-        "frontend/src/components/leaderboard/LeaderboardTable.tsx",
         "frontend/src/hooks/useQueries.ts",
-        "frontend/src/pages/LeaderboardPage.tsx"
+        "frontend/src/pages/CompetitionDetailPage.tsx",
+        "frontend/src/pages/SolveFlowPage.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -37,10 +64,11 @@
         "shadcn-ui@1.0.0",
         "build-template-react@1.0.0",
         "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
+        "github-export-icp-cli@1.0.0",
+        "http-outcalls@3.0.0"
       ],
       "testIds": [
-        "REQ-22"
+        "REQ-26"
       ],
       "confidence": "high"
     }

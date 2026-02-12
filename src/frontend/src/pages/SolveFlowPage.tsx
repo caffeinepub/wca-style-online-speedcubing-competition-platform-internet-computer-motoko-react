@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react';
-import { useParams, useSearch } from '@tanstack/react-router';
+import { useParams, useSearch, useNavigate } from '@tanstack/react-router';
 import { useGetCompetition, useGetUserResult, useSubmitAttempt } from '../hooks/useQueries';
 import InspectionTimer from '../components/solve/InspectionTimer';
 import SolveTimer from '../components/solve/SolveTimer';
 import SolveCompletionScreen from '../components/solve/SolveCompletionScreen';
 import RequireAuth from '../components/auth/RequireAuth';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CreditCard, AlertCircle } from 'lucide-react';
 import { useBeforeUnloadWarning } from '../hooks/useBeforeUnloadWarning';
 import { useNavigationBlocker } from '../hooks/useNavigationBlocker';
 import { Event } from '../backend';
 import { DEFAULT_EVENT, EVENT_LABELS } from '../types/domain';
 import { useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '../api/queryKeys';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 type Phase = 'inspection' | 'solving' | 'submitting' | 'next';
 
@@ -19,6 +21,7 @@ export default function SolveFlowPage() {
   const { competitionId } = useParams({ from: '/competition/$competitionId/solve' });
   const search = useSearch({ from: '/competition/$competitionId/solve' }) as { event?: Event };
   const selectedEvent = search.event || DEFAULT_EVENT;
+  const navigate = useNavigate();
 
   const { data: competition, isLoading: compLoading } = useGetCompetition(BigInt(competitionId));
   const { data: myResult, isLoading: resultLoading } = useGetUserResult(BigInt(competitionId), selectedEvent);
@@ -82,6 +85,14 @@ export default function SolveFlowPage() {
     setPhase('inspection');
   };
 
+  const handleBackToCompetition = () => {
+    navigate({
+      to: '/competition/$competitionId',
+      params: { competitionId },
+      search: { event: selectedEvent },
+    });
+  };
+
   if (compLoading || resultLoading) {
     return (
       <div className="container mx-auto px-4 py-12">
@@ -92,6 +103,43 @@ export default function SolveFlowPage() {
           </div>
         </div>
       </div>
+    );
+  }
+
+  // Payment guard: if competition requires payment and user hasn't started
+  if (competition && !myResult) {
+    const isPaidCompetition = !!competition.entryFee;
+    
+    return (
+      <RequireAuth message="You must be logged in to participate.">
+        <div className="container mx-auto px-4 py-12">
+          <div className="max-w-2xl mx-auto">
+            <Alert className="border-chart-1/20 bg-chart-1/5">
+              <AlertCircle className="h-5 w-5 text-chart-1" />
+              <AlertTitle className="text-lg font-semibold">
+                {isPaidCompetition ? 'Payment Required' : 'Competition Not Started'}
+              </AlertTitle>
+              <AlertDescription className="mt-2 space-y-4">
+                <p className="text-muted-foreground">
+                  {isPaidCompetition
+                    ? `This competition requires a payment of ₹${competition.entryFee} to access. Please complete payment before starting.`
+                    : 'You need to start this competition before you can solve. Please go back to the competition page and click "Start Competition".'}
+                </p>
+                <Button onClick={handleBackToCompetition} className="mt-4">
+                  {isPaidCompetition ? (
+                    <>
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      Go to Payment
+                    </>
+                  ) : (
+                    'Back to Competition'
+                  )}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          </div>
+        </div>
+      </RequireAuth>
     );
   }
 

@@ -1,63 +1,118 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Profile country/gender editing and leaderboard name display",
+  "title": "Razorpay live order-based checkout + payment gating + user purchase history UI",
   "requirements": [
     {
-      "id": "REQ-21",
-      "summary": "Expand the authenticated user's Profile UI to view/edit displayName, country, and gender and persist changes.",
+      "id": "REQ-23",
+      "summary": "Update frontend payment flow to use backend-created Razorpay orders and backend verification, with live Key ID configured only via public config (no secret in client).",
       "acceptanceCriteria": [
-        "Profile UI includes editable inputs for Country and Gender alongside Display Name.",
-        "Saving updates calls the existing profile save mutation and updates the cached current-user profile state (refetch/invalidate).",
-        "User-facing labels/help text are in English.",
-        "If the user has not set Country or Gender, the UI clearly shows they are unset (e.g., placeholder like \"Not set\")."
+        "Frontend uses Razorpay Key ID only; Razorpay Key Secret is never present in any frontend bundle or committed source code.",
+        "Frontend checkout is opened using an order_id from the backend-created order (not a client-only amount flow)."
       ],
       "file_operations": [
         {
+          "path": "frontend/public/razorpay.config.json",
+          "operation": "create",
+          "description": "Add a public Razorpay live configuration file containing ONLY the live Key ID (preserve exactly: rzp_live_kyn4dKuIvsesAX) plus non-secret display configuration (currency/companyName/theme). This ensures the Key ID lives in frontend/public configuration as required and no secrets are shipped."
+        },
+        {
+          "path": "frontend/src/config/razorpay.ts",
+          "operation": "modify",
+          "description": "Refactor Razorpay config to load the Key ID from frontend/public/razorpay.config.json at runtime (and remove the test key). Ensure only the live Key ID is used and no Razorpay secret is referenced anywhere."
+        },
+        {
+          "path": "frontend/src/lib/razorpay.ts",
+          "operation": "modify",
+          "description": "Update Razorpay checkout helper to accept backend-created order information (orderId, amount, currency) and pass order_id into Razorpay options (stop relying on client-only amount flow). Keep the helper limited to client-safe fields (Key ID only) and provide clear cancellation handling."
+        },
+        {
+          "path": "frontend/src/backend.d.ts",
+          "operation": "modify",
+          "description": "Update frontend backend interface typings to include the new authenticated backend capability for Razorpay order creation (for a specific competitionId + event) and any related return type needed by checkout (orderId, amount, currency)."
+        },
+        {
+          "path": "frontend/src/api/queryKeys.ts",
+          "operation": "modify",
+          "description": "Add React Query keys for Razorpay order creation and/or payment-related cache entries used by the new flow."
+        },
+        {
           "path": "frontend/src/hooks/useQueries.ts",
           "operation": "modify",
-          "description": "Update profile-related mutations to match the updated backend interface: (1) adjust useCreateUserProfile to pass country/gender as null when creating a profile (until the user sets them), and (2) ensure useSaveCallerUserProfile continues to invalidate QUERY_KEYS.currentUserProfile after saving so cached current-user profile state updates. Use the selected \"authorization\" component patterns for authenticated profile flows (e.g., actor availability checks and graceful handling of authorization traps). Verify the component's usage instructions before implementing."
+          "description": "Add a React Query mutation hook for backend order creation and integrate it with existing confirmPayment usage. Ensure authorization/identity state is respected (use the app’s existing authorization/auth patterns). Verify the authorization component's usage instructions before implementing."
         },
         {
-          "path": "frontend/src/components/profile/ProfileSetupDialog.tsx",
+          "path": "frontend/src/pages/CompetitionDetailPage.tsx",
           "operation": "modify",
-          "description": "Keep first-time setup UX intact while updating the create-profile call to provide country/gender as unset (null). Ensure all user-facing labels/help text remain English. Use the selected \"authorization\" component guidance for post-login profile setup and avoid showing principal IDs. Verify the component's usage instructions before implementing."
+          "description": "Replace the current client-amount Razorpay flow with: (1) create backend order for (competitionId, selectedEvent), (2) open Razorpay checkout using returned order_id/amount/currency, (3) submit paymentId/signature/orderId to backend verification, then (4) start competition. Add clear loading/processing states and English error messages using existing toast/error patterns. Verify the authorization component's usage instructions before implementing."
         },
         {
-          "path": "frontend/src/components/profile/ProfileMenu.tsx",
+          "path": "frontend/src/api/errors.ts",
           "operation": "modify",
-          "description": "Extend the existing Profile UI surfaced in the header to let an authenticated user view and edit Display Name, Country, and Gender. Show Country/Gender as clearly unset when absent (e.g., \"Not set\" placeholders). On save, call saveCallerUserProfile with mcubesId preserved and include country/gender fields when provided, then rely on query invalidation to refresh current-user profile. Use the selected \"authorization\" component guidance to handle authorization failures gracefully (no uncaught errors; show a user-friendly message). Verify the component's usage instructions before implementing."
+          "description": "Extend error normalization to include readable English messaging for payment-required and payment-verification failure states that may be returned from backend traps, without exposing sensitive details."
         }
       ]
     },
     {
-      "id": "REQ-22",
-      "summary": "Load and display public competitor profile names on the leaderboard with correct fallbacks to Anonymous.",
+      "id": "REQ-25",
+      "summary": "Add a user-visible Payments/Purchases section in the Profile UI that lists the authenticated user’s paid competition entries and their status.",
       "acceptanceCriteria": [
-        "When a user has a non-empty `displayName` stored in their profile, the leaderboard shows that name instead of \"Anonymous\".",
-        "If a profile cannot be found or `displayName` is empty, leaderboard shows \"Anonymous\".",
-        "No uncaught errors occur when loading the leaderboard due to profile fetch authorization failures."
+        "Profile UI includes a Payments/Purchases section accessible to logged-in users.",
+        "The Payments/Purchases section loads from a backend query via React Query and displays: competition name (or competitionId if missing), event label, amount/currency, timestamp, and status (e.g., Verified / Pending / Failed).",
+        "If the user has no payments, show an English empty-state message (e.g., \"No purchases yet.\").",
+        "Errors are shown as readable English messages using the app’s existing error/toast patterns."
       ],
       "file_operations": [
         {
           "path": "frontend/src/api/queryKeys.ts",
           "operation": "modify",
-          "description": "Add a dedicated React Query key for fetching public profiles for a set of leaderboard principals (separate from the existing allUserProfiles key) to support caching and refetching without relying on privileged profile reads. Verify the component's usage instructions before implementing."
+          "description": "Add a dedicated React Query key for the authenticated caller’s payment/purchase history list."
         },
         {
           "path": "frontend/src/hooks/useQueries.ts",
           "operation": "modify",
-          "description": "Replace/augment the current leaderboard-related profile loading approach so it fetches public profile info using the backend capability intended for public reads (e.g., getMultiplePublicProfiles or getPublicProfileInfo) rather than getUserProfile. Ensure the query is resilient: handle authorization traps/errors by returning an empty mapping and letting the UI fall back to \"Anonymous\" without uncaught errors. Use the selected \"authorization\" component guidance for handling authorization errors gracefully in the UI. Verify the component's usage instructions before implementing."
+          "description": "Add a React Query hook that fetches the caller’s payment history via the backend interface (authenticated query). Ensure it is enabled only when the actor is available and the user is authenticated. Verify the authorization component's usage instructions before implementing."
         },
         {
-          "path": "frontend/src/pages/LeaderboardPage.tsx",
-          "operation": "modify",
-          "description": "Update leaderboard data-loading to fetch public profile info for the principals present in the loaded leaderboard results, then pass the resolved public profile data to the table. Ensure failures or missing profiles do not break rendering and allow fallback to \"Anonymous\". Verify the component's usage instructions before implementing."
+          "path": "frontend/src/components/profile/PaymentsPurchasesSection.tsx",
+          "operation": "create",
+          "description": "Create a Profile UI section component that renders the purchase history list with competition name (fallback to competitionId), event label, amount/currency, formatted timestamp, and a status badge/label (Verified/Pending/Failed). Show an English empty state and use the app’s existing error/toast conventions. Verify the shadcn-ui component's usage instructions before implementing."
         },
         {
-          "path": "frontend/src/components/leaderboard/LeaderboardTable.tsx",
+          "path": "frontend/src/components/profile/ProfileMenu.tsx",
           "operation": "modify",
-          "description": "Update row display logic to use competitor displayName from fetched public profile info when it is non-empty (trimmed). Only show \"Anonymous\" when no public profile is found or when displayName is empty. Ensure the component tolerates missing profile data without throwing. Verify the component's usage instructions before implementing."
+          "description": "Wire the new Payments/Purchases section into the Profile UI for authenticated users (e.g., within the existing profile dialog). Ensure it is accessible from the current navigation entry point and does not introduce a new top-level route. Verify the authorization component's usage instructions before implementing."
+        },
+        {
+          "path": "frontend/src/backend.d.ts",
+          "operation": "modify",
+          "description": "Align frontend types for the payment history item returned by the backend so the UI can display status, timestamp, amount/currency, event, and competition name/ID as required."
+        }
+      ]
+    },
+    {
+      "id": "REQ-26",
+      "summary": "Add frontend guards and clear messaging to ensure paid-competition access enforcement is consistent across navigation paths (including direct solve route access).",
+      "acceptanceCriteria": [
+        "If a user navigates directly to the solve flow for a paid competition event without having started (and without verified payment), the UI shows an English message indicating payment is required and provides a path back to the competition detail page to pay/start.",
+        "Competition detail page payment CTA uses the new backend order-creation flow and shows clear loading/processing states.",
+        "After a successful verified payment, starting the competition navigates to the solve flow without requiring a manual page refresh."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/pages/SolveFlowPage.tsx",
+          "operation": "modify",
+          "description": "Add a guard state for when the user is authenticated but has no solve session/result for the selected event. If the competition has an entry fee, show an English payment-required message and a clear navigation path back to the competition detail page (preserving competitionId and event). Otherwise, show an English start-required message. Verify the authorization component's usage instructions before implementing."
+        },
+        {
+          "path": "frontend/src/pages/CompetitionDetailPage.tsx",
+          "operation": "modify",
+          "description": "Ensure the pay/start CTA uses the new order-creation + verification flow with clear loading/processing states and that, after successful verification + startCompetition, navigation proceeds to solve without manual refresh (invalidate/refresh relevant queries as needed). Verify the authorization component's usage instructions before implementing."
+        },
+        {
+          "path": "frontend/src/hooks/useQueries.ts",
+          "operation": "modify",
+          "description": "Ensure mutations involved in payment + start (order creation, confirm payment, start competition) invalidate/refresh userResult and related queries so the solve flow becomes available immediately after success."
         }
       ]
     }

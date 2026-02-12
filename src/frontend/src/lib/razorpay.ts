@@ -1,4 +1,4 @@
-import { RAZORPAY_CONFIG } from '../config/razorpay';
+import { loadRazorpayConfig, type RazorpayConfig } from '../config/razorpay';
 
 declare global {
   interface Window {
@@ -8,6 +8,7 @@ declare global {
 
 export interface RazorpayOptions {
   key: string;
+  order_id: string;
   amount: number;
   currency: string;
   name: string;
@@ -29,8 +30,8 @@ export interface RazorpayOptions {
 
 export interface RazorpaySuccessResponse {
   razorpay_payment_id: string;
-  razorpay_order_id?: string;
-  razorpay_signature?: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
 }
 
 let razorpayScriptLoaded = false;
@@ -75,26 +76,31 @@ export function loadRazorpayScript(): Promise<boolean> {
 }
 
 export interface OpenCheckoutParams {
+  orderId: string;
   amount: number;
+  currency: string;
   competitionName: string;
   userEmail?: string;
   userName?: string;
 }
 
-export function openRazorpayCheckout(params: OpenCheckoutParams): Promise<RazorpaySuccessResponse> {
-  return new Promise((resolve, reject) => {
+export async function openRazorpayCheckout(params: OpenCheckoutParams): Promise<RazorpaySuccessResponse> {
+  return new Promise(async (resolve, reject) => {
     if (!window.Razorpay) {
       reject(new Error('Razorpay script not loaded'));
       return;
     }
 
+    const config = await loadRazorpayConfig();
+
     const options: RazorpayOptions = {
-      key: RAZORPAY_CONFIG.keyId,
+      key: config.keyId,
+      order_id: params.orderId,
       amount: params.amount * 100, // Convert to paise
-      currency: RAZORPAY_CONFIG.currency,
-      name: RAZORPAY_CONFIG.companyName,
+      currency: params.currency,
+      name: config.companyName,
       description: `Entry fee for ${params.competitionName}`,
-      image: RAZORPAY_CONFIG.companyLogo,
+      image: config.companyLogo,
       handler: (response: RazorpaySuccessResponse) => {
         resolve(response);
       },
@@ -102,7 +108,7 @@ export function openRazorpayCheckout(params: OpenCheckoutParams): Promise<Razorp
         name: params.userName,
         email: params.userEmail,
       },
-      theme: RAZORPAY_CONFIG.theme,
+      theme: config.theme,
       modal: {
         ondismiss: () => {
           reject(new Error('Payment cancelled by user'));

@@ -16,12 +16,16 @@ import { EVENT_LABELS, DEFAULT_EVENT } from '../types/domain';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { loadRazorpayScript, openRazorpayCheckout } from '../lib/razorpay';
 import { toast } from 'sonner';
+import { normalizeError } from '../api/errors';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '../api/queryKeys';
 
 export default function CompetitionDetailPage() {
   const { competitionId } = useParams({ from: '/competition/$competitionId' });
   const navigate = useNavigate();
   const { identity } = useInternetIdentity();
   const isAuthenticated = !!identity;
+  const queryClient = useQueryClient();
 
   const [selectedEvent, setSelectedEvent] = useState<Event>(DEFAULT_EVENT);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -51,11 +55,12 @@ export default function CompetitionDetailPage() {
     window.history.pushState({}, '', url);
   };
 
-  const handlePayment = async () => {
+  const handlePayAndStart = async () => {
     if (!competition || !competition.entryFee || !userProfile) return;
 
     setIsProcessingPayment(true);
     try {
+      // Step 1: Load Razorpay script
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) {
         toast.error('Failed to load payment gateway. Please try again.');
@@ -63,32 +68,48 @@ export default function CompetitionDetailPage() {
         return;
       }
 
+      // Step 2: Create a mock order (backend doesn't have createOrder yet, so we simulate)
+      // In production, you would call: const orderData = await actor.createRazorpayOrder(competitionId, selectedEvent);
+      const mockOrderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const amount = Number(competition.entryFee);
+      const currency = 'INR';
+
+      // Step 3: Open Razorpay checkout with order
       const response = await openRazorpayCheckout({
-        amount: Number(competition.entryFee),
+        orderId: mockOrderId,
+        amount,
+        currency,
         competitionName: competition.name,
         userName: userProfile.displayName,
       });
 
-      // Confirm payment with backend
+      // Step 4: Confirm payment with backend
       await confirmPayment.mutateAsync({
         competitionId: BigInt(competitionId),
         event: selectedEvent,
-        razorpayOrderId: response.razorpay_order_id || '',
+        razorpayOrderId: response.razorpay_order_id,
         razorpayPaymentId: response.razorpay_payment_id,
-        razorpaySignature: response.razorpay_signature || '',
+        razorpaySignature: response.razorpay_signature,
       });
 
-      toast.success('Payment successful! Starting competition...');
+      toast.success('Payment verified! Starting competition...');
 
-      // Now start the competition
-      await handleStart();
+      // Step 5: Start the competition
+      await startCompetition.mutateAsync({ competitionId: BigInt(competitionId), event: selectedEvent });
+
+      // Step 6: Invalidate queries and navigate
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.userResult(BigInt(competitionId), selectedEvent) });
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competition(BigInt(competitionId)) });
+
+      navigate({
+        to: '/competition/$competitionId/solve',
+        params: { competitionId },
+        search: { event: selectedEvent },
+      });
     } catch (error: any) {
-      console.error('Payment error:', error);
-      if (error.message === 'Payment cancelled by user') {
-        toast.error('Payment cancelled');
-      } else {
-        toast.error('Payment failed. Please try again.');
-      }
+      console.error('Payment/start error:', error);
+      const errorMessage = normalizeError(error);
+      toast.error(errorMessage);
     } finally {
       setIsProcessingPayment(false);
     }
@@ -97,14 +118,17 @@ export default function CompetitionDetailPage() {
   const handleStart = async () => {
     if (!competition) return;
 
-    // Check if payment is required
+    // If payment is required, use payment flow
     if (competition.entryFee) {
-      await handlePayment();
+      await handlePayAndStart();
       return;
     }
 
+    // Free competition - just start
     try {
       await startCompetition.mutateAsync({ competitionId: BigInt(competitionId), event: selectedEvent });
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.userResult(BigInt(competitionId), selectedEvent) });
+      
       navigate({
         to: '/competition/$competitionId/solve',
         params: { competitionId },
@@ -112,7 +136,8 @@ export default function CompetitionDetailPage() {
       });
     } catch (error) {
       console.error('Failed to start competition:', error);
-      toast.error('Failed to start competition. Please try again.');
+      const errorMessage = normalizeError(error);
+      toast.error(errorMessage);
     }
   };
 
@@ -171,6 +196,7 @@ export default function CompetitionDetailPage() {
   const canStart = isAuthenticated && competition.status === 'running' && !myResult;
   const canContinue = isAuthenticated && myResult?.status === 'in_progress';
   const isCompleted = myResult?.status === 'completed';
+  const isPaidCompetition = !!competition.entryFee;
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -223,6 +249,7 @@ export default function CompetitionDetailPage() {
                 </div>
               </div>
             </div>
+
             <div className="space-y-4">
               {competition.participantLimit && (
                 <div className="flex items-center gap-3">
@@ -233,13 +260,6 @@ export default function CompetitionDetailPage() {
                   </div>
                 </div>
               )}
-              <div className="flex items-center gap-3">
-                <Trophy className="w-5 h-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Format</p>
-                  <p className="font-medium">Average of 5 (Ao5)</p>
-                </div>
-              </div>
               {competition.entryFee && (
                 <div className="flex items-center gap-3">
                   <CreditCard className="w-5 h-5 text-muted-foreground" />
@@ -252,75 +272,65 @@ export default function CompetitionDetailPage() {
             </div>
           </div>
 
-          <div className="bg-background border border-border rounded-lg p-6 mb-8">
-            <h3 className="font-bold mb-4">Competition Rules</h3>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>• Complete 5 solves with official WCA scrambles</li>
-              <li>• 15-second inspection before each solve</li>
-              <li>• +2 penalty for 15-17 second inspection</li>
-              <li>• DNF for inspection over 17 seconds</li>
-              <li>• Final ranking based on Average of 5 (best and worst times dropped)</li>
-              {competition.entryFee && <li>• Payment required before starting the competition</li>}
-            </ul>
-          </div>
+          <RequireAuth message="Please log in to participate in this competition.">
+            <div className="flex gap-4">
+              {canStart && (
+                <button
+                  onClick={handleStart}
+                  disabled={isProcessingPayment || startCompetition.isPending || resultLoading}
+                  className="flex-1 px-6 py-3 bg-chart-1 hover:bg-chart-1/90 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isProcessingPayment ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Processing Payment...
+                    </>
+                  ) : startCompetition.isPending ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Starting...
+                    </>
+                  ) : (
+                    <>
+                      {isPaidCompetition ? <CreditCard className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                      {isPaidCompetition ? `Pay ₹${competition.entryFee} & Start` : 'Start Competition'}
+                    </>
+                  )}
+                </button>
+              )}
 
-          <div className="flex flex-col sm:flex-row gap-4">
-            {!isAuthenticated && competition.status === 'running' && (
-              <RequireAuth message="You must be logged in to participate in competitions.">
-                <div />
-              </RequireAuth>
-            )}
+              {canContinue && (
+                <button
+                  onClick={handleContinue}
+                  className="flex-1 px-6 py-3 bg-chart-1 hover:bg-chart-1/90 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  <Play className="w-5 h-5" />
+                  Continue Solving
+                </button>
+              )}
 
-            {canStart && (
-              <button
-                onClick={handleStart}
-                disabled={startCompetition.isPending || resultLoading || isProcessingPayment}
-                className="flex-1 px-8 py-4 bg-chart-1 hover:bg-chart-1/90 text-white font-bold text-lg rounded-xl transition-colors shadow-lg shadow-chart-1/20 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isProcessingPayment ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Processing Payment...
-                  </>
-                ) : startCompetition.isPending ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Starting...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-5 h-5" />
-                    {competition.entryFee ? `Pay ₹${competition.entryFee} & Start` : 'Start Competition'}
-                  </>
-                )}
-              </button>
-            )}
-
-            {canContinue && (
-              <button
-                onClick={handleContinue}
-                className="flex-1 px-8 py-4 bg-chart-2 hover:bg-chart-2/90 text-white font-bold text-lg rounded-xl transition-colors shadow-lg shadow-chart-2/20 flex items-center justify-center gap-3"
-              >
-                <Play className="w-5 h-5" />
-                Continue Solving
-              </button>
-            )}
-
-            {isCompleted && (
-              <div className="flex-1 bg-chart-1/10 border border-chart-1/20 rounded-xl p-4 text-center">
-                <p className="text-chart-1 font-medium">✓ Competition Completed</p>
-              </div>
-            )}
-
-            <button
-              onClick={handleViewLeaderboard}
-              className="flex-1 px-8 py-4 bg-secondary hover:bg-secondary/80 text-secondary-foreground font-bold text-lg rounded-xl transition-colors flex items-center justify-center gap-3"
-            >
-              <BarChart3 className="w-5 h-5" />
-              View Leaderboard
-            </button>
-          </div>
+              {(isCompleted || competition.status === 'completed') && (
+                <button
+                  onClick={handleViewLeaderboard}
+                  className="flex-1 px-6 py-3 bg-chart-2 hover:bg-chart-2/90 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  <BarChart3 className="w-5 h-5" />
+                  View Leaderboard
+                </button>
+              )}
+            </div>
+          </RequireAuth>
         </div>
+
+        {competition.status === 'upcoming' && (
+          <div className="bg-chart-2/10 border border-chart-2/20 rounded-lg p-6 text-center">
+            <Trophy className="w-12 h-12 text-chart-2 mx-auto mb-3" />
+            <h3 className="text-lg font-semibold mb-2">Competition Starting Soon</h3>
+            <p className="text-muted-foreground">
+              This competition will be available to join on {formatDate(competition.startDate)}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

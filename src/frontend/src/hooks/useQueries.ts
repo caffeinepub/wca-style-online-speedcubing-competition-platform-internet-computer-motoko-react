@@ -11,6 +11,7 @@ import type {
   PaymentConfirmation,
   Event,
   PublicProfileInfo,
+  PaidEvent,
 } from '../backend';
 import { Principal } from '@dfinity/principal';
 
@@ -111,11 +112,17 @@ export function useCreateCompetition() {
 
 export function useConfirmPayment() {
   const { actor } = useActor();
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (payment: PaymentConfirmation) => {
       if (!actor) throw new Error('Actor not available');
       return actor.confirmPayment(payment);
+    },
+    onSuccess: (_, payment) => {
+      // Invalidate payment history and competition data after successful payment
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.paymentHistory });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competition(payment.competitionId) });
     },
   });
 }
@@ -227,5 +234,19 @@ export function useGetMultiplePublicProfiles(principals: Principal[]) {
     },
     enabled: !!actor && !isFetching && principals.length > 0,
     retry: false,
+  });
+}
+
+export function useGetUserPaymentHistory() {
+  const { actor, isFetching } = useActor();
+  const { identity } = useInternetIdentity();
+
+  return useQuery<PaidEvent[]>({
+    queryKey: QUERY_KEYS.paymentHistory,
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getUserPaymentHistory();
+    },
+    enabled: !!actor && !isFetching && !!identity,
   });
 }

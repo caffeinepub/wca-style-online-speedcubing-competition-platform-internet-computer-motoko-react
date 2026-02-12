@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 11,
-  "summary": "Full-stack online speedcubing competition platform (Next.js + TS + PostgreSQL/Prisma + NextAuth on Vercel) with WCA-style 5-solve flow, per-user unique \"mcubes\" user ID and profile, immediate leaderboard updates on completion, multi-event competitions, optional paid entry via Razorpay (test keys for now), and admin-only competition creation restricted via an allowlist (currently email-based) that needs to include thiirdparty.mcubes@gmail.com and/or MCUBES-0.",
+  "projectStateVersion": 13,
+  "summary": "Full-stack online speedcubing competition platform (Next.js + TS + PostgreSQL/Prisma + NextAuth on Vercel) with WCA-style 5-solve flow, per-user unique \"mcubes\" user ID and profile, immediate leaderboard updates on completion, multi-event competitions, paid entry via Razorpay (frontend Key ID + backend-protected secret with server-side order creation), payment-gated participation for paid competitions, and admin-only competition creation restricted via an allowlist (currently email-based) that needs to include thiirdparty.mcubes@gmail.com and/or MCUBES-0.",
   "architectural_notes": [
     "Tech stack: Next.js (App Router) + TypeScript + PostgreSQL + Prisma ORM + NextAuth; deploy on Vercel.",
     "Competition format mirrors WCA-style online comps: 5 scrambles/solves with inspection and penalties.",
@@ -16,9 +16,10 @@
   ],
   "known_issues": [
     "Creating a competition currently fails with a generic \"unable to create\" error when the logged-in user's stored email does not match the allowlisted admin email; needs clearer messaging and/or updated allowlist value.",
-    "Leaderboard currently shows \"Anonymous\" instead of the user's profile/display name; needs to render the correct name from the user profile."
+    "Leaderboard currently shows \"Anonymous\" instead of the user's profile/display name; needs to render the correct name from the user profile.",
+    "Razorpay live Key Secret was shared in chat; ensure keys are regenerated/rotated and never stored in code or client-exposed config."
   ],
-  "isFixRequest": true,
+  "isFixRequest": false,
   "existing_features": [
     {
       "id": "feature-implement-user-authentication-using-internet-identity-ii-and-require-login-to-participate-in-competitions-store-a-user-profile-record-keyed-by-principal-with-a-user-editable-display-name-and-ensure-only-authenticated-users-can-create-results-or-submit-solves",
@@ -137,6 +138,30 @@
       "title": "Update the leaderboard UI data-loading and display logic so that each row shows the competitor’s profile display name when available, and only falls back to \"Anonymous\" when no display name exists.",
       "reqIds": [
         "REQ-22"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-a-secure-razorpay-payment-architecture-for-paid-competitions-using-server-side-order-creation-and-server-side-payment-verification-no-razorpay-key-secret-in-frontend-or-repo-so-that-users-must-successfully-pay-before-they-can-start-access-a-paid-competition-event",
+      "title": "Implement a secure Razorpay payment architecture for paid competitions using server-side order creation and server-side payment verification (no Razorpay Key Secret in frontend or repo), so that users must successfully pay before they can start/access a paid competition event.",
+      "reqIds": [
+        "REQ-23"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-user-facing-payments-purchases-view-in-the-profile-ui-that-lists-the-authenticated-user-s-paid-competition-entries-and-their-status",
+      "title": "Add a user-facing Payments/Purchases view in the Profile UI that lists the authenticated user’s paid competition entries and their status.",
+      "reqIds": [
+        "REQ-25"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-ensure-paid-competition-access-enforcement-is-consistent-across-navigation-paths-e-g-direct-navigation-to-solve-route-by-adding-frontend-guards-and-clear-english-messaging-for-payment-required-states",
+      "title": "Ensure paid-competition access enforcement is consistent across navigation paths (e.g., direct navigation to solve route) by adding frontend guards and clear English messaging for payment-required states.",
+      "reqIds": [
+        "REQ-26"
       ],
       "version": 1
     }
@@ -297,6 +322,32 @@
       "summary": "Fix leaderboard name resolution by providing a backend query API that allows reading public profile info (at minimum `displayName`, plus `country`/`gender` if available) for any competitor principal, so the leaderboard does not show \"Anonymous\" when a user has a display name set.",
       "reqIds": [
         "REQ-20"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-30",
+      "summary": "Razorpay payments architecture: store Razorpay Key ID for frontend use and keep Key Secret backend-only; add backend API to create Razorpay orders and verify payments server-side (no secrets in client or repo).",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-31",
+      "summary": "Payment enforcement: require successful Razorpay payment before a user can start/access a paid competition (or paid event within a competition); block solve flow until payment is confirmed.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-32",
+      "summary": "User payment history: add a Payments/Purchases section in the user account/profile showing paid competitions, amounts, timestamps, and payment status; designed so admins can manage/view later.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-34",
+      "summary": "Add backend APIs and persisted records to support user-visible purchase history for paid competitions/events, designed so it can be extended for future admin management.",
+      "reqIds": [
+        "REQ-24"
       ],
       "status": "pending"
     }

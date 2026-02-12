@@ -1,52 +1,85 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-11T23:58:46.861Z",
-  "summary": "Diff implements user profile schema extension with country/gender and adds a migration module; frontend adds profile editing UI and updates leaderboard to display names via a new public-profiles fetch flow. However, backend public-profile query API and backend mutation changes are not evidenced in the provided (truncated) backend diff, so REQ-20 and parts of REQ-19/REQ-22 cannot be fully verified from the diff summary alone.",
+  "generatedAt": "2026-02-12T00:34:33.194Z",
+  "summary": "Diff adds a Razorpay checkout integration and a Profile Payments UI, plus new backend types/state for payments and a migration. However, core requirements for secure server-side Razorpay order creation and signature verification are not implemented; frontend still uses a mock order id and backend verification logic/APIs are not evidenced. Payment history UI exists but appears to assume all payments are Verified and does not display required status/currency fields.",
   "missing_requirements": [
     {
-      "id": "REQ-20",
-      "requirement": "Provide a backend query API to fetch another user's public profile info (displayName, country, gender) by Principal without requiring the caller to be that user/admin, for leaderboard name resolution.",
-      "reason": "Frontend changes reference fetching multiple public profiles, but the diff summary does not show any new/updated backend query method implementation (only types and migration are visible; backend/main.mo is truncated before methods).",
+      "id": "REQ-23",
+      "requirement": "Server-side Razorpay order creation and server-side payment verification (signature validation) with payment-gated startCompetition for paid events.",
+      "reason": "Frontend explicitly uses a mock order id and comments that backend createOrder is not implemented; diff provides no evidence of backend methods to create Razorpay orders or verify Razorpay signatures, nor evidence that startCompetition gating uses verified status with a clear English error.",
       "evidence": [
-        "backend/main.mo (truncated)",
-        "frontend/src/hooks/useQueries.ts (truncated)",
-        "frontend/src/pages/LeaderboardPage.tsx",
-        "frontend/src/api/queryKeys.ts"
+        "frontend/src/pages/CompetitionDetailPage.tsx",
+        "backend/main.mo"
       ]
     },
     {
-      "id": "REQ-19",
-      "requirement": "Update backend profile creation and save flows to initialize/persist country and gender, and ensure existing stored profiles can still be read safely after schema change.",
-      "reason": "UserProfile type update and a migration module are present, but the diff summary does not show the implementations of createUserProfile and saveCallerUserProfile to confirm they initialize/persist the new fields (backend/main.mo is truncated before method bodies).",
+      "id": "REQ-24",
+      "requirement": "Persisted backend payment records per (competitionId, callerPrincipal, event) including competitionId, event, amount, currency, razorpayOrderId, razorpayPaymentId, verification status, timestamp; provide authenticated query to fetch caller history sorted most-recent first; gating based on verified status.",
+      "reason": "Backend types shown (PaidEvent, PaymentConfirmation, userPayments map) do not include currency or explicit verification status; no backend query method for payment history is evidenced in the provided backend diff snippet. Sorting is done client-side rather than being evidenced as backend-sorted.",
       "evidence": [
-        "backend/main.mo (truncated)",
+        "backend/main.mo",
         "backend/migration.mo",
-        "frontend/src/hooks/useQueries.ts (truncated)"
+        "frontend/src/components/profile/PaymentsPurchasesSection.tsx"
+      ]
+    },
+    {
+      "id": "REQ-25",
+      "requirement": "Payments/Purchases section displays competition name (or competitionId if missing), event label, amount/currency, timestamp, and status (Verified/Pending/Failed).",
+      "reason": "UI shows a hard-coded \"Verified\" badge and displays amount with ₹ but does not display currency or a dynamic status; it also assumes competitionName always exists (no fallback to competitionId shown).",
+      "evidence": [
+        "frontend/src/components/profile/PaymentsPurchasesSection.tsx"
+      ]
+    },
+    {
+      "id": "REQ-26",
+      "requirement": "Competition detail payment CTA uses new backend order-creation flow (order_id returned by backend) with loading/processing states; after verified payment, start navigates to solve without refresh; solve route guard for unpaid direct navigation.",
+      "reason": "Competition detail page uses a simulated/mock Razorpay order id instead of a backend-created order. While there is an isProcessingPayment state, the required backend order-creation flow is not implemented/evidenced.",
+      "evidence": [
+        "frontend/src/pages/CompetitionDetailPage.tsx",
+        "frontend/src/pages/SolveFlowPage.tsx"
       ]
     }
   ],
   "hallucinated_features": [
     {
-      "description": "Change to time formatting logic to treat 999999 and values >= 999999 as DNF.",
-      "reason": "Not requested by any REQ (REQ-19..REQ-22 are about profile fields and leaderboard name resolution).",
+      "description": "Frontend uses a simulated/mock Razorpay order id instead of calling a backend order-creation API.",
+      "reason": "BuildRequest requires server-side order creation; adding a mock order flow is not requested and conflicts with the intended architecture.",
       "evidence": [
-        "frontend/src/lib/timeUtils.ts"
+        "frontend/src/pages/CompetitionDetailPage.tsx"
+      ]
+    },
+    {
+      "description": "Hard-coded Razorpay live keyId fallback in frontend code (in addition to public config).",
+      "reason": "BuildRequest specifies preserving the Key ID in frontend/public configuration where appropriate; embedding it as a code fallback is extra behavior not requested.",
+      "evidence": [
+        "frontend/src/config/razorpay.ts"
+      ]
+    },
+    {
+      "description": "Payments UI always labels payments as \"Verified\" regardless of actual verification status.",
+      "reason": "BuildRequest requires showing status (Verified/Pending/Failed). Hard-coding status is an unrequested assumption/behavior.",
+      "evidence": [
+        "frontend/src/components/profile/PaymentsPurchasesSection.tsx"
       ]
     }
   ],
-  "confidence": 0.62,
+  "confidence": 0.72,
   "changed_files": [
     "backend/main.mo",
     "backend/migration.mo",
     "frontend-file-summaries.txt",
+    "frontend/public/razorpay.config.json",
+    "frontend/src/api/errors.ts",
     "frontend/src/api/queryKeys.ts",
-    "frontend/src/components/leaderboard/LeaderboardTable.tsx",
+    "frontend/src/components/competition/CompetitionCard.tsx",
+    "frontend/src/components/profile/PaymentsPurchasesSection.tsx",
     "frontend/src/components/profile/ProfileMenu.tsx",
-    "frontend/src/components/profile/ProfileSetupDialog.tsx",
+    "frontend/src/config/razorpay.ts",
     "frontend/src/hooks/useQueries.ts",
-    "frontend/src/lib/timeUtils.ts",
-    "frontend/src/pages/LeaderboardPage.tsx",
+    "frontend/src/lib/razorpay.ts",
+    "frontend/src/pages/CompetitionDetailPage.tsx",
+    "frontend/src/pages/SolveFlowPage.tsx",
     "project_state.json"
   ]
 }

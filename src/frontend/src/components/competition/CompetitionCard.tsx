@@ -1,10 +1,10 @@
 import { useNavigate } from '@tanstack/react-router';
-import { Competition } from '../../backend';
+import { CompetitionPublic } from '../../backend';
 import { Calendar, Users, Trophy } from 'lucide-react';
 import { formatDate } from '../../lib/dateUtils';
 
 interface CompetitionCardProps {
-  competition: Competition;
+  competition: CompetitionPublic;
 }
 
 export default function CompetitionCard({ competition }: CompetitionCardProps) {

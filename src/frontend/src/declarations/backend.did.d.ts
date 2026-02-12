@@ -34,6 +34,17 @@ export interface CompetitionInput {
   'participantLimit' : [] | [bigint],
   'startDate' : Time,
 }
+export interface CompetitionPublic {
+  'id' : bigint,
+  'status' : CompetitionStatus,
+  'endDate' : Time,
+  'name' : string,
+  'slug' : string,
+  'events' : Array<Event>,
+  'entryFee' : [] | [bigint],
+  'participantLimit' : [] | [bigint],
+  'startDate' : Time,
+}
 export type CompetitionStatus = { 'upcoming' : null } |
   { 'completed' : null } |
   { 'running' : null };
@@ -46,6 +57,16 @@ export type Event = { 'megaminx' : null } |
   { 'skewb' : null } |
   { 'twoByTwo' : null } |
   { 'fourByFour' : null };
+export interface PaidEvent {
+  'id' : bigint,
+  'razorpayPaymentId' : string,
+  'razorpaySignature' : string,
+  'event' : Event,
+  'razorpayOrderId' : string,
+  'paymentDate' : Time,
+  'entryFee' : bigint,
+  'competitionName' : string,
+}
 export interface PaymentConfirmation {
   'razorpayPaymentId' : string,
   'razorpaySignature' : string,
@@ -87,10 +108,11 @@ export interface _SERVICE {
     [string, [] | [string], [] | [string]],
     undefined
   >,
+  'getAllUserPayments' : ActorMethod<[], Array<PaymentConfirmation>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getCompetition' : ActorMethod<[bigint], [] | [Competition]>,
-  'getCompetitions' : ActorMethod<[], Array<Competition>>,
+  'getCompetitions' : ActorMethod<[], Array<CompetitionPublic>>,
   'getLeaderboard' : ActorMethod<[bigint, Event], Array<ResultInput>>,
   'getMultiplePublicProfiles' : ActorMethod<
     [Array<Principal>],
@@ -98,6 +120,7 @@ export interface _SERVICE {
   >,
   'getPublicProfileInfo' : ActorMethod<[Principal], PublicProfileInfo>,
   'getResults' : ActorMethod<[bigint, Event], Array<ResultInput>>,
+  'getUserPaymentHistory' : ActorMethod<[], Array<PaidEvent>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getUserResult' : ActorMethod<[bigint, Event], [] | [ResultInput]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,

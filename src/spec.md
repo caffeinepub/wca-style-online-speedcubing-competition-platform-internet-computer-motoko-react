@@ -1,13 +1,14 @@
 # Specification
 
 ## Summary
-**Goal:** Let users set optional country and gender on their profile, and ensure the leaderboard shows competitors’ profile display names instead of always “Anonymous”.
+**Goal:** Enable a secure Razorpay live payment flow (server-side order creation + server-side verification) to gate access to paid competition events, and add a Profile view where users can see their payment/purchase history.
 
 **Planned changes:**
-- Extend the backend `UserProfile` model to include optional `country` and `gender`, preserving compatibility with existing stored profiles (add migration only if required).
-- Update backend profile create/save flows to initialize and persist `country` and `gender`.
-- Add a backend query API to fetch another user’s public profile info (at minimum `displayName`, plus `country`/`gender` when available) by Principal without allowing mutation or exposing emails.
-- Add a Profile section in the UI for authenticated users to view/edit `displayName`, `country`, and `gender`, with English labels and clear “Not set” placeholders.
-- Update leaderboard UI loading/display to resolve and show competitor `displayName` when present, falling back to “Anonymous” only when missing/empty, without authorization-related errors.
+- Add authenticated backend APIs to create Razorpay orders for a specific (competitionId, event) and return order details required for checkout (order id, amount, currency).
+- Add authenticated backend API to verify/confirm payments by validating Razorpay signatures server-side before recording a purchase as verified.
+- Persist payment records per (competitionId, caller, event) including amount, currency, Razorpay order/payment ids, verification status, and timestamp; add an authenticated query for the caller’s payment history (most recent first).
+- Update frontend paid-event purchase/start flow to use backend-created order_id and handle processing/error states in English.
+- Add Profile UI Payments/Purchases section that loads and displays the user’s purchase history (competition name via lookup where possible, event, amount/currency, timestamp, status) with empty/error states in English.
+- Add/strengthen frontend guards so direct navigation to paid solve flows without verified payment shows an English payment-required message and a path back to competition details to pay/start.
 
-**User-visible outcome:** Authenticated users can edit their display name, country, and gender in a Profile section, and the leaderboard displays competitors’ names when they’ve set a display name (otherwise shows “Anonymous”).
+**User-visible outcome:** Users must complete a verified Razorpay live payment before starting/accessing paid competition events, can’t bypass payment by direct navigation, and can view their Payments/Purchases history and statuses in their Profile.

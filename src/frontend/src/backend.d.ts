@@ -35,6 +35,34 @@ export interface AttemptInput {
     penalty: bigint;
     time: bigint;
 }
+export interface CompetitionPublic {
+    id: bigint;
+    status: CompetitionStatus;
+    endDate: Time;
+    name: string;
+    slug: string;
+    events: Array<Event>;
+    entryFee?: bigint;
+    participantLimit?: bigint;
+    startDate: Time;
+}
+export interface PaidEvent {
+    id: bigint;
+    razorpayPaymentId: string;
+    razorpaySignature: string;
+    event: Event;
+    razorpayOrderId: string;
+    paymentDate: Time;
+    entryFee: bigint;
+    competitionName: string;
+}
+export interface PaymentConfirmation {
+    razorpayPaymentId: string;
+    razorpaySignature: string;
+    event: Event;
+    razorpayOrderId: string;
+    competitionId: bigint;
+}
 export interface Competition {
     id: bigint;
     status: CompetitionStatus;
@@ -53,12 +81,10 @@ export interface UserProfile {
     gender?: string;
     mcubesId: string;
 }
-export interface PaymentConfirmation {
-    razorpayPaymentId: string;
-    razorpaySignature: string;
-    event: Event;
-    razorpayOrderId: string;
-    competitionId: bigint;
+export interface RazorpayOrderResponse {
+    orderId: string;
+    amount: bigint;
+    currency: string;
 }
 export enum CompetitionStatus {
     upcoming = "upcoming",
@@ -91,14 +117,16 @@ export interface backendInterface {
     confirmPayment(payment: PaymentConfirmation): Promise<void>;
     createCompetition(compInput: CompetitionInput): Promise<bigint>;
     createUserProfile(displayName: string, country: string | null, gender: string | null): Promise<void>;
+    getAllUserPayments(): Promise<Array<PaymentConfirmation>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getCompetition(id: bigint): Promise<Competition | null>;
-    getCompetitions(): Promise<Array<Competition>>;
+    getCompetitions(): Promise<Array<CompetitionPublic>>;
     getLeaderboard(competitionId: bigint, event: Event): Promise<Array<ResultInput>>;
     getMultiplePublicProfiles(users: Array<Principal>): Promise<Array<[Principal, PublicProfileInfo]>>;
     getPublicProfileInfo(user: Principal): Promise<PublicProfileInfo>;
     getResults(competitionId: bigint, event: Event): Promise<Array<ResultInput>>;
+    getUserPaymentHistory(): Promise<Array<PaidEvent>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     getUserResult(competitionId: bigint, event: Event): Promise<ResultInput | null>;
     isCallerAdmin(): Promise<boolean>;
