@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
 import { QUERY_KEYS } from '../api/queryKeys';
 import { Principal } from '@dfinity/principal';
-import { CompetitionStatus } from '../backend';
+import { CompetitionStatus as BackendCompetitionStatus, SolveStatus } from '../backend';
+import { useInternetIdentity } from './useInternetIdentity';
 import type {
   Event,
   UserProfile,
@@ -10,6 +11,11 @@ import type {
   Attempt,
   AdminResultEntry,
   ResultInput,
+  RazorpayOrderRequest as BackendRazorpayOrderRequest,
+  RazorpayOrderResponse as BackendRazorpayOrderResponse,
+  PaymentConfirmation as BackendPaymentConfirmation,
+  Competition as BackendCompetition,
+  CompetitionInput as BackendCompetitionInput,
 } from '../backend';
 import type {
   Competition,
@@ -20,9 +26,10 @@ import type {
   LeaderboardEntry,
   SessionStateResponse,
   PublicProfileInfo,
+  CompetitionStatus,
 } from '../types/backend-extended';
 
-// Local types for payment (not in backend)
+// Local types for payment (matching backend)
 export interface RazorpayOrderRequest {
   competitionId: bigint;
   event: Event;
@@ -52,6 +59,39 @@ export interface AttemptInput {
 // Local type for admin results with isHidden flag
 export interface AdminCompetitionResult extends CompetitionResult {
   isHidden: boolean;
+}
+
+// Helper to convert frontend CompetitionStatus to backend enum
+function toBackendStatus(status: CompetitionStatus): BackendCompetitionStatus {
+  return BackendCompetitionStatus[status];
+}
+
+// Helper to convert backend status to frontend
+function fromBackendStatus(status: BackendCompetitionStatus): CompetitionStatus {
+  return status as unknown as CompetitionStatus;
+}
+
+// Helper to convert backend Competition to frontend Competition
+function mapBackendCompetition(comp: BackendCompetition): Competition {
+  return {
+    id: comp.id,
+    name: comp.name,
+    slug: comp.slug,
+    startDate: comp.startDate,
+    endDate: comp.endDate,
+    status: fromBackendStatus(comp.status),
+    participantLimit: comp.participantLimit,
+    feeMode: comp.feeMode ? {
+      perEvent: comp.feeMode.__kind__ === 'perEvent' ? comp.feeMode.perEvent : undefined,
+      basePlusAdditional: comp.feeMode.__kind__ === 'basePlusAdditional' ? comp.feeMode.basePlusAdditional : undefined,
+      allEventsFlat: comp.feeMode.__kind__ === 'allEventsFlat' ? comp.feeMode.allEventsFlat : undefined,
+    } : undefined,
+    events: comp.events,
+    scrambles: comp.scrambles,
+    isActive: comp.isActive,
+    isLocked: comp.isLocked,
+    registrationStartDate: comp.registrationStartDate,
+  };
 }
 
 // ============================================================================
@@ -84,26 +124,7 @@ export function useGetCompetition(id: bigint) {
       }
       try {
         const comp = await actor.getCompetition(id);
-        // Map backend Competition to frontend Competition type
-        return {
-          id: comp.id,
-          name: comp.name,
-          slug: comp.slug,
-          startDate: comp.startDate,
-          endDate: comp.endDate,
-          status: comp.status as 'upcoming' | 'running' | 'completed',
-          participantLimit: comp.participantLimit,
-          feeMode: comp.feeMode ? {
-            perEvent: comp.feeMode.__kind__ === 'perEvent' ? comp.feeMode.perEvent : undefined,
-            basePlusAdditional: comp.feeMode.__kind__ === 'basePlusAdditional' ? comp.feeMode.basePlusAdditional : undefined,
-            allEventsFlat: comp.feeMode.__kind__ === 'allEventsFlat' ? comp.feeMode.allEventsFlat : undefined,
-          } : undefined,
-          events: comp.events,
-          scrambles: comp.scrambles,
-          isActive: comp.isActive,
-          isLocked: comp.isLocked,
-          registrationStartDate: comp.registrationStartDate,
-        } as Competition;
+        return mapBackendCompetition(comp);
       } catch (error) {
         console.error('Error fetching competition:', error);
         return null;
@@ -194,8 +215,10 @@ export function useGetPublicResultsForUser(principal: string) {
     queryFn: async () => {
       if (!actor) return { results: [] };
       try {
-        // Backend doesn't have this method, return empty
-        return { results: [] };
+        const competitorResults = await actor.getCompetitorResults(Principal.fromText(principal));
+        return {
+          results: competitorResults.results || [],
+        };
       } catch (error) {
         console.error('Error fetching public results:', error);
         return { results: [] };
@@ -206,45 +229,45 @@ export function useGetPublicResultsForUser(principal: string) {
 }
 
 // ============================================================================
-// Solve Session Queries (New)
+// Solve Session Queries
 // ============================================================================
-
-export function useGetSolveSessionState(
-  competitionId: bigint,
-  event: Event
-) {
-  const { actor, isFetching } = useActor();
-
-  return useQuery<SessionStateResponse | null>({
-    queryKey: QUERY_KEYS.solveSessionState(competitionId, event),
-    queryFn: async () => {
-      if (!actor) return null;
-      // Backend doesn't have this method, return null
-      return null;
-    },
-    enabled: !!actor && !isFetching,
-    retry: false,
-  });
-}
 
 export function useGetScrambleForAttempt(
   competitionId: bigint,
   event: Event,
-  attemptIndex: number,
-  sessionToken: Uint8Array | null
+  attemptIndex: number
 ) {
   const { actor, isFetching } = useActor();
 
   return useQuery<string | null>({
     queryKey: QUERY_KEYS.scrambleForAttempt(competitionId, event, attemptIndex),
     queryFn: async () => {
-      if (!actor || !sessionToken) {
-        throw new Error('Session token required');
+      if (!actor) {
+        throw new Error('Actor not available');
       }
-      // Backend doesn't have this method, throw error
-      throw new Error('Backend method not available');
+      
+      try {
+        // Get competition to access scrambles
+        const comp = await actor.getCompetition(competitionId);
+        
+        // Find scrambles for this event
+        const eventScrambles = comp.scrambles.find(([_, e]) => e === event);
+        if (!eventScrambles) {
+          throw new Error('No scrambles found for this event');
+        }
+        
+        const [scrambles] = eventScrambles;
+        if (attemptIndex >= scrambles.length) {
+          throw new Error('Invalid attempt index');
+        }
+        
+        return scrambles[attemptIndex];
+      } catch (error) {
+        console.error('Error fetching scramble:', error);
+        throw error;
+      }
     },
-    enabled: !!actor && !isFetching && !!sessionToken,
+    enabled: !!actor && !isFetching && attemptIndex >= 0,
     retry: false,
     staleTime: Infinity,
   });
@@ -261,50 +284,72 @@ export function useStartCompetition() {
   return useMutation({
     mutationFn: async ({ competitionId, event }: { competitionId: bigint; event: Event }) => {
       if (!actor) throw new Error('Actor not available');
-      // Backend doesn't have startSolveSession, return empty token
-      return new Uint8Array();
+      // Call the correct backend method: startOrResumeCompetitionSession
+      const sessionToken = await actor.startOrResumeCompetitionSession(competitionId, event);
+      return sessionToken;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.userResult(variables.competitionId, variables.event),
       });
       queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.solveSessionState(variables.competitionId, variables.event),
+        queryKey: QUERY_KEYS.competition(variables.competitionId),
       });
     },
   });
 }
 
-export function useSubmitAttempt() {
+export function useSubmitResult() {
   const { actor } = useActor();
+  const { identity } = useInternetIdentity();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
       competitionId,
       event,
-      attemptIndex,
-      time,
-      penalty,
-      sessionToken,
+      attempts,
+      status,
     }: {
       competitionId: bigint;
       event: Event;
-      attemptIndex: number;
-      time: number;
-      penalty: number;
-      sessionToken: Uint8Array;
+      attempts: Array<{ time: number; penalty: number }>;
+      status: 'completed' | 'in_progress' | 'not_started';
     }) => {
       if (!actor) throw new Error('Actor not available');
-      // Backend doesn't have this method, throw error
-      throw new Error('Backend method not available');
+      if (!identity) throw new Error('Not authenticated');
+      
+      // Convert attempts to backend format
+      const backendAttempts = attempts.map(a => ({
+        time: BigInt(a.time),
+        penalty: BigInt(a.penalty),
+      }));
+      
+      // Map status to backend enum
+      const backendStatus: SolveStatus = status === 'completed' ? SolveStatus.completed :
+                                         status === 'in_progress' ? SolveStatus.in_progress :
+                                         SolveStatus.not_started;
+      
+      const result: ResultInput = {
+        user: identity.getPrincipal(),
+        competitionId,
+        event,
+        attempts: backendAttempts,
+        status: backendStatus,
+        ao5: undefined, // Backend calculates this
+      };
+      
+      return actor.submitResult(result);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.userResult(variables.competitionId, variables.event),
       });
       queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.solveSessionState(variables.competitionId, variables.event),
+        queryKey: QUERY_KEYS.leaderboard(variables.competitionId, variables.event),
+      });
+      queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.competition(variables.competitionId),
       });
     },
   });
@@ -335,32 +380,31 @@ export function useIsCallerAdmin() {
 }
 
 // ============================================================================
-// Profile Mutations
+// User Profile Queries
 // ============================================================================
 
-export function useCreateUserProfile() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
+export function useGetCallerUserProfile() {
+  const { actor, isFetching: actorFetching } = useActor();
 
-  return useMutation({
-    mutationFn: async (displayName: string) => {
+  const query = useQuery<UserProfile | null>({
+    queryKey: ['currentUserProfile'],
+    queryFn: async () => {
       if (!actor) throw new Error('Actor not available');
-      const profile: UserProfile = {
-        displayName,
-        mcubesId: 'TEMP-' + Date.now(),
-        country: undefined,
-        gender: undefined,
-      };
-      return actor.saveCallerUserProfile(profile);
+      return actor.getCallerUserProfile();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
-      queryClient.invalidateQueries({ queryKey: ['isCallerAdmin'] });
-    },
+    enabled: !!actor && !actorFetching,
+    retry: false,
   });
+
+  // Return custom state that properly reflects actor dependency
+  return {
+    ...query,
+    isLoading: actorFetching || query.isLoading,
+    isFetched: !!actor && query.isFetched,
+  };
 }
 
-export function useUpdateUserProfile() {
+export function useSaveCallerUserProfile() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
 
@@ -375,29 +419,44 @@ export function useUpdateUserProfile() {
   });
 }
 
-// Alias for compatibility
-export const useSaveCallerUserProfile = useUpdateUserProfile;
-
-// Mock hook for setting user email (backend doesn't have this method)
-export function useSetUserEmail() {
+// Stub hooks for profile setup (backend doesn't have these methods)
+export function useCreateUserProfile() {
+  const saveMutation = useSaveCallerUserProfile();
+  
   return useMutation({
-    mutationFn: async (email: string) => {
-      // Backend doesn't have this method, just return success
-      console.log('Email would be set to:', email);
-      return Promise.resolve();
+    mutationFn: async (displayName: string) => {
+      // Generate a simple mcubes ID (in production this would be backend-generated)
+      const mcubesId = `MCU${Date.now().toString().slice(-6)}`;
+      const profile: UserProfile = {
+        displayName,
+        mcubesId,
+        country: undefined,
+        gender: undefined,
+      };
+      return saveMutation.mutateAsync(profile);
     },
   });
 }
 
-// Mock hook for getting user payment history (backend doesn't have this method)
+export function useSetUserEmail() {
+  // Backend doesn't have a separate setUserEmail method
+  // Email is handled through the profile
+  return useMutation({
+    mutationFn: async (email: string) => {
+      // This is a no-op since backend doesn't support this
+      console.log('Email would be set:', email);
+    },
+  });
+}
+
 export function useGetUserPaymentHistory() {
   const { actor, isFetching } = useActor();
 
   return useQuery<any[]>({
-    queryKey: ['userPaymentHistory'],
+    queryKey: QUERY_KEYS.paymentHistory,
     queryFn: async () => {
       if (!actor) return [];
-      // Backend method doesn't exist, return empty array
+      // Backend doesn't have getUserPaymentHistory, return empty
       return [];
     },
     enabled: !!actor && !isFetching,
@@ -405,17 +464,46 @@ export function useGetUserPaymentHistory() {
 }
 
 // ============================================================================
-// Payment Mutations
+// Payment Queries
 // ============================================================================
+
+export function useHasRazorpayConfig() {
+  const { actor, isFetching } = useActor();
+
+  return useQuery<boolean>({
+    queryKey: ['hasRazorpayConfig'],
+    queryFn: async () => {
+      if (!actor) return false;
+      try {
+        return await actor.hasRazorpayConfig();
+      } catch (error) {
+        console.error('Error checking Razorpay config:', error);
+        return false;
+      }
+    },
+    enabled: !!actor && !isFetching,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+}
 
 export function useCreateRazorpayOrder() {
   const { actor } = useActor();
 
   return useMutation({
-    mutationFn: async (request: RazorpayOrderRequest): Promise<RazorpayOrderResponse> => {
+    mutationFn: async (request: RazorpayOrderRequest) => {
       if (!actor) throw new Error('Actor not available');
-      // Backend doesn't have this method
-      throw new Error('Payment system not configured');
+      const backendRequest: BackendRazorpayOrderRequest = {
+        competitionId: request.competitionId,
+        event: request.event,
+      };
+      const response = await actor.createRazorpayOrder(backendRequest);
+      return {
+        orderId: response.orderId,
+        amount: response.amount,
+        currency: response.currency,
+        competitionName: response.competitionName,
+        event: response.event,
+      } as RazorpayOrderResponse;
     },
   });
 }
@@ -427,42 +515,23 @@ export function useConfirmPayment() {
   return useMutation({
     mutationFn: async (confirmation: PaymentConfirmation) => {
       if (!actor) throw new Error('Actor not available');
-      // Backend doesn't have this method
-      throw new Error('Payment system not configured');
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
-      queryClient.invalidateQueries({ queryKey: ['userPaymentHistory'] });
-    },
-  });
-}
-
-// ============================================================================
-// Result Submission
-// ============================================================================
-
-export function useSubmitResult() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (result: {
-      competitionId: bigint;
-      event: Event;
-      attempts: AttemptInput[];
-      status: 'completed' | 'in_progress' | 'not_started';
-    }) => {
-      if (!actor) throw new Error('Actor not available');
-      // Backend doesn't have submitResult method
-      throw new Error('Backend method not available');
+      const backendConfirmation: BackendPaymentConfirmation = {
+        competitionId: confirmation.competitionId,
+        event: confirmation.event,
+        razorpayOrderId: confirmation.razorpayOrderId,
+        razorpayPaymentId: confirmation.razorpayPaymentId,
+        razorpaySignature: confirmation.razorpaySignature,
+      };
+      return actor.confirmPayment(backendConfirmation);
     },
     onSuccess: (_, variables) => {
+      // Invalidate competition query to refresh payment status
       queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.userResult(variables.competitionId, variables.event),
+        queryKey: QUERY_KEYS.competition(variables.competitionId),
       });
+      // Invalidate user profile to refresh payment history
       queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.leaderboard(variables.competitionId, variables.event),
+        queryKey: ['currentUserProfile'],
       });
     },
   });
@@ -472,7 +541,7 @@ export function useSubmitResult() {
 // Admin Queries
 // ============================================================================
 
-export function useAdminGetAllUsers() {
+export function useAdminListUsers() {
   const { actor, isFetching } = useActor();
 
   return useQuery<UserSummary[]>({
@@ -490,300 +559,8 @@ export function useAdminGetAllUsers() {
   });
 }
 
-export function useAdminGetAllCompetitions() {
-  const { actor, isFetching } = useActor();
-
-  return useQuery<Competition[]>({
-    queryKey: QUERY_KEYS.adminCompetitions,
-    queryFn: async () => {
-      if (!actor) return [];
-      try {
-        // Use getAllCompetitions and getCompetition to build full Competition objects
-        const publicComps = await actor.getAllCompetitions();
-        const fullComps = await Promise.all(
-          publicComps.map(async (pub) => {
-            try {
-              const comp = await actor.getCompetition(pub.id);
-              // Map backend Competition to frontend Competition type
-              return {
-                id: comp.id,
-                name: comp.name,
-                slug: comp.slug,
-                startDate: comp.startDate,
-                endDate: comp.endDate,
-                status: comp.status as 'upcoming' | 'running' | 'completed',
-                participantLimit: comp.participantLimit,
-                feeMode: comp.feeMode ? {
-                  perEvent: comp.feeMode.__kind__ === 'perEvent' ? comp.feeMode.perEvent : undefined,
-                  basePlusAdditional: comp.feeMode.__kind__ === 'basePlusAdditional' ? comp.feeMode.basePlusAdditional : undefined,
-                  allEventsFlat: comp.feeMode.__kind__ === 'allEventsFlat' ? comp.feeMode.allEventsFlat : undefined,
-                } : undefined,
-                events: comp.events,
-                scrambles: comp.scrambles,
-                isActive: comp.isActive,
-                isLocked: comp.isLocked,
-                registrationStartDate: comp.registrationStartDate,
-              } as Competition;
-            } catch (error) {
-              console.error(`Error fetching competition ${pub.id}:`, error);
-              return null;
-            }
-          })
-        );
-        return fullComps.filter((c): c is Competition => c !== null);
-      } catch (error) {
-        console.error('Error fetching admin competitions:', error);
-        return [];
-      }
-    },
-    enabled: !!actor && !isFetching,
-  });
-}
-
-export function useAdminGetCompetition(id: bigint) {
-  const { actor, isFetching } = useActor();
-
-  return useQuery<Competition | null>({
-    queryKey: ['adminCompetition', id.toString()],
-    queryFn: async () => {
-      if (!actor) return null;
-      try {
-        const comp = await actor.getCompetition(id);
-        // Map backend Competition to frontend Competition type
-        return {
-          id: comp.id,
-          name: comp.name,
-          slug: comp.slug,
-          startDate: comp.startDate,
-          endDate: comp.endDate,
-          status: comp.status as 'upcoming' | 'running' | 'completed',
-          participantLimit: comp.participantLimit,
-          feeMode: comp.feeMode ? {
-            perEvent: comp.feeMode.__kind__ === 'perEvent' ? comp.feeMode.perEvent : undefined,
-            basePlusAdditional: comp.feeMode.__kind__ === 'basePlusAdditional' ? comp.feeMode.basePlusAdditional : undefined,
-            allEventsFlat: comp.feeMode.__kind__ === 'allEventsFlat' ? comp.feeMode.allEventsFlat : undefined,
-          } : undefined,
-          events: comp.events,
-          scrambles: comp.scrambles,
-          isActive: comp.isActive,
-          isLocked: comp.isLocked,
-          registrationStartDate: comp.registrationStartDate,
-        } as Competition;
-      } catch (error) {
-        console.error('Error fetching admin competition:', error);
-        return null;
-      }
-    },
-    enabled: !!actor && !isFetching,
-  });
-}
-
-export function useAdminGetAllResults() {
-  const { actor, isFetching } = useActor();
-
-  return useQuery<AdminResultEntry[]>({
-    queryKey: QUERY_KEYS.adminResults,
-    queryFn: async () => {
-      if (!actor) return [];
-      try {
-        // Get all competitions first
-        const competitions = await actor.getAllCompetitions();
-        const allResults: AdminResultEntry[] = [];
-
-        // For each competition, get results
-        for (const comp of competitions) {
-          try {
-            const compResults = await actor.adminListCompetitionResults(comp.id);
-            allResults.push(...compResults);
-          } catch (error) {
-            console.error(`Error fetching results for competition ${comp.id}:`, error);
-          }
-        }
-
-        return allResults;
-      } catch (error) {
-        console.error('Error fetching admin results:', error);
-        return [];
-      }
-    },
-    enabled: !!actor && !isFetching,
-  });
-}
-
-export function useAdminGetCompetitionResults(competitionId: bigint) {
-  const { actor, isFetching } = useActor();
-
-  return useQuery<AdminResultEntry[]>({
-    queryKey: ['adminCompetitionResults', competitionId.toString()],
-    queryFn: async () => {
-      if (!actor) return [];
-      try {
-        return await actor.adminListCompetitionResults(competitionId);
-      } catch (error) {
-        console.error('Error fetching admin competition results:', error);
-        return [];
-      }
-    },
-    enabled: !!actor && !isFetching,
-  });
-}
-
-export function useAdminGetUserSolveHistory(user: Principal) {
-  const { actor, isFetching } = useActor();
-
-  return useQuery<Array<[bigint, Event, ResultInput]>>({
-    queryKey: ['adminUserSolveHistory', user.toString()],
-    queryFn: async () => {
-      if (!actor) return [];
-      try {
-        return await actor.adminGetUserSolveHistory(user);
-      } catch (error) {
-        console.error('Error fetching user solve history:', error);
-        return [];
-      }
-    },
-    enabled: !!actor && !isFetching && !!user,
-  });
-}
-
-// ============================================================================
-// Admin Mutations
-// ============================================================================
-
-export function useCreateCompetition() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (competition: CompetitionInput) => {
-      if (!actor) throw new Error('Actor not available');
-      
-      // Convert frontend FeeMode to backend format
-      let backendFeeMode: any = undefined;
-      if (competition.feeMode) {
-        if (competition.feeMode.perEvent !== undefined) {
-          backendFeeMode = { perEvent: competition.feeMode.perEvent };
-        } else if (competition.feeMode.basePlusAdditional) {
-          backendFeeMode = { basePlusAdditional: competition.feeMode.basePlusAdditional };
-        } else if (competition.feeMode.allEventsFlat !== undefined) {
-          backendFeeMode = { allEventsFlat: competition.feeMode.allEventsFlat };
-        }
-      }
-
-      const backendComp: any = {
-        id: BigInt(0),
-        name: competition.name,
-        slug: competition.slug,
-        startDate: competition.startDate,
-        endDate: competition.endDate,
-        status: competition.status,
-        participantLimit: competition.participantLimit,
-        feeMode: backendFeeMode,
-        events: competition.events,
-        scrambles: competition.scrambles,
-        isActive: true,
-        isLocked: false,
-        registrationStartDate: competition.registrationStartDate,
-      };
-
-      return actor.createCompetition(backendComp);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCompetitions });
-    },
-  });
-}
-
-export function useAdminUpdateCompetition() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ id, competition }: { id: bigint; competition: CompetitionInput }) => {
-      if (!actor) throw new Error('Actor not available');
-
-      // Convert frontend FeeMode to backend format
-      let backendFeeMode: any = undefined;
-      if (competition.feeMode) {
-        if (competition.feeMode.perEvent !== undefined) {
-          backendFeeMode = { perEvent: competition.feeMode.perEvent };
-        } else if (competition.feeMode.basePlusAdditional) {
-          backendFeeMode = { basePlusAdditional: competition.feeMode.basePlusAdditional };
-        } else if (competition.feeMode.allEventsFlat !== undefined) {
-          backendFeeMode = { allEventsFlat: competition.feeMode.allEventsFlat };
-        }
-      }
-
-      const backendComp: any = {
-        name: competition.name,
-        slug: competition.slug,
-        startDate: competition.startDate,
-        endDate: competition.endDate,
-        status: competition.status,
-        participantLimit: competition.participantLimit,
-        feeMode: backendFeeMode,
-        events: competition.events,
-        scrambles: competition.scrambles,
-        registrationStartDate: competition.registrationStartDate,
-      };
-
-      return actor.updateCompetition(id, backendComp);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCompetitions });
-    },
-  });
-}
-
-export function useAdminDeleteCompetition() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (competitionId: bigint) => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.deleteCompetition(competitionId);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCompetitions });
-    },
-  });
-}
-
-export function useAdminLockCompetition() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ competitionId, locked }: { competitionId: bigint; locked: boolean }) => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.lockCompetition(competitionId, locked);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCompetitions });
-    },
-  });
-}
-
-export function useAdminActivateCompetition() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ competitionId, active }: { competitionId: bigint; active: boolean }) => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.activateCompetition(competitionId, active);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCompetitions });
-    },
-  });
-}
+// Alias for consistency
+export const useAdminGetAllUsers = useAdminListUsers;
 
 export function useAdminBlockUser() {
   const { actor } = useActor();
@@ -820,14 +597,214 @@ export function useAdminResetUserCompetitionStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ user, competitionId, event }: { user: Principal; competitionId: bigint; event: Event }) => {
+    mutationFn: async ({
+      user,
+      competitionId,
+      event,
+    }: {
+      user: Principal;
+      competitionId: bigint;
+      event: Event;
+    }) => {
       if (!actor) throw new Error('Actor not available');
       return actor.adminResetUserCompetitionStatus(user, competitionId, event);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminResults });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminUsers });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
     },
+  });
+}
+
+export function useAdminGetUserSolveHistory() {
+  const { actor } = useActor();
+
+  return useMutation({
+    mutationFn: async (user: Principal) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.adminGetUserSolveHistory(user);
+    },
+  });
+}
+
+// ============================================================================
+// Admin Competition Management
+// ============================================================================
+
+export function useAdminGetAllCompetitions() {
+  const { actor, isFetching } = useActor();
+
+  return useQuery<Competition[]>({
+    queryKey: QUERY_KEYS.adminCompetitions,
+    queryFn: async () => {
+      if (!actor) return [];
+      try {
+        const publicComps = await actor.getAllCompetitions();
+        const fullComps = await Promise.all(
+          publicComps.map(async (comp) => {
+            try {
+              const fullComp = await actor.getCompetition(comp.id);
+              return mapBackendCompetition(fullComp);
+            } catch (error) {
+              console.error(`Error fetching competition ${comp.id}:`, error);
+              return null;
+            }
+          })
+        );
+        return fullComps.filter((c): c is Competition => c !== null);
+      } catch (error) {
+        console.error('Error fetching admin competitions:', error);
+        return [];
+      }
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useAdminCreateCompetition() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (competition: CompetitionInput) => {
+      if (!actor) throw new Error('Actor not available');
+      
+      // Convert frontend CompetitionInput to backend Competition format
+      const backendComp: BackendCompetition = {
+        id: BigInt(0), // Will be assigned by backend
+        name: competition.name,
+        slug: competition.slug,
+        startDate: competition.startDate,
+        endDate: competition.endDate,
+        status: toBackendStatus(competition.status),
+        participantLimit: competition.participantLimit,
+        feeMode: competition.feeMode ? {
+          __kind__: competition.feeMode.perEvent !== undefined ? 'perEvent' :
+                    competition.feeMode.basePlusAdditional !== undefined ? 'basePlusAdditional' :
+                    'allEventsFlat',
+          perEvent: competition.feeMode.perEvent,
+          basePlusAdditional: competition.feeMode.basePlusAdditional,
+          allEventsFlat: competition.feeMode.allEventsFlat,
+        } as any : undefined,
+        events: competition.events,
+        scrambles: competition.scrambles,
+        isActive: true,
+        isLocked: false,
+        registrationStartDate: competition.registrationStartDate,
+      };
+      
+      return actor.createCompetition(backendComp);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCompetitions });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
+    },
+  });
+}
+
+export function useAdminUpdateCompetition() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, competition }: { id: bigint; competition: CompetitionInput }) => {
+      if (!actor) throw new Error('Actor not available');
+      
+      const backendInput: BackendCompetitionInput = {
+        name: competition.name,
+        slug: competition.slug,
+        startDate: competition.startDate,
+        endDate: competition.endDate,
+        status: toBackendStatus(competition.status),
+        participantLimit: competition.participantLimit,
+        feeMode: competition.feeMode ? {
+          __kind__: competition.feeMode.perEvent !== undefined ? 'perEvent' :
+                    competition.feeMode.basePlusAdditional !== undefined ? 'basePlusAdditional' :
+                    'allEventsFlat',
+          perEvent: competition.feeMode.perEvent,
+          basePlusAdditional: competition.feeMode.basePlusAdditional,
+          allEventsFlat: competition.feeMode.allEventsFlat,
+        } as any : undefined,
+        events: competition.events,
+        scrambles: competition.scrambles,
+        registrationStartDate: competition.registrationStartDate,
+      };
+      
+      return actor.updateCompetition(id, backendInput);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCompetitions });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
+    },
+  });
+}
+
+export function useAdminDeleteCompetition() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.deleteCompetition(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCompetitions });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
+    },
+  });
+}
+
+export function useAdminLockCompetition() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, locked }: { id: bigint; locked: boolean }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.lockCompetition(id, locked);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCompetitions });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
+    },
+  });
+}
+
+export function useAdminActivateCompetition() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, active }: { id: bigint; active: boolean }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.activateCompetition(id, active);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCompetitions });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
+    },
+  });
+}
+
+// ============================================================================
+// Admin Results Management
+// ============================================================================
+
+export function useAdminGetCompetitionResults(competitionId: bigint) {
+  const { actor, isFetching } = useActor();
+
+  return useQuery({
+    queryKey: QUERY_KEYS.adminCompetitionResults(competitionId),
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      const results = await actor.adminListCompetitionResults(competitionId);
+      return results.map((r: AdminResultEntry) => ({
+        ...r,
+        isHidden: r.isHidden,
+      }));
+    },
+    enabled: !!actor && !isFetching && competitionId > BigInt(0),
   });
 }
 
@@ -836,12 +813,22 @@ export function useAdminToggleResultVisibility() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ user, competitionId, event, hidden }: { user: Principal; competitionId: bigint; event: Event; hidden: boolean }) => {
+    mutationFn: async ({
+      user,
+      competitionId,
+      event,
+      hidden,
+    }: {
+      user: Principal;
+      competitionId: bigint;
+      event: Event;
+      hidden: boolean;
+    }) => {
       if (!actor) throw new Error('Actor not available');
       return actor.adminToggleResultVisibility(user, competitionId, event, hidden);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminResults });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'competitionResults'] });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
     },
   });

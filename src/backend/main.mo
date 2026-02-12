@@ -1,6 +1,5 @@
 import Array "mo:core/Array";
 import Map "mo:core/Map";
-import Text "mo:core/Text";
 import List "mo:core/List";
 import Principal "mo:core/Principal";
 import Iter "mo:core/Iter";
@@ -130,6 +129,7 @@ actor {
     event : Event;
     attempts : [Attempt];
     status : SolveStatus;
+    ao5 : ?Nat;
   };
 
   public type ResultInput = {
@@ -138,6 +138,7 @@ actor {
     event : Event;
     attempts : [AttemptInput];
     status : SolveStatus;
+    ao5 : ?Nat;
   };
 
   public type AttemptInput = {
@@ -215,6 +216,7 @@ actor {
     userProfile : ?UserProfile;
     event : Event;
     attempts : [Attempt];
+    ao5 : ?Nat;
     status : SolveStatus;
   };
 
@@ -279,6 +281,7 @@ actor {
     user : Principal;
     userProfile : ?PublicProfileInfo;
     attempts : [Attempt];
+    ao5 : ?Nat;
     bestTime : Nat;
   };
 
@@ -295,24 +298,52 @@ actor {
     event : Event;
     attempts : [Attempt];
     status : SolveStatus;
+    ao5 : ?Nat;
     isHidden : Bool;
+  };
+
+  public type RazorpayCredentials = {
+    keyId : Text;
+    keySecret : Text;
+  };
+
+  public type CompetitorResults = {
+    competitor : Principal;
+    results : [CompetitionResult];
+  };
+
+  public type RunResult = {
+    attempts : [Attempt];
+    event : Event;
+    isVisible : Bool;
+    performanceState : Bool;
+    status : { #success; #failure };
+  };
+
+  public type PersonalBest = {
+    event : Event;
+    bestTime : Nat;
+    scrambleId : ?Nat;
+    runId : ?Nat;
   };
 
   var nextCompetitionId = 0;
   var nextMcubesId = 1;
   var nextOrderId = 0;
   var nextPaymentId = 0;
+
   let competitions = Map.empty<Nat, Competition>();
   let userProfiles = Map.empty<Principal, UserProfile>();
+  let results = Map.empty<(Nat, Principal, Event), ResultInput>();
   let activeSessions = Map.empty<(Nat, Principal, Event), SolveSession>();
   let payments = Map.empty<(Nat, Principal, Event), PaymentConfirmation>();
-  let results = Map.empty<(Nat, Principal, Event), ResultInput>();
   let userEmails = Map.empty<Principal, Text>();
   let hiddenLeaderboardEntries = Map.empty<(Nat, Principal, Event), Bool>();
   let blockedUsers = Map.empty<Principal, Bool>();
   let userPayments = Map.empty<Principal, Map.Map<Nat, PaidEvent>>();
   var razorpayKeySecret : ?Text = null;
   var razorpayKeyId : ?Text = null;
+  var razorpayCredentials : ?RazorpayCredentials = null;
   let createdOrders = Map.empty<Text, (Principal, Nat, Event)>();
 
   let emailAllowlist : [Text] = [
@@ -437,7 +468,69 @@ actor {
     };
   };
 
+  // Verify session token belongs to caller
+  private func verifySessionToken(caller : Principal, competitionId : Nat, event : Event, sessionToken : [Nat8]) : Bool {
+    switch (activeSessions.get((competitionId, caller, event))) {
+      case (?session) {
+        if (session.sessionToken.size() != sessionToken.size()) {
+          return false;
+        };
+        session.sessionToken.foldLeft(
+          true,
+          func(acc, byte) {
+            let index = session.sessionToken.indexOf(byte);
+            switch (index) {
+              case (?i) {
+                if (sessionToken[i] != byte) {
+                  return false;
+                };
+              };
+              case (null) {
+                return false;
+              };
+            };
+            acc;
+          },
+        );
+      };
+      case (null) {
+        false;
+      };
+    };
+  };
+
+  // NEW: Public API to get competitor's visible results across all competitions
+  public query ({ caller }) func getCompetitorResults(competitor : Principal) : async CompetitorResults {
+    // Any authenticated user can view public results
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view competitor results");
+    };
+
+    let filteredResults = results.filter(
+      func((cid, user, event), result) {
+        user == competitor and result.status == #completed and not (hiddenLeaderboardEntries.get((cid, user, event)) == ?true);
+      }
+    );
+    let mappedResults = filteredResults.toArray().map(
+      func((_, result)) {
+        {
+          user = result.user;
+          userProfile = userProfiles.get(result.user);
+          event = result.event;
+          attempts = result.attempts.map(func(a) { { time = a.time; penalty = a.penalty } });
+          ao5 = result.ao5;
+          status = result.status;
+        };
+      }
+    );
+    {
+      competitor;
+      results = mappedResults;
+    };
+  };
+
   public query ({ caller }) func getAllCompetitions() : async [CompetitionPublic] {
+    // Public endpoint - no auth required, but only returns active competitions
     let allComps = competitions.values().toArray();
     let activeComps = allComps.filter(func(c) { c.isActive });
     // Auto-transition competitions before returning
@@ -446,15 +539,31 @@ actor {
   };
 
   public query ({ caller }) func getCompetition(competitionId : Nat) : async Competition {
+    // Public endpoint - no auth required
     switch (competitions.get(competitionId)) {
-      case (?c) { autoTransitionCompetition(c) };
+      case (?c) {
+        if (not c.isActive) {
+          Runtime.trap("Competition is not active");
+        };
+        autoTransitionCompetition(c);
+      };
       case (null) { Runtime.trap("Competition does not exist") };
     };
   };
 
   public query ({ caller }) func getCompetitionResults(competitionId : Nat, event : Event) : async [CompetitionResult] {
+    // Any user can view public competition results
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view competition results");
+    };
+
     let comp = switch (competitions.get(competitionId)) {
-      case (?c) { autoTransitionCompetition(c) };
+      case (?c) {
+        if (not c.isActive) {
+          Runtime.trap("Competition is not active");
+        };
+        autoTransitionCompetition(c);
+      };
       case (null) { Runtime.trap("Competition does not exist") };
     };
 
@@ -471,6 +580,7 @@ actor {
           userProfile = userProfiles.get(user);
           event;
           attempts = result.attempts.map(func(a) { { time = a.time; penalty = a.penalty } });
+          ao5 = result.ao5;
           status = result.status;
         };
       }
@@ -530,7 +640,21 @@ actor {
     };
   };
 
-  // User: Create Razorpay order for competition entry
+  // Admin: Set Razorpay credentials
+  public shared ({ caller }) func setRazorpayCredentials(credentials : RazorpayCredentials) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can set Razorpay credentials");
+    };
+    razorpayCredentials := ?credentials;
+  };
+
+  public query ({ caller }) func hasRazorpayConfig() : async Bool {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can check payment configuration");
+    };
+    razorpayCredentials != null;
+  };
+
   public shared ({ caller }) func createRazorpayOrder(request : RazorpayOrderRequest) : async RazorpayOrderResponse {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can create payment orders");
@@ -639,8 +763,8 @@ actor {
     userPaymentMap.add(paidEvent.id, paidEvent);
   };
 
-  // User: Start competition session
-  public shared ({ caller }) func startCompetitionSession(competitionId : Nat, event : Event) : async [Nat8] {
+  // NEW User: Start or resume competition session
+  public shared ({ caller }) func startOrResumeCompetitionSession(competitionId : Nat, event : Event) : async [Nat8] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can start sessions");
     };
@@ -667,29 +791,34 @@ actor {
     };
 
     // Check if session already exists
-    if (activeSessions.containsKey((competitionId, caller, event))) {
-      Runtime.trap("Session already exists for this competition and event");
+    switch (activeSessions.get((competitionId, caller, event))) {
+      case (?session) {
+        if (session.isCompleted) {
+          Runtime.trap("Session already completed for this competition and event");
+        } else {
+          return session.sessionToken;
+        };
+      };
+      case (null) {
+        // Create session token (simplified)
+        let sessionToken : [Nat8] = [1, 2, 3, 4, 5, 6, 7, 8];
+        let newSession : SolveSession = {
+          sessionToken;
+          event;
+          createdAt = Time.now();
+          lastUpdated = Time.now();
+          currentAttempt = 0;
+          inspectionStarted = false;
+          startTime = null;
+          endTime = null;
+          attempts = [];
+          competitionId;
+          isCompleted = false;
+        };
+        activeSessions.add((competitionId, caller, event), newSession);
+        return sessionToken;
+      };
     };
-
-    // Create session token (simplified)
-    let sessionToken : [Nat8] = [1, 2, 3, 4, 5, 6, 7, 8];
-
-    let session : SolveSession = {
-      sessionToken;
-      event;
-      createdAt = Time.now();
-      lastUpdated = Time.now();
-      currentAttempt = 0;
-      inspectionStarted = false;
-      startTime = null;
-      endTime = null;
-      attempts = [];
-      competitionId;
-      isCompleted = false;
-    };
-
-    activeSessions.add((competitionId, caller, event), session);
-    sessionToken;
   };
 
   public shared ({ caller }) func createCompetition(comp : Competition) : async Nat {
@@ -923,6 +1052,7 @@ actor {
           competitionId = cid;
           event;
           attempts = result.attempts.map(func(a) { { time = a.time; penalty = a.penalty } });
+          ao5 = result.ao5;
           status = result.status;
           isHidden = hiddenLeaderboardEntries.get((cid, user, event)) == ?true;
         };
@@ -962,4 +1092,149 @@ actor {
       }
     );
   };
+
+  func calculateAo5(attempts : [AttemptInput]) : ?Nat {
+    if (attempts.size() != 5) return null;
+
+    let validAttempts = List.empty<Nat>();
+    var dnfCount = 0;
+
+    for (att in attempts.values()) {
+      if (att.time == 0) {
+        dnfCount += 1;
+      } else if (att.time > 0) {
+        validAttempts.add(att.time + att.penalty);
+      };
+    };
+
+    if (validAttempts.isEmpty()) return null;
+
+    if (dnfCount >= 2) return null;
+
+    let sorted = validAttempts.toArray().sort();
+    let validSize = sorted.size();
+
+    if (validSize >= 3 and validSize != 0) {
+      let trimmed = Array.tabulate(validSize - 2, func(i) { sorted[i + 1] });
+      let sum = trimmed.foldLeft(0, func(acc, t) { acc + t });
+      ?(sum / trimmed.size());
+    } else {
+      null;
+    };
+  };
+
+  // Validate attempt according to WCA rules
+  func validateAttempt(attempt : AttemptInput) : AttemptValidation {
+    var validatedTime = attempt.time;
+    var validatedPenalty = attempt.penalty;
+    var isValid = true;
+
+    // Add 2000ms penalty for inspection time over 15s
+    if (attempt.time > 15_000 and attempt.time < 17_000) {
+      validatedPenalty += 2000;
+    };
+
+    // DNF for inspection time over 17s
+    if (attempt.time >= 17_000) {
+      validatedTime := 0;
+      isValid := false;
+    };
+
+    // DNF for solve over 10min
+    if (validatedTime >= 600_000) {
+      validatedTime := 0;
+      isValid := false;
+    };
+
+    {
+      time = validatedTime;
+      penalty = validatedPenalty;
+      isValid;
+      validationTime = Time.now();
+    };
+  };
+
+  // Submit and validate result - FIXED with proper authorization
+  public shared ({ caller }) func submitResult(result : ResultInput) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can submit results");
+    };
+
+    // CRITICAL: Verify caller is submitting for themselves
+    if (result.user != caller) {
+      Runtime.trap("Unauthorized: Can only submit results for yourself");
+    };
+
+    // CRITICAL: Enforce registration gating and payment
+    enforceRegistrationGating(caller, result.competitionId, result.event);
+
+    // CRITICAL: Verify active session exists
+    let session = switch (activeSessions.get((result.competitionId, caller, result.event))) {
+      case (?s) {
+        if (s.isCompleted) {
+          Runtime.trap("Session already completed");
+        };
+        s;
+      };
+      case (null) {
+        Runtime.trap("No active session found. Please start a session first.");
+      };
+    };
+
+    // CRITICAL: Check payment if required
+    let comp = switch (competitions.get(result.competitionId)) {
+      case (?c) { c };
+      case (null) { Runtime.trap("Competition does not exist") };
+    };
+
+    switch (comp.feeMode) {
+      case (?_) {
+        if (not hasCompletedPaymentForEvent(caller, result.competitionId, result.event)) {
+          Runtime.trap("Payment required for this event");
+        };
+      };
+      case (null) {};
+    };
+
+    // Validate and process attempts
+    let validatedAttempts = List.empty<AttemptValidation>();
+    let convertedAttempts = List.empty<AttemptInput>();
+
+    for (att in result.attempts.vals()) {
+      let validated = validateAttempt(att);
+      validatedAttempts.add(validated);
+      convertedAttempts.add({
+        time = validated.time;
+        penalty = validated.penalty;
+      });
+    };
+
+    let attemptCount = validatedAttempts.toArray().size();
+    let ao5 = if (attemptCount == 5) {
+      calculateAo5(convertedAttempts.toArray());
+    } else {
+      null;
+    };
+
+    let resultWithAo5 : ResultInput = {
+      result with
+      attempts = convertedAttempts.toArray();
+      ao5;
+    };
+
+    results.add((result.competitionId, result.user, result.event), resultWithAo5);
+
+    // Mark session as completed if all 5 attempts are done
+    if (attemptCount == 5) {
+      let updatedSession : SolveSession = {
+        session with
+        isCompleted = true;
+        lastUpdated = Time.now();
+      };
+      activeSessions.add((result.competitionId, caller, result.event), updatedSession);
+    };
+
+    result.competitionId;
+  };
 };
+

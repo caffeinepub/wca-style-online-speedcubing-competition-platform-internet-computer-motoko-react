@@ -1,123 +1,101 @@
-import { useState, useEffect, useRef } from 'react';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Eye, EyeOff } from 'lucide-react';
 
 interface InspectionTimerProps {
   scramble?: string;
   onComplete: () => void;
+  onStart?: () => void;
 }
 
-export default function InspectionTimer({ scramble, onComplete }: InspectionTimerProps) {
-  const [phase, setPhase] = useState<'ready' | 'inspecting' | 'complete'>('ready');
+export default function InspectionTimer({ scramble, onComplete, onStart }: InspectionTimerProps) {
   const [timeLeft, setTimeLeft] = useState(15);
-  const intervalRef = useRef<number | null>(null);
-  const startTimeRef = useRef<number>(0);
+  const [isRunning, setIsRunning] = useState(false);
+  const [showScramble, setShowScramble] = useState(false);
 
-  const startInspection = () => {
-    setPhase('inspecting');
-    startTimeRef.current = Date.now();
+  useEffect(() => {
+    if (!isRunning) return;
 
-    intervalRef.current = window.setInterval(() => {
-      const elapsed = (Date.now() - startTimeRef.current) / 1000;
-      const remaining = Math.max(0, 15 - elapsed);
-      setTimeLeft(remaining);
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          onComplete();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
-      if (elapsed >= 17) {
-        completeInspection();
-      }
-    }, 50);
+    return () => clearInterval(interval);
+  }, [isRunning, onComplete]);
+
+  const handleStart = () => {
+    setIsRunning(true);
+    setShowScramble(true);
+    if (onStart) {
+      onStart();
+    }
   };
 
-  const completeInspection = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-
-    setPhase('complete');
+  const handleSkip = () => {
     onComplete();
   };
 
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, []);
-
-  // Show loading state if scramble is not yet available
-  if (!scramble) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-8">
-        <Loader2 className="w-12 h-12 animate-spin text-chart-1" />
-        <p className="text-muted-foreground">Loading scramble...</p>
-      </div>
-    );
-  }
-
-  if (phase === 'ready') {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-8">
-        <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center">
-          <EyeOff className="w-10 h-10 text-muted-foreground" />
-        </div>
-        <div className="text-center space-y-4">
-          <h3 className="text-2xl font-bold">Ready for Inspection</h3>
-          <p className="text-muted-foreground max-w-md">
-            Click the button below to start the 15-second inspection phase. The scramble will be revealed.
-          </p>
-          <div className="bg-card border border-border rounded-lg p-4 text-sm text-muted-foreground">
-            <p>• Inspection: 15 seconds</p>
-            <p>• 15-17 seconds: +2 penalty</p>
-            <p>• Over 17 seconds: DNF</p>
+  return (
+    <div className="flex flex-col items-center justify-center space-y-8 w-full max-w-2xl">
+      <div className="text-center space-y-4 w-full">
+        <h2 className="text-2xl font-semibold">Inspection Phase</h2>
+        
+        {scramble && (
+          <div className="bg-card border rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium">Scramble</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowScramble(!showScramble)}
+              >
+                {showScramble ? (
+                  <>
+                    <EyeOff className="h-4 w-4 mr-2" />
+                    Hide
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Show
+                  </>
+                )}
+              </Button>
+            </div>
+            {showScramble && (
+              <p className="font-mono text-lg break-words">{scramble}</p>
+            )}
           </div>
-        </div>
-        <button
-          onClick={startInspection}
-          className="px-8 py-4 bg-chart-1 hover:bg-chart-1/90 text-white font-bold text-lg rounded-xl transition-colors shadow-lg shadow-chart-1/20"
-        >
-          Start Inspection
-        </button>
-      </div>
-    );
-  }
+        )}
 
-  if (phase === 'inspecting') {
-    const isPenalty = timeLeft <= 2;
-    const isDNF = timeLeft === 0;
-
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-8">
-        <div className="w-20 h-20 bg-chart-1/10 rounded-full flex items-center justify-center">
-          <Eye className="w-10 h-10 text-chart-1" />
-        </div>
-
-        <div className="text-center space-y-4">
-          <div
-            className={`text-7xl font-bold tabular-nums transition-colors ${
-              isDNF ? 'text-destructive' : isPenalty ? 'text-chart-4' : 'text-chart-1'
-            }`}
-          >
-            {timeLeft.toFixed(1)}
+        {!isRunning ? (
+          <div className="space-y-4">
+            <p className="text-muted-foreground">
+              You have 15 seconds to inspect the cube before solving.
+            </p>
+            <Button onClick={handleStart} size="lg" className="w-full">
+              Start Inspection
+            </Button>
           </div>
-          {isPenalty && !isDNF && <p className="text-chart-4 font-medium">+2 Penalty Zone</p>}
-          {isDNF && <p className="text-destructive font-medium">DNF - Over 17 seconds</p>}
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-6 max-w-2xl w-full">
-          <p className="text-sm text-muted-foreground mb-2 text-center">Scramble:</p>
-          <p className="text-lg font-mono text-center leading-relaxed">{scramble}</p>
-        </div>
-
-        <button
-          onClick={completeInspection}
-          className="px-8 py-4 bg-chart-2 hover:bg-chart-2/90 text-white font-bold text-lg rounded-xl transition-colors shadow-lg shadow-chart-2/20"
-        >
-          Start Solve
-        </button>
+        ) : (
+          <div className="space-y-6">
+            <div className="text-8xl font-bold tabular-nums">
+              {timeLeft}
+            </div>
+            <p className="text-muted-foreground">seconds remaining</p>
+            <Button onClick={handleSkip} variant="outline" size="lg" className="w-full">
+              Skip to Solve
+            </Button>
+          </div>
+        )}
       </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 }

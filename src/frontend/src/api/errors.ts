@@ -47,23 +47,35 @@ export function normalizeError(error: unknown): string {
       return 'This competition is not currently running.';
     }
 
+    if (message.includes('Registration has not started yet')) {
+      return 'Registration has not started yet for this competition.';
+    }
+
     // Event errors
     if (message.includes('Event is not part of this competition')) {
       return 'This event is not available in this competition.';
     }
 
     // Session errors
-    if (message.includes('Session already exists')) {
-      return 'You already have an active session for this event.';
+    if (message.includes('already have an active session') || message.includes('Session already exists')) {
+      return 'Resuming your existing session for this event.';
     }
 
-    if (message.includes('Session token required')) {
-      return 'Session token is missing. Please start a new session.';
+    if (message.includes('Session already completed')) {
+      return 'You have already completed this event.';
+    }
+
+    if (message.includes('Session token required') || message.includes('No active session found')) {
+      return 'Session token is missing. Please start a new session from the competition page.';
+    }
+
+    if (message.includes('Session not found') || message.includes('Invalid session')) {
+      return 'Session not found. Please start a new session from the competition page.';
     }
 
     // Payment errors
-    if (message.includes('Razorpay is not configured')) {
-      return 'Payment system is not configured. Please contact the administrator.';
+    if (message.includes('Payment system not configured')) {
+      return 'Payment system not configured. Please contact the administrator.';
     }
 
     if (message.includes('This is a free competition')) {
@@ -74,23 +86,23 @@ export function normalizeError(error: unknown): string {
       return 'Payment is required to access this event.';
     }
 
-    if (message.includes('Already paid for this event or competition')) {
-      return 'You have already paid for this event or competition.';
+    if (message.includes('Already paid for this event')) {
+      return 'You have already paid for this event.';
     }
 
     if (message.includes('Payment already confirmed')) {
       return 'Payment has already been confirmed for this event.';
     }
 
-    if (message.includes('Invalid order ID')) {
+    if (message.includes('Order not found') || message.includes('Invalid order ID')) {
       return 'Invalid payment order. Please try again.';
     }
 
-    if (message.includes('Order details do not match')) {
+    if (message.includes('Order details mismatch') || message.includes('Order details do not match')) {
       return 'Payment order details do not match. Please try again.';
     }
 
-    if (message.includes('This order does not belong to you')) {
+    if (message.includes('Order does not belong to caller') || message.includes('This order does not belong to you')) {
       return 'This payment order does not belong to you.';
     }
 
@@ -106,6 +118,15 @@ export function normalizeError(error: unknown): string {
     // Payment cancellation
     if (message.includes('Payment was cancelled')) {
       return 'Payment was cancelled.';
+    }
+
+    // Scramble errors
+    if (message.includes('No scrambles found')) {
+      return 'No scrambles available for this event.';
+    }
+
+    if (message.includes('Invalid attempt index')) {
+      return 'Invalid attempt number.';
     }
 
     // Generic error message

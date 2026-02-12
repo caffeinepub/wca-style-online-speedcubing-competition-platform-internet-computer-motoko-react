@@ -1,58 +1,48 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Registration start date gating UI for competitions (admin + public detail)",
+  "title": "Fix active-session resume to always obtain/store session token and enable scramble fetch in solve flow",
   "requirements": [
     {
-      "id": "REQ-105",
-      "summary": "Add Registration Start Date (datetime) to admin competition create/edit forms and include it in create/update payloads.",
+      "id": "REQ-115",
+      "summary": "Ensure start/resume returns a usable session token, store it in sessionStorage, and use it to fetch the current scramble so resumed sessions can proceed into the solve flow without getting stuck.",
       "acceptanceCriteria": [
-        "`frontend/src/pages/admin/AdminCreateCompetitionPage.tsx` includes a `datetime-local` field for Registration Start Date and includes it in the `CompetitionInput` sent to `useCreateCompetition()`.",
-        "`frontend/src/pages/admin/AdminEditCompetitionPage.tsx` loads and displays the existing `registrationStartDate` (if set), allows editing it, and includes it in the `CompetitionInput` sent to `useAdminUpdateCompetition()`.",
-        "All user-facing validation/toast messages remain English-only and any caught exceptions continue to be routed through `normalizeError` where applicable."
+        "Calling the backend start/resume API for an event with an existing in-progress session does not leave the user in a state where the solve route cannot fetch a scramble.",
+        "Frontend stores a valid session token in sessionStorage (tab-scoped) for both new sessions and resumed sessions, and uses it for scramble fetch and attempt submission calls.",
+        "If the solve route is accessed without a valid session token, the UI shows a clear English message instructing the user to return to the competition page and start/resume again (no silent failure).",
+        "Scramble retrieval succeeds after resuming an existing session and returns the current eligible scramble for the attempt index indicated by server session state.",
+        "No unrelated features (payments, admin, UI theme) are changed as part of this fix."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
+          "path": "frontend/src/backend.d.ts",
           "operation": "modify",
-          "description": "Add a new `registrationStartDate` local state and a `datetime-local` form field (Registration Start Date). On submit, convert it to the app's bigint time format (nanoseconds) and include it as optional `registrationStartDate` in the `CompetitionInput` passed to `useCreateCompetition()`. Keep existing English toasts and route exceptions through `normalizeError`."
+          "description": "Align frontend backend typings with the backend start/resume and solve-flow capabilities used by the UI: ensure the actor method name used for session creation is `startOrResumeCompetitionSession`, and add/adjust the typed backend capabilities needed by the solve flow to (a) read current session state for (competitionId,event) using the session token, (b) fetch the eligible scramble for the current attempt using the session token, and (c) submit an attempt/result using the session token so the client cannot proceed without it."
         },
-        {
-          "path": "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
-          "operation": "modify",
-          "description": "Load existing `competition.registrationStartDate` (if present) into a `datetime-local` input value, allow editing/clearing, and include optional `registrationStartDate` in the `CompetitionInput` passed to `useAdminUpdateCompetition()`. Prefer showing/enabling this field when status is `upcoming` to match the requirement; keep English toasts and use `normalizeError` on caught errors."
-        },
-        {
-          "path": "frontend/src/types/backend-extended.ts",
-          "operation": "modify",
-          "description": "Ensure the frontend `Competition` and `CompetitionPublic`/admin-facing competition types include optional `registrationStartDate?: bigint` (or the project’s `Time` alias) so admin edit/create payloads and fetched competition objects can carry the field without type casting workarounds."
-        }
-      ]
-    },
-    {
-      "id": "REQ-106",
-      "summary": "Disable Start/Pay CTA on public competition detail when upcoming and registrationStartDate is in the future; show “Registration opens at <date>”.",
-      "acceptanceCriteria": [
-        "`frontend/src/pages/CompetitionDetailPage.tsx` computes whether registration is not yet open using `competition.registrationStartDate` (if present) and current time.",
-        "If registration is not yet open and competition status is upcoming, the main CTA button is disabled and does not trigger payment or start logic.",
-        "A clearly visible English text is shown below the disabled button: “Registration opens at <date>” (date formatted consistently with existing app date formatting).",
-        "When registrationStartDate is reached (and backend transitions the competition to running), the UI no longer shows the registration-closed message and the CTA behaves as it did previously (subject to existing payment/start rules)."
-      ],
-      "file_operations": [
         {
           "path": "frontend/src/hooks/useQueries.ts",
           "operation": "modify",
-          "description": "When mapping backend `getCompetition()` results to the frontend `Competition` shape, include `registrationStartDate` so `CompetitionDetailPage` can compute registration gating correctly. Preserve existing behavior for competitions where the field is missing/undefined."
+          "description": "Fix solve-session hooks and mutations to call the correct backend capabilities (no placeholder 'Backend method not available' behavior): update `useStartCompetition` to call `actor.startOrResumeCompetitionSession(...)` and return the token; implement `useGetSolveSessionState` and `useGetScrambleForAttempt` to query backend using the stored session token; implement `useSubmitAttempt` to submit attempt data with the session token, and invalidate relevant cached queries after successful submission."
+        },
+        {
+          "path": "frontend/src/api/queryKeys.ts",
+          "operation": "modify",
+          "description": "Update/extend solve-session React Query keys so they are scoped correctly for resumed sessions (include competitionId, event, attemptIndex, and where appropriate the session token identity) to avoid stale/incorrect scramble data when a session is resumed and a new token is issued."
         },
         {
           "path": "frontend/src/pages/CompetitionDetailPage.tsx",
           "operation": "modify",
-          "description": "Compute `registrationClosed` when `competition.status` is `upcoming` and `competition.registrationStartDate` exists and `now < registrationStartDate`. Disable the main CTA button in this state, ensure click handlers do not trigger payment/start logic while closed, and render an English message below the disabled button: “Registration opens at <date>” using the app’s existing date formatting utilities."
+          "description": "On Start/Resume, always call the backend start/resume capability and always store the returned session token via `storeSolveSession(...)` before navigating to the solve route, so resumed sessions reliably refresh/repair the tab-scoped token and unblock scramble access."
         },
         {
-          "path": "frontend/src/lib/dateUtils.ts",
+          "path": "frontend/src/pages/SolveFlowPage.tsx",
           "operation": "modify",
-          "description": "Add or extend a date formatting helper (if needed) so the registration message date formatting is consistent with existing competition date formatting (e.g., reuse `formatDate` if sufficient, or add a `formatDateTime`-style helper if the UI needs time-of-day). Keep output English-only."
+          "description": "Use the stored session token for all solve-flow data access: ensure scramble fetch and attempt submission are gated on a valid session token; when a token is missing, keep the existing clear English error message and redirect behavior; adjust solve-flow loading/error handling so resume cases (server indicates in-progress) correctly restore `currentAttempt` and fetch the eligible scramble for that attempt."
+        },
+        {
+          "path": "frontend/src/api/errors.ts",
+          "operation": "modify",
+          "description": "Add or refine English-only error normalization for any new/updated backend trap messages related to session resume, invalid/expired session tokens, and scramble access so users see clear guidance (and no silent failures) when the session token is missing or invalid."
         }
       ]
     }

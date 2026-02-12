@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import AdminGuard from '../../components/auth/AdminGuard';
-import { useAdminGetCompetition, useAdminUpdateCompetition } from '../../hooks/useQueries';
+import { useAdminGetAllCompetitions, useAdminUpdateCompetition } from '../../hooks/useQueries';
 import { normalizeError } from '../../api/errors';
 import { Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,14 +15,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { EVENT_LABELS } from '../../types/domain';
 import CompetitionPricingFields from '../../components/admin/CompetitionPricingFields';
 import type { Event } from '../../backend';
-import type { Competition, CompetitionInput, FeeMode } from '../../types/backend-extended';
+import type { CompetitionInput, FeeMode, CompetitionStatus } from '../../types/backend-extended';
 
 export default function AdminEditCompetitionPage() {
   const navigate = useNavigate();
-  const { competitionId } = useParams({ from: '/admin/competitions/$competitionId/edit' });
-  const compId = BigInt(competitionId);
-
-  const { data: competition, isLoading } = useAdminGetCompetition(compId);
+  const { competitionId } = useParams({ strict: false }) as { competitionId: string };
+  const { data: competitions, isLoading: loadingCompetitions } = useAdminGetAllCompetitions();
   const updateCompetitionMutation = useAdminUpdateCompetition();
 
   const [name, setName] = useState('');
@@ -30,35 +28,36 @@ export default function AdminEditCompetitionPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [registrationStartDate, setRegistrationStartDate] = useState('');
-  const [status, setStatus] = useState<'upcoming' | 'running' | 'completed'>('upcoming');
+  const [status, setStatus] = useState<CompetitionStatus>('upcoming');
   const [participantLimit, setParticipantLimit] = useState('');
   const [selectedEvents, setSelectedEvents] = useState<Event[]>([]);
   const [scrambles, setScrambles] = useState<Record<Event, string[]>>({} as Record<Event, string[]>);
   const [feeMode, setFeeMode] = useState<FeeMode | undefined>(undefined);
 
   useEffect(() => {
-    if (competition) {
-      setName(competition.name);
-      setSlug(competition.slug);
-      setStartDate(new Date(Number(competition.startDate) / 1000000).toISOString().slice(0, 16));
-      setEndDate(new Date(Number(competition.endDate) / 1000000).toISOString().slice(0, 16));
-      setRegistrationStartDate(
-        competition.registrationStartDate
-          ? new Date(Number(competition.registrationStartDate) / 1000000).toISOString().slice(0, 16)
-          : ''
-      );
-      setStatus(competition.status);
-      setParticipantLimit(competition.participantLimit ? competition.participantLimit.toString() : '');
-      setSelectedEvents(competition.events);
-      setFeeMode(competition.feeMode);
-
-      const scramblesMap: Record<Event, string[]> = {} as Record<Event, string[]>;
-      competition.scrambles.forEach(([scrambleList, event]) => {
-        scramblesMap[event] = scrambleList;
-      });
-      setScrambles(scramblesMap);
+    if (competitions) {
+      const competition = competitions.find((c) => c.id === BigInt(competitionId));
+      if (competition) {
+        setName(competition.name);
+        setSlug(competition.slug);
+        setStartDate(new Date(Number(competition.startDate) / 1000000).toISOString().slice(0, 16));
+        setEndDate(new Date(Number(competition.endDate) / 1000000).toISOString().slice(0, 16));
+        if (competition.registrationStartDate) {
+          setRegistrationStartDate(new Date(Number(competition.registrationStartDate) / 1000000).toISOString().slice(0, 16));
+        }
+        setStatus(competition.status);
+        setParticipantLimit(competition.participantLimit ? competition.participantLimit.toString() : '');
+        setSelectedEvents(competition.events);
+        setFeeMode(competition.feeMode);
+        
+        const scrambleMap: Record<Event, string[]> = {} as Record<Event, string[]>;
+        competition.scrambles.forEach(([scrambleList, event]) => {
+          scrambleMap[event] = scrambleList;
+        });
+        setScrambles(scrambleMap);
+      }
     }
-  }, [competition]);
+  }, [competitions, competitionId]);
 
   const handleEventToggle = (event: Event) => {
     setSelectedEvents((prev) => {
@@ -86,29 +85,16 @@ export default function AdminEditCompetitionPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (selectedEvents.length === 0) {
+      toast.error('Please select at least one event');
+      return;
+    }
+
     // Validate scrambles
     for (const event of selectedEvents) {
       const eventScrambles = scrambles[event] || [];
       if (eventScrambles.length !== 5 || eventScrambles.some((s) => !s.trim())) {
         toast.error(`Each event must have exactly 5 scrambles. Please check ${EVENT_LABELS[event]}.`);
-        return;
-      }
-    }
-
-    // Validate fee mode
-    if (feeMode) {
-      if (feeMode.perEvent !== undefined && feeMode.perEvent <= 0) {
-        toast.error('Per-event fee must be greater than 0');
-        return;
-      }
-      if (feeMode.basePlusAdditional) {
-        if (feeMode.basePlusAdditional.baseFee <= 0 || feeMode.basePlusAdditional.additionalFee <= 0) {
-          toast.error('Base fee and additional fee must be greater than 0');
-          return;
-        }
-      }
-      if (feeMode.allEventsFlat !== undefined && feeMode.allEventsFlat <= 0) {
-        toast.error('All-events flat fee must be greater than 0');
         return;
       }
     }
@@ -128,7 +114,7 @@ export default function AdminEditCompetitionPage() {
 
     try {
       await updateCompetitionMutation.mutateAsync({
-        id: compId,
+        id: BigInt(competitionId),
         competition: competitionInput,
       });
       toast.success('Competition updated successfully');
@@ -138,21 +124,11 @@ export default function AdminEditCompetitionPage() {
     }
   };
 
-  if (isLoading) {
+  if (loadingCompetitions) {
     return (
       <AdminGuard>
         <div className="min-h-screen bg-background flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </AdminGuard>
-    );
-  }
-
-  if (!competition) {
-    return (
-      <AdminGuard>
-        <div className="min-h-screen bg-background flex items-center justify-center">
-          <p className="text-muted-foreground">Competition not found</p>
         </div>
       </AdminGuard>
     );
@@ -188,6 +164,19 @@ export default function AdminEditCompetitionPage() {
                     required
                   />
                 </div>
+                <div>
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={status} onValueChange={(val) => setStatus(val as CompetitionStatus)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="upcoming">Upcoming</SelectItem>
+                      <SelectItem value="running">Running</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="startDate">Start Date</Label>
@@ -218,22 +207,6 @@ export default function AdminEditCompetitionPage() {
                     value={registrationStartDate}
                     onChange={(e) => setRegistrationStartDate(e.target.value)}
                   />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    If set, users can only register after this date. Competition will automatically move to running when this date is reached.
-                  </p>
-                </div>
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <Select value={status} onValueChange={(val) => setStatus(val as any)}>
-                    <SelectTrigger id="status">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="upcoming">Upcoming</SelectItem>
-                      <SelectItem value="running">Running</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="participantLimit">Participant Limit (optional)</Label>

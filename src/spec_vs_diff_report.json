@@ -1,63 +1,76 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-12T15:31:51.805Z",
-  "summary": "Diff adds `registrationStartDate` to backend competition DTOs and introduces a migration that sets it to null for existing stored competitions. Frontend wiring exists for reading/typing `registrationStartDate`, and CompetitionDetailPage includes client-side gating logic. However, backend enforcement (blocking start/payment before registrationStartDate) and backend auto-transition from upcoming->running are not evidenced in the provided diff summary. There are also unrelated frontend changes (e.g., AdminUsersPage) not requested.",
+  "generatedAt": "2026-02-12T21:59:58.735Z",
+  "summary": "Diff adds an Ao5 field/migration and multiple frontend changes, but does not show a correct/complete server-side WCA Ao5 + inspection validation engine, and the active-session resume/scramble access fix appears incomplete (resume path may still lack a token; scramble fetch does not visibly use the token). Several changes appear unrelated to the two requested scopes (admin pages, generic error normalization, new/changed solve UI behavior).",
   "missing_requirements": [
     {
-      "id": "REQ-103",
-      "requirement": "Backend must reject participation/session-start and paid-entry initiation when competition is upcoming, registrationStartDate is set, and now < registrationStartDate; gating must not apply when registrationStartDate is unset.",
-      "reason": "The diff summary shows new types and migration, but no evidence of updated backend methods that start sessions or create Razorpay orders performing the required time/status checks and returning a clear error.",
+      "id": "REQ-114",
+      "requirement": "Backend must implement a canonical WCA Ao5 engine (drop best & worst of 5 and average remaining 3), include +2 in time, handle DNF, and return Ao5 as DNF if >=2 DNFs, and use it for server-produced scoring/leaderboards.",
+      "reason": "The only visible Ao5 implementation is in migration.mo and it does not average 3 solves in some cases (e.g., with 1 DNF it will average only 2 times because it filters out DNFs before dropping best/worst). No evidence in the diff summary shows main backend logic enforcing Ao5 for leaderboard outputs.",
       "evidence": [
-        "backend/main.mo (truncated; shows DTO changes but not method logic)"
+        "backend/migration.mo",
+        "backend/main.mo (truncated; no Ao5 enforcement shown)"
       ]
     },
     {
-      "id": "REQ-104",
-      "requirement": "Backend must automatically transition competitions from #upcoming to #running when now >= registrationStartDate, without scheduled jobs (e.g., on reads or participation calls), and without relaxing existing startDate/endDate enforcement.",
-      "reason": "No evidence in the diff summary of any code path that updates stored competition status based on registrationStartDate during normal usage.",
+      "id": "REQ-114",
+      "requirement": "Backend must apply WCA inspection overage rules server-side and validate/normalize submissions so clients cannot bypass penalties/DNF by submitting different penalty values.",
+      "reason": "No backend code shown applies inspection timing rules or normalizes/overrides client-submitted penalties based on inspection start/end; frontend implements inspection penalty client-side, which does not satisfy server-side enforcement.",
       "evidence": [
-        "backend/main.mo (truncated; no auto-transition logic shown)"
+        "frontend/src/pages/SolveFlowPage.tsx",
+        "backend/main.mo (truncated; no inspection enforcement shown)"
       ]
     },
     {
-      "id": "REQ-105",
-      "requirement": "Admin create/edit pages must include a datetime-local Registration Start Date field, display existing value on edit, and include it in the CompetitionInput sent to create/update hooks (with English-only messages and normalizeError usage).",
-      "reason": "State for registrationStartDate is present and edit page populates it, but the diff excerpts are truncated before showing the actual form field (`<input type=\"datetime-local\">`) and the final CompetitionInput assignment/submit payload including registrationStartDate.",
+      "id": "REQ-115",
+      "requirement": "If user already has an active in-progress session for (competitionId,event), the start/resume path must return/allow frontend to obtain a valid session token; scramble fetch must succeed using that token for the current eligible attempt index.",
+      "reason": "CompetitionDetailPage treats the 'already have an active session' case as an error message and navigates without storing any token in that path; also SolveFlowPage does not pass a session token to the scramble-fetch hook call, so it is unclear how scramble retrieval would work after resume.",
       "evidence": [
-        "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx (truncated at `registrationStartDate: regi`)",
-        "frontend/src/pages/admin/AdminEditCompetitionPage.tsx (truncated before submit payload / field rendering)"
+        "frontend/src/pages/CompetitionDetailPage.tsx",
+        "frontend/src/pages/SolveFlowPage.tsx"
       ]
     }
   ],
   "hallucinated_features": [
     {
-      "description": "Changes to AdminUsersPage (user history/reset dialog/actions) unrelated to registrationStartDate gating or auto-transition.",
-      "reason": "BuildRequest explicitly limits scope to registrationStartDate gating + auto transition; AdminUsersPage is not mentioned in any requirement.",
+      "description": "Frontend-only inspection penalty/DNF application based on elapsed inspection time (including special values like 999999 as DNF marker).",
+      "reason": "REQ-114 explicitly requires server-side inspection enforcement and submission normalization; implementing this logic client-side is not requested and risks contradicting the requirement.",
       "evidence": [
+        "frontend/src/pages/SolveFlowPage.tsx",
+        "frontend/src/components/solve/InspectionTimer.tsx"
+      ]
+    },
+    {
+      "description": "Broad changes to admin pages (competition edit, results management, users management) and related UI behavior.",
+      "reason": "BuildRequest constraints prohibit changes unrelated to (1) server-side WCA Ao5/inspection validation and (2) active-session resume/scramble bug fix; admin/UI feature work is outside scope.",
+      "evidence": [
+        "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
+        "frontend/src/pages/admin/AdminResultsPage.tsx",
         "frontend/src/pages/admin/AdminUsersPage.tsx"
       ]
     },
     {
-      "description": "Added/expanded date formatting utilities (formatDateTime) not explicitly requested (beyond using existing app date formatting).",
-      "reason": "REQ-106 asks to format the date consistently with existing formatting; adding a new formatter may be extra scope (though it may be used to meet the UI message).",
+      "description": "Generic frontend error-normalization text changes for many unrelated domains (payments, profile, authorization, etc.).",
+      "reason": "Not requested by REQ-114/REQ-115 and violates the 'no unrelated changes' constraint.",
       "evidence": [
-        "frontend/src/lib/dateUtils.ts"
+        "frontend/src/api/errors.ts"
       ]
     }
   ],
-  "confidence": 0.64,
+  "confidence": 0.72,
   "changed_files": [
     "backend/main.mo",
     "backend/migration.mo",
     "frontend-file-summaries.txt",
+    "frontend/src/api/errors.ts",
+    "frontend/src/components/solve/InspectionTimer.tsx",
     "frontend/src/hooks/useQueries.ts",
-    "frontend/src/lib/dateUtils.ts",
     "frontend/src/pages/CompetitionDetailPage.tsx",
-    "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
+    "frontend/src/pages/SolveFlowPage.tsx",
     "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
+    "frontend/src/pages/admin/AdminResultsPage.tsx",
     "frontend/src/pages/admin/AdminUsersPage.tsx",
-    "frontend/src/types/backend-extended.ts",
     "project_state.json"
   ]
 }

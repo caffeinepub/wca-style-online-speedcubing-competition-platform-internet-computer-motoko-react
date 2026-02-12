@@ -19,6 +19,8 @@ export const QUERY_KEYS = {
   adminUsers: ['admin', 'users'] as const,
   adminCompetitions: ['admin', 'competitions'] as const,
   adminResults: ['admin', 'results'] as const,
+  adminCompetitionResults: (competitionId: bigint) =>
+    ['admin', 'competitionResults', competitionId.toString()] as const,
   adminUserSolveHistory: (principal: string) =>
     ['admin', 'userSolveHistory', principal] as const,
   isCallerAdmin: ['isCallerAdmin'] as const,

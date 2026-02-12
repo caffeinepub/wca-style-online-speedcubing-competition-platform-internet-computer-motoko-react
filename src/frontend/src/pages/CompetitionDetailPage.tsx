@@ -8,6 +8,7 @@ import {
   useStartCompetition,
   useCreateRazorpayOrder,
   useConfirmPayment,
+  useHasRazorpayConfig,
   type PaymentConfirmation,
 } from '../hooks/useQueries';
 import { storeSolveSession } from '../lib/solveSession';
@@ -16,9 +17,10 @@ import { openRazorpayCheckout } from '../lib/razorpay';
 import { formatFeeSummary, isCompetitionPaid } from '../lib/competitionPricing';
 import { formatDateTime } from '../lib/dateUtils';
 import { EVENT_LABELS } from '../types/domain';
-import { ArrowLeft, Loader2, Play, Lock, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, Lock, BarChart3, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { Event } from '../backend';
 
 export default function CompetitionDetailPage() {
@@ -31,6 +33,7 @@ export default function CompetitionDetailPage() {
     BigInt(competitionId),
     selectedEvent as Event
   );
+  const { data: hasRazorpayConfig, isLoading: configLoading } = useHasRazorpayConfig();
   const startCompetitionMutation = useStartCompetition();
   const createOrderMutation = useCreateRazorpayOrder();
   const confirmPaymentMutation = useConfirmPayment();
@@ -42,15 +45,23 @@ export default function CompetitionDetailPage() {
     competition.registrationStartDate !== undefined &&
     Date.now() * 1000000 < Number(competition.registrationStartDate);
 
+  // Check if payment system is configured for paid competitions
+  const requiresPayment = isCompetitionPaid(competition?.feeMode);
+  const paymentSystemNotConfigured = requiresPayment && hasRazorpayConfig === false;
+
   const handleStartCompetition = async () => {
     if (!selectedEvent) {
       toast.error('Please select an event');
       return;
     }
 
+    // Block if payment system is not configured
+    if (paymentSystemNotConfigured) {
+      toast.error('Payment system not configured');
+      return;
+    }
+
     // Check if payment is required
-    const requiresPayment = isCompetitionPaid(competition?.feeMode);
-    
     if (requiresPayment) {
       // Check if already paid (myResult exists means payment was made)
       if (!myResult) {
@@ -59,20 +70,28 @@ export default function CompetitionDetailPage() {
       }
     }
 
-    // Start competition
+    // Start or resume competition session
     try {
       const sessionToken = await startCompetitionMutation.mutateAsync({
         competitionId: BigInt(competitionId),
         event: selectedEvent as Event,
       });
 
-      // Store session token
+      // Always store the session token (for both new and resumed sessions)
       storeSolveSession(competitionId, selectedEvent, sessionToken);
 
       // Navigate to solve flow
       navigate({ to: `/competitions/${competitionId}/solve/${selectedEvent}` });
     } catch (error) {
-      toast.error(normalizeError(error));
+      const errorMessage = normalizeError(error);
+      // If it's a resume message, treat it as success
+      if (errorMessage.includes('Resuming your existing session')) {
+        toast.info(errorMessage);
+        // Still navigate to solve flow
+        navigate({ to: `/competitions/${competitionId}/solve/${selectedEvent}` });
+      } else {
+        toast.error(errorMessage);
+      }
     }
   };
 
@@ -134,7 +153,7 @@ export default function CompetitionDetailPage() {
     });
   };
 
-  if (isLoading) {
+  if (isLoading || configLoading) {
     return (
       <RequireAuth>
         <div className="min-h-screen bg-background flex items-center justify-center">
@@ -154,7 +173,6 @@ export default function CompetitionDetailPage() {
     );
   }
 
-  const requiresPayment = isCompetitionPaid(competition.feeMode);
   const hasPaid = myResult !== null;
   const canStart = !requiresPayment || hasPaid;
 
@@ -184,6 +202,15 @@ export default function CompetitionDetailPage() {
                   Entry Fee: {formatFeeSummary(competition.feeMode)}
                 </p>
               </div>
+            )}
+
+            {paymentSystemNotConfigured && (
+              <Alert variant="destructive" className="mb-6">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Payments are temporarily unavailable. Please contact the administrator to configure the payment system.
+                </AlertDescription>
+              </Alert>
             )}
 
             <div className="space-y-6">
@@ -216,7 +243,7 @@ export default function CompetitionDetailPage() {
                   {isInProgress && (
                     <div className="p-4 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
                       <p className="text-yellow-800 dark:text-yellow-400 font-medium">
-                        You have an in-progress session for this event.
+                        You have an in-progress session for this event. Click below to resume.
                       </p>
                     </div>
                   )}
@@ -227,6 +254,7 @@ export default function CompetitionDetailPage() {
                       !selectedEvent ||
                       isCompleted ||
                       isRegistrationGated ||
+                      paymentSystemNotConfigured ||
                       startCompetitionMutation.isPending ||
                       isProcessingPayment
                     }

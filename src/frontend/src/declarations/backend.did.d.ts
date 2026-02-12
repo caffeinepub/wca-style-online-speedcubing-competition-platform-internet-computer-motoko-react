@@ -11,6 +11,7 @@ import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
 export interface AdminResultEntry {
+  'ao5' : [] | [bigint],
   'status' : SolveStatus,
   'user' : Principal,
   'attempts' : Array<Attempt>,
@@ -60,6 +61,7 @@ export interface CompetitionPublic {
   'startDate' : Time,
 }
 export interface CompetitionResult {
+  'ao5' : [] | [bigint],
   'status' : SolveStatus,
   'user' : Principal,
   'attempts' : Array<Attempt>,
@@ -69,6 +71,10 @@ export interface CompetitionResult {
 export type CompetitionStatus = { 'upcoming' : null } |
   { 'completed' : null } |
   { 'running' : null };
+export interface CompetitorResults {
+  'results' : Array<CompetitionResult>,
+  'competitor' : Principal,
+}
 export type Event = { 'megaminx' : null } |
   { 'fiveByFive' : null } |
   { 'threeByThreeOneHanded' : null } |
@@ -88,6 +94,7 @@ export interface PaymentConfirmation {
   'razorpayOrderId' : string,
   'competitionId' : bigint,
 }
+export interface RazorpayCredentials { 'keyId' : string, 'keySecret' : string }
 export interface RazorpayOrderRequest {
   'event' : Event,
   'competitionId' : bigint,
@@ -100,6 +107,7 @@ export interface RazorpayOrderResponse {
   'competitionName' : string,
 }
 export interface ResultInput {
+  'ao5' : [] | [bigint],
   'status' : SolveStatus,
   'user' : Principal,
   'attempts' : Array<AttemptInput>,
@@ -163,11 +171,15 @@ export interface _SERVICE {
     [bigint, Event],
     Array<CompetitionResult>
   >,
+  'getCompetitorResults' : ActorMethod<[Principal], CompetitorResults>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
+  'hasRazorpayConfig' : ActorMethod<[], boolean>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'lockCompetition' : ActorMethod<[bigint, boolean], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
-  'startCompetitionSession' : ActorMethod<[bigint, Event], Uint8Array>,
+  'setRazorpayCredentials' : ActorMethod<[RazorpayCredentials], undefined>,
+  'startOrResumeCompetitionSession' : ActorMethod<[bigint, Event], Uint8Array>,
+  'submitResult' : ActorMethod<[ResultInput], bigint>,
   'updateCompetition' : ActorMethod<[bigint, CompetitionInput], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;

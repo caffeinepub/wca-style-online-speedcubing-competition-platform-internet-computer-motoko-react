@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import AdminGuard from '../../components/auth/AdminGuard';
-import { useCreateCompetition } from '../../hooks/useQueries';
+import { useAdminCreateCompetition } from '../../hooks/useQueries';
 import { normalizeError } from '../../api/errors';
 import { Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ import type { CompetitionInput, FeeMode } from '../../types/backend-extended';
 
 export default function AdminCreateCompetitionPage() {
   const navigate = useNavigate();
-  const createCompetitionMutation = useCreateCompetition();
+  const createCompetitionMutation = useAdminCreateCompetition();
 
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');

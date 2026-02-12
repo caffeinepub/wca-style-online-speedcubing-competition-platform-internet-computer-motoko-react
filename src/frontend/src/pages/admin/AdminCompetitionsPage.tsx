@@ -41,7 +41,7 @@ export default function AdminCompetitionsPage() {
     setActioningCompetition(competitionId.toString());
     try {
       await lockCompetitionMutation.mutateAsync({
-        competitionId,
+        id: competitionId,
         locked: !currentlyLocked,
       });
       toast.success(currentlyLocked ? 'Competition unlocked' : 'Competition locked');
@@ -56,7 +56,7 @@ export default function AdminCompetitionsPage() {
     setActioningCompetition(competitionId.toString());
     try {
       await activateCompetitionMutation.mutateAsync({
-        competitionId,
+        id: competitionId,
         active: !currentlyActive,
       });
       toast.success(currentlyActive ? 'Competition deactivated' : 'Competition activated');

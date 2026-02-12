@@ -2,34 +2,13 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-frontend-admin-update-the-admin-competition-create-and-edit-forms-to-support-setting-registrationstartdate-datetime-for-new-competitions-created-as-upcoming-the-admin-can-set-this-value-it-is-sent-to-the-backend-as-part-of-competition-creation-update",
-      "featureTitle": "Frontend (Admin): Update the admin competition create and edit forms to support setting `registrationStartDate` (datetime). For new competitions created as Upcoming, the admin can set this value; it is sent to the backend as part of competition creation/update.",
+      "featureId": "feature-fix-the-already-have-an-active-session-for-this-event-start-resume-behavior-so-that-when-a-user-starts-or-resumes-a-competition-event-they-can-successfully-access-the-scramble-and-proceed-to-the-solve-flow-without-getting-stuck-specifically-if-the-user-already-has-an-active-in-progress-session-for-competitionid-event-the-start-resume-path-must-return-or-otherwise-allow-the-frontend-to-obtain-a-valid-session-token-and-the-solve-flow-must-be-able-to-fetch-the-current-eligible-scramble-using-that-session-token",
+      "featureTitle": "Fix the “already have an active session for this event” start/resume behavior so that when a user starts (or resumes) a competition event, they can successfully access the scramble and proceed to the solve flow without getting stuck. Specifically: if the user already has an active in-progress session for (competitionId, event), the start/resume path must return (or otherwise allow the frontend to obtain) a valid session token and the solve flow must be able to fetch the current eligible scramble using that session token.",
       "files": [
-        "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
-        "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
-        "frontend/src/types/backend-extended.ts"
-      ],
-      "components": [
-        "authorization@4.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0",
-        "http-outcalls@3.0.0"
-      ],
-      "testIds": [
-        "REQ-105"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-frontend-public-competition-detail-when-a-competition-is-upcoming-and-the-current-time-is-before-registrationstartdate-keep-the-start-pay-button-disabled-idle-and-show-an-english-message-below-it-registration-opens-at-date-users-must-still-be-able-to-view-the-competition-detail-page-and-select-events-but-cannot-proceed-to-payment-or-start-until-registration-opens",
-      "featureTitle": "Frontend (Public competition detail): When a competition is Upcoming and the current time is before `registrationStartDate`, keep the Start/Pay button disabled (idle) and show an English message below it: “Registration opens at <date>”. Users must still be able to view the competition detail page and select events, but cannot proceed to payment or start until registration opens.",
-      "files": [
+        "frontend/src/api/errors.ts",
         "frontend/src/hooks/useQueries.ts",
-        "frontend/src/lib/dateUtils.ts",
-        "frontend/src/pages/CompetitionDetailPage.tsx"
+        "frontend/src/pages/CompetitionDetailPage.tsx",
+        "frontend/src/pages/SolveFlowPage.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -41,7 +20,7 @@
         "http-outcalls@3.0.0"
       ],
       "testIds": [
-        "REQ-106"
+        "REQ-115"
       ],
       "confidence": "high"
     }

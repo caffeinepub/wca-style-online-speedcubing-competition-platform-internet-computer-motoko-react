@@ -8,12 +8,18 @@ export interface None {
 }
 export type Option<T> = Some<T> | None;
 export interface ResultInput {
+    ao5?: bigint;
     status: SolveStatus;
     user: Principal;
     attempts: Array<AttemptInput>;
     event: Event;
     competitionId: bigint;
 }
+export interface RazorpayCredentials {
+    keyId: string;
+    keySecret: string;
+}
+export type Time = bigint;
 export interface CompetitionInput {
     status: CompetitionStatus;
     endDate: Time;
@@ -26,7 +32,6 @@ export interface CompetitionInput {
     registrationStartDate?: Time;
     startDate: Time;
 }
-export type Time = bigint;
 export interface RazorpayOrderRequest {
     event: Event;
     competitionId: bigint;
@@ -44,7 +49,12 @@ export type FeeMode = {
         additionalFee: bigint;
     };
 };
+export interface CompetitorResults {
+    results: Array<CompetitionResult>;
+    competitor: Principal;
+}
 export interface CompetitionResult {
+    ao5?: bigint;
     status: SolveStatus;
     user: Principal;
     attempts: Array<Attempt>;
@@ -82,6 +92,7 @@ export interface RazorpayOrderResponse {
     competitionName: string;
 }
 export interface AdminResultEntry {
+    ao5?: bigint;
     status: SolveStatus;
     user: Principal;
     attempts: Array<Attempt>;
@@ -165,10 +176,14 @@ export interface backendInterface {
     getCallerUserRole(): Promise<UserRole>;
     getCompetition(competitionId: bigint): Promise<Competition>;
     getCompetitionResults(competitionId: bigint, event: Event): Promise<Array<CompetitionResult>>;
+    getCompetitorResults(competitor: Principal): Promise<CompetitorResults>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
+    hasRazorpayConfig(): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
     lockCompetition(competitionId: bigint, locked: boolean): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
-    startCompetitionSession(competitionId: bigint, event: Event): Promise<Uint8Array>;
+    setRazorpayCredentials(credentials: RazorpayCredentials): Promise<void>;
+    startOrResumeCompetitionSession(competitionId: bigint, event: Event): Promise<Uint8Array>;
+    submitResult(result: ResultInput): Promise<bigint>;
     updateCompetition(competitionId: bigint, comp: CompetitionInput): Promise<void>;
 }
