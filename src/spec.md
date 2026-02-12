@@ -1,14 +1,11 @@
 # Specification
 
 ## Summary
-**Goal:** Add two new competition pricing models (base+additional-event and all-events-flat) while keeping existing per-event pricing behavior intact.
+**Goal:** Deploy a new backend canister, update `frontend/public/env.json` with the new `BACKEND_CANISTER_ID`, and re-run the go-live deployment flow successfully.
 
 **Planned changes:**
-- Extend the backend Competition/CompetitionPublic pricing fields to support three fee modes: per-event, base+additional-event, and all-events-flat.
-- Update competition create/update APIs to accept and persist the new pricing mode and amounts, and keep existing scrambles/events validation unchanged.
-- Update backend paid-access enforcement and Razorpay order amount calculation to charge based on the selected fee mode and the user’s purchase state (including preventing repurchase of already-paid events).
-- Add upgrade/migration handling as needed so existing competitions using `entryFee` continue to behave as per-event fee after upgrade.
-- Update admin competition create/edit UI to select a fee mode and configure required amounts with English-only validation messages.
-- Update public competition detail payment/start UI to display an English fee summary for the selected mode and use the backend-returned payable amount, preserving the existing “Payments are temporarily unavailable…” behavior when Razorpay is not configured.
+- Deploy a new backend canister and capture the newly created canister ID.
+- Update `frontend/public/env.json` to set `BACKEND_CANISTER_ID` to the new backend canister ID (replacing the placeholder).
+- Re-run the go-live build + deploy flow and confirm it completes without errors and without the preflight failure about missing `BACKEND_CANISTER_ID`.
 
-**User-visible outcome:** Admins can configure competitions with per-event, first+extra-event, or all-events-flat pricing; users see the correct fee description and are charged the correct amount (or continue to see the existing “payments not configured” message when applicable).
+**User-visible outcome:** The Admin Go Live process completes end-to-end without being blocked by a missing `BACKEND_CANISTER_ID`, and deployment/preflight messaging remains English-only.

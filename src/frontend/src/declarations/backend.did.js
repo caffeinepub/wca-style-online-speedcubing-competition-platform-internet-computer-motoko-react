@@ -13,6 +13,12 @@ export const UserRole = IDL.Variant({
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
+export const CompetitionStatus = IDL.Variant({
+  'upcoming' : IDL.Null,
+  'completed' : IDL.Null,
+  'running' : IDL.Null,
+});
+export const Time = IDL.Int;
 export const Event = IDL.Variant({
   'megaminx' : IDL.Null,
   'fiveByFive' : IDL.Null,
@@ -24,23 +30,38 @@ export const Event = IDL.Variant({
   'twoByTwo' : IDL.Null,
   'fourByFour' : IDL.Null,
 });
-export const PaymentConfirmation = IDL.Record({
-  'razorpayPaymentId' : IDL.Text,
-  'razorpaySignature' : IDL.Text,
-  'event' : Event,
-  'razorpayOrderId' : IDL.Text,
-  'competitionId' : IDL.Nat,
+export const FeeMode = IDL.Variant({
+  'perEvent' : IDL.Nat,
+  'allEventsFlat' : IDL.Nat,
+  'basePlusAdditional' : IDL.Record({
+    'baseFee' : IDL.Nat,
+    'additionalFee' : IDL.Nat,
+  }),
 });
-export const RazorpayOrderRequest = IDL.Record({
-  'event' : Event,
-  'competitionId' : IDL.Nat,
+export const Competition = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : CompetitionStatus,
+  'endDate' : Time,
+  'scrambles' : IDL.Vec(IDL.Tuple(IDL.Vec(IDL.Text), Event)),
+  'name' : IDL.Text,
+  'slug' : IDL.Text,
+  'feeMode' : IDL.Opt(FeeMode),
+  'isActive' : IDL.Bool,
+  'events' : IDL.Vec(Event),
+  'isLocked' : IDL.Bool,
+  'participantLimit' : IDL.Opt(IDL.Nat),
+  'startDate' : Time,
 });
-export const RazorpayOrderResponse = IDL.Record({
-  'orderId' : IDL.Text,
-  'event' : Event,
-  'currency' : IDL.Text,
-  'amount' : IDL.Nat,
-  'competitionName' : IDL.Text,
+export const CompetitionPublic = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : CompetitionStatus,
+  'endDate' : Time,
+  'name' : IDL.Text,
+  'slug' : IDL.Text,
+  'feeMode' : IDL.Opt(FeeMode),
+  'events' : IDL.Vec(Event),
+  'participantLimit' : IDL.Opt(IDL.Nat),
+  'startDate' : Time,
 });
 export const UserProfile = IDL.Record({
   'country' : IDL.Opt(IDL.Text),
@@ -61,47 +82,27 @@ export const CompetitionResult = IDL.Record({
   'event' : Event,
   'userProfile' : IDL.Opt(UserProfile),
 });
-export const AttemptInput = IDL.Record({
-  'penalty' : IDL.Nat,
-  'time' : IDL.Nat,
-});
-export const ResultInput = IDL.Record({
-  'status' : SolveStatus,
-  'user' : IDL.Principal,
-  'attempts' : IDL.Vec(AttemptInput),
-  'event' : Event,
-  'competitionId' : IDL.Nat,
-});
 
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-  'confirmPayment' : IDL.Func([PaymentConfirmation], [], []),
-  'createRazorpayOrder' : IDL.Func(
-      [RazorpayOrderRequest],
-      [RazorpayOrderResponse],
-      [],
-    ),
-  'duplicateCompetition' : IDL.Func([IDL.Nat], [IDL.Nat], []),
+  'createCompetition' : IDL.Func([Competition], [IDL.Nat], []),
+  'getAllCompetitions' : IDL.Func([], [IDL.Vec(CompetitionPublic)], ['query']),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getCompetition' : IDL.Func([IDL.Nat], [Competition], ['query']),
   'getCompetitionResults' : IDL.Func(
       [IDL.Nat, Event],
       [IDL.Vec(CompetitionResult)],
       ['query'],
     ),
-  'getRazorpayKeyId' : IDL.Func([], [IDL.Opt(IDL.Text)], ['query']),
   'getUserProfile' : IDL.Func(
       [IDL.Principal],
       [IDL.Opt(UserProfile)],
       ['query'],
     ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
-  'isRazorpayConfigured' : IDL.Func([], [IDL.Bool], ['query']),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-  'setRazorpayCredentials' : IDL.Func([IDL.Text, IDL.Text], [], []),
-  'startSolveSession' : IDL.Func([IDL.Nat, Event], [], []),
-  'submitResult' : IDL.Func([ResultInput], [], []),
 });
 
 export const idlInitArgs = [];
@@ -112,6 +113,12 @@ export const idlFactory = ({ IDL }) => {
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
+  const CompetitionStatus = IDL.Variant({
+    'upcoming' : IDL.Null,
+    'completed' : IDL.Null,
+    'running' : IDL.Null,
+  });
+  const Time = IDL.Int;
   const Event = IDL.Variant({
     'megaminx' : IDL.Null,
     'fiveByFive' : IDL.Null,
@@ -123,23 +130,38 @@ export const idlFactory = ({ IDL }) => {
     'twoByTwo' : IDL.Null,
     'fourByFour' : IDL.Null,
   });
-  const PaymentConfirmation = IDL.Record({
-    'razorpayPaymentId' : IDL.Text,
-    'razorpaySignature' : IDL.Text,
-    'event' : Event,
-    'razorpayOrderId' : IDL.Text,
-    'competitionId' : IDL.Nat,
+  const FeeMode = IDL.Variant({
+    'perEvent' : IDL.Nat,
+    'allEventsFlat' : IDL.Nat,
+    'basePlusAdditional' : IDL.Record({
+      'baseFee' : IDL.Nat,
+      'additionalFee' : IDL.Nat,
+    }),
   });
-  const RazorpayOrderRequest = IDL.Record({
-    'event' : Event,
-    'competitionId' : IDL.Nat,
+  const Competition = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : CompetitionStatus,
+    'endDate' : Time,
+    'scrambles' : IDL.Vec(IDL.Tuple(IDL.Vec(IDL.Text), Event)),
+    'name' : IDL.Text,
+    'slug' : IDL.Text,
+    'feeMode' : IDL.Opt(FeeMode),
+    'isActive' : IDL.Bool,
+    'events' : IDL.Vec(Event),
+    'isLocked' : IDL.Bool,
+    'participantLimit' : IDL.Opt(IDL.Nat),
+    'startDate' : Time,
   });
-  const RazorpayOrderResponse = IDL.Record({
-    'orderId' : IDL.Text,
-    'event' : Event,
-    'currency' : IDL.Text,
-    'amount' : IDL.Nat,
-    'competitionName' : IDL.Text,
+  const CompetitionPublic = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : CompetitionStatus,
+    'endDate' : Time,
+    'name' : IDL.Text,
+    'slug' : IDL.Text,
+    'feeMode' : IDL.Opt(FeeMode),
+    'events' : IDL.Vec(Event),
+    'participantLimit' : IDL.Opt(IDL.Nat),
+    'startDate' : Time,
   });
   const UserProfile = IDL.Record({
     'country' : IDL.Opt(IDL.Text),
@@ -160,44 +182,31 @@ export const idlFactory = ({ IDL }) => {
     'event' : Event,
     'userProfile' : IDL.Opt(UserProfile),
   });
-  const AttemptInput = IDL.Record({ 'penalty' : IDL.Nat, 'time' : IDL.Nat });
-  const ResultInput = IDL.Record({
-    'status' : SolveStatus,
-    'user' : IDL.Principal,
-    'attempts' : IDL.Vec(AttemptInput),
-    'event' : Event,
-    'competitionId' : IDL.Nat,
-  });
   
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-    'confirmPayment' : IDL.Func([PaymentConfirmation], [], []),
-    'createRazorpayOrder' : IDL.Func(
-        [RazorpayOrderRequest],
-        [RazorpayOrderResponse],
+    'createCompetition' : IDL.Func([Competition], [IDL.Nat], []),
+    'getAllCompetitions' : IDL.Func(
         [],
+        [IDL.Vec(CompetitionPublic)],
+        ['query'],
       ),
-    'duplicateCompetition' : IDL.Func([IDL.Nat], [IDL.Nat], []),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getCompetition' : IDL.Func([IDL.Nat], [Competition], ['query']),
     'getCompetitionResults' : IDL.Func(
         [IDL.Nat, Event],
         [IDL.Vec(CompetitionResult)],
         ['query'],
       ),
-    'getRazorpayKeyId' : IDL.Func([], [IDL.Opt(IDL.Text)], ['query']),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UserProfile)],
         ['query'],
       ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
-    'isRazorpayConfigured' : IDL.Func([], [IDL.Bool], ['query']),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-    'setRazorpayCredentials' : IDL.Func([IDL.Text, IDL.Text], [], []),
-    'startSolveSession' : IDL.Func([IDL.Nat, Event], [], []),
-    'submitResult' : IDL.Func([ResultInput], [], []),
   });
 };
 

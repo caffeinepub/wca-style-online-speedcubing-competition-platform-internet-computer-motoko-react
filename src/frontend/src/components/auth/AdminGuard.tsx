@@ -1,39 +1,50 @@
 import { ReactNode } from 'react';
 import { useIsCallerAdmin } from '../../hooks/useQueries';
-import { ShieldAlert } from 'lucide-react';
+import { useInternetIdentity } from '../../hooks/useInternetIdentity';
+import { Loader2, ShieldAlert } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface AdminGuardProps {
   children: ReactNode;
 }
 
 export default function AdminGuard({ children }: AdminGuardProps) {
-  const { data: isAdmin, isLoading } = useIsCallerAdmin();
+  const { identity, login, loginStatus } = useInternetIdentity();
+  const { data: isAdmin, isLoading: isCheckingAdmin, isFetched } = useIsCallerAdmin();
 
-  if (isLoading) {
+  // Show loading while checking authentication or admin status
+  if (!identity || loginStatus === 'logging-in' || isCheckingAdmin || !isFetched) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-chart-1 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Verifying permissions...</p>
-        </div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
+  // Show access denied if not admin
   if (!isAdmin) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="max-w-md w-full mx-4">
-          <div className="bg-card border border-destructive/50 rounded-xl p-8 text-center">
-            <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <ShieldAlert className="w-8 h-8 text-destructive" />
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+              <ShieldAlert className="h-6 w-6 text-destructive" />
             </div>
-            <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
-            <p className="text-muted-foreground">
-              You do not have permission to access this page. Only allowlisted administrators can access admin features.
+            <CardTitle className="text-2xl">Access Denied</CardTitle>
+            <CardDescription>
+              You do not have permission to access this area.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <p className="text-sm text-muted-foreground mb-4">
+              This section is restricted to authorized administrators only.
             </p>
-          </div>
-        </div>
+            <Button onClick={() => window.history.back()} variant="outline">
+              Go Back
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }

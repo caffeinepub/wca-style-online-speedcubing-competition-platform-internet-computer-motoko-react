@@ -1,94 +1,54 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-12T12:22:02.034Z",
+  "generatedAt": "2026-02-12T14:26:36.467Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 5,
+    "total": 3,
     "implemented": 2,
     "items": [
       {
-        "id": "REQ-73",
-        "summary": "Extend the backend Competition pricing model beyond the current single `entryFee` field so competitions can support three paid fee modes: (1) per-event fee, (2) base fee for the first event plus a flat fee for each additional event, and (3) a single flat fee that covers all events combined.",
+        "id": "REQ-91",
+        "summary": "Deploy a NEW backend canister (as requested) and capture the newly created backend canister ID for this deployment.",
         "status": "unknown",
         "plannedFiles": [],
         "matchedFiles": []
       },
       {
-        "id": "REQ-74",
-        "summary": "Update backend paid-access enforcement and order creation to compute the payable amount based on the competition’s selected fee mode and the caller’s existing purchases for that competition (e.g., additional-event fee only applies after the first paid event; all-events-flat unlocks every event after one payment).",
-        "status": "unknown",
-        "plannedFiles": [],
-        "matchedFiles": []
-      },
-      {
-        "id": "REQ-75",
-        "summary": "Add any required upgrade/migration handling so existing competitions that currently use `entryFee` continue to behave as “per-event fee” competitions after upgrade, without breaking reads of existing competitions.",
-        "status": "unknown",
-        "plannedFiles": [],
-        "matchedFiles": []
-      },
-      {
-        "id": "REQ-76",
-        "summary": "Update the admin competition create/edit UI to allow selecting the competition fee mode and configuring the relevant amounts for that mode (per-event amounts, base+additional amounts, or all-events-flat amount), while keeping all user-facing text in English.",
+        "id": "REQ-92",
+        "summary": "Update `frontend/public/env.json` so `BACKEND_CANISTER_ID` is set to the newly deployed backend canister ID (replace the placeholder value `\"YOUR_BACKEND_CANISTER_ID_HERE\"`).",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/backend.d.ts",
-          "frontend/src/components/admin/CompetitionPricingFields.tsx",
-          "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
-          "frontend/src/pages/admin/AdminEditCompetitionPage.tsx"
+          "frontend/public/env.json"
         ],
         "matchedFiles": [
-          "frontend/src/backend.d.ts",
-          "frontend/src/components/admin/CompetitionPricingFields.tsx",
-          "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
-          "frontend/src/pages/admin/AdminEditCompetitionPage.tsx"
+          "frontend/public/env.json"
         ]
       },
       {
-        "id": "REQ-77",
-        "summary": "Update the public competition detail page payment/start UX to display the correct fee description for the selected fee mode and charge the correct amount when the user clicks Pay & Start for a chosen event, without changing the existing “Payments are temporarily unavailable…” behavior when Razorpay is not configured.",
+        "id": "REQ-93",
+        "summary": "Run the go-live build + deploy flow again after updating `frontend/public/env.json` and ensure it completes successfully without deployment errors.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/lib/competitionPricing.ts",
-          "frontend/src/pages/CompetitionDetailPage.tsx",
-          "frontend/src/api/errors.ts"
+          "frontend/src/lib/goLivePreflight.ts"
         ],
         "matchedFiles": [
-          "frontend/src/lib/competitionPricing.ts",
-          "frontend/src/pages/CompetitionDetailPage.tsx",
-          "frontend/src/api/errors.ts"
+          "frontend/src/lib/goLivePreflight.ts"
         ]
       }
     ]
   },
   "changedFiles": [
     "backend/main.mo",
-    "backend/migration.mo",
     "build-request.json",
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
-    "frontend/src/api/errors.ts",
-    "frontend/src/backend.d.ts",
-    "frontend/src/backend.ts",
-    "frontend/src/components/admin/CompetitionPricingFields.tsx",
-    "frontend/src/components/competition/CompetitionCard.tsx",
-    "frontend/src/declarations/backend.did.d.ts",
-    "frontend/src/declarations/backend.did.js",
-    "frontend/src/hooks/useQueries.ts",
-    "frontend/src/lib/competitionPricing.ts",
-    "frontend/src/pages/CompetitionDetailPage.tsx",
-    "frontend/src/pages/LeaderboardsHubPage.tsx",
-    "frontend/src/pages/admin/AdminCompetitionsPage.tsx",
-    "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
-    "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
-    "frontend/src/pages/admin/AdminResultsPage.tsx",
-    "frontend/src/pages/admin/AdminUsersPage.tsx",
-    "frontend/src/types/backend-extended.ts",
+    "frontend/public/env.json",
+    "frontend/src/lib/goLivePreflight.ts",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

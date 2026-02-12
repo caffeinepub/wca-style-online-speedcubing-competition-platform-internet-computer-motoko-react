@@ -2,12 +2,10 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-update-the-admin-competition-create-edit-ui-to-allow-selecting-the-competition-fee-mode-and-configuring-the-relevant-amounts-for-that-mode-per-event-amounts-base-additional-amounts-or-all-events-flat-amount-while-keeping-all-user-facing-text-in-english",
-      "featureTitle": "Update the admin competition create/edit UI to allow selecting the competition fee mode and configuring the relevant amounts for that mode (per-event amounts, base+additional amounts, or all-events-flat amount), while keeping all user-facing text in English.",
+      "featureId": "feature-update-frontend-public-env-json-so-backend-canister-id-is-set-to-the-newly-deployed-backend-canister-id-replace-the-placeholder-value-your-backend-canister-id-here",
+      "featureTitle": "Update `frontend/public/env.json` so `BACKEND_CANISTER_ID` is set to the newly deployed backend canister ID (replace the placeholder value `\"YOUR_BACKEND_CANISTER_ID_HERE\"`).",
       "files": [
-        "frontend/src/components/admin/CompetitionPricingFields.tsx",
-        "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
-        "frontend/src/pages/admin/AdminEditCompetitionPage.tsx"
+        "frontend/public/env.json"
       ],
       "components": [
         "authorization@4.0.0",
@@ -19,17 +17,15 @@
         "http-outcalls@3.0.0"
       ],
       "testIds": [
-        "REQ-76"
+        "REQ-92"
       ],
       "confidence": "high"
     },
     {
-      "featureId": "feature-update-the-public-competition-detail-page-payment-start-ux-to-display-the-correct-fee-description-for-the-selected-fee-mode-and-charge-the-correct-amount-when-the-user-clicks-pay-start-for-a-chosen-event-without-changing-the-existing-payments-are-temporarily-unavailable-behavior-when-razorpay-is-not-configured",
-      "featureTitle": "Update the public competition detail page payment/start UX to display the correct fee description for the selected fee mode and charge the correct amount when the user clicks Pay & Start for a chosen event, without changing the existing “Payments are temporarily unavailable…” behavior when Razorpay is not configured.",
+      "featureId": "feature-run-the-go-live-build-deploy-flow-again-after-updating-frontend-public-env-json-and-ensure-it-completes-successfully-without-deployment-errors",
+      "featureTitle": "Run the go-live build + deploy flow again after updating `frontend/public/env.json` and ensure it completes successfully without deployment errors.",
       "files": [
-        "frontend/src/api/errors.ts",
-        "frontend/src/lib/competitionPricing.ts",
-        "frontend/src/pages/CompetitionDetailPage.tsx"
+        "frontend/src/lib/goLivePreflight.ts"
       ],
       "components": [
         "authorization@4.0.0",
@@ -41,7 +37,7 @@
         "http-outcalls@3.0.0"
       ],
       "testIds": [
-        "REQ-77"
+        "REQ-93"
       ],
       "confidence": "high"
     }

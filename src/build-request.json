@@ -1,125 +1,75 @@
 {
   "kind": "build_request",
-  "title": "Add new competition pricing models (first+extra event fee and all-events flat fee)",
-  "priority": "normal",
+  "title": "Deploy with a new backend canister and update env.json BACKEND_CANISTER_ID",
+  "priority": "high",
   "requirements": [
     {
-      "id": "REQ-73",
-      "text": "Extend the backend Competition pricing model beyond the current single `entryFee` field so competitions can support three paid fee modes: (1) per-event fee, (2) base fee for the first event plus a flat fee for each additional event, and (3) a single flat fee that covers all events combined.",
+      "id": "REQ-91",
+      "text": "Deploy a NEW backend canister (as requested) and capture the newly created backend canister ID for this deployment.",
       "target": "backend",
       "source": {
         "messageIds": [
-          "msg-6"
+          "msg-1"
         ],
         "quotes": [
-          "Event feel now per event as implemented instead base fee for first even then extra a flat fee for each extra event and should have a flat fee for all events combined both features to be added"
+          "Continue with new canister",
+          "Start"
         ]
       },
       "acceptanceCriteria": [
-        "Backend exposes Competition/CompetitionPublic fields sufficient to represent the selected fee mode and its amounts (including per-event amounts where applicable).",
-        "Competition creation and update APIs accept the new pricing fields and persist them.",
-        "Existing scrambles/events logic and the “exactly 5 scrambles per event” validation continue to work unchanged.",
-        "All backend traps/errors remain English-only."
+        "A new backend canister is created/deployed (new canister ID).",
+        "The new backend canister ID is recorded for use by the frontend configuration."
       ]
     },
     {
-      "id": "REQ-74",
-      "text": "Update backend paid-access enforcement and order creation to compute the payable amount based on the competition’s selected fee mode and the caller’s existing purchases for that competition (e.g., additional-event fee only applies after the first paid event; all-events-flat unlocks every event after one payment).",
-      "target": "backend",
-      "source": {
-        "messageIds": [
-          "msg-6"
-        ],
-        "quotes": [
-          "base fee for first even then extra a flat fee for each extra event and should have a flat fee for all events combined"
-        ]
-      },
-      "acceptanceCriteria": [
-        "`createRazorpayOrder` returns `amount` that matches the configured fee mode for the requested event and the user’s current purchase state.",
-        "Users are blocked from starting paid events until the required payment condition for that fee mode is satisfied.",
-        "For the all-events-flat mode, after a successful payment the user can start any event in that competition without paying again.",
-        "For the base+extra mode, the first paid event uses the base fee and subsequent distinct events use the additional-event fee, and already-paid events cannot be repurchased."
-      ]
-    },
-    {
-      "id": "REQ-75",
-      "text": "Add any required upgrade/migration handling so existing competitions that currently use `entryFee` continue to behave as “per-event fee” competitions after upgrade, without breaking reads of existing competitions.",
-      "target": "backend",
-      "source": {
-        "messageIds": [
-          "msg-6"
-        ],
-        "quotes": [
-          "Try again no other changes"
-        ]
-      },
-      "acceptanceCriteria": [
-        "After an upgrade, pre-existing competitions remain readable and functionally paid/free as before.",
-        "Existing competitions with `entryFee != null` are treated as per-event-fee by default unless explicitly edited by an admin.",
-        "Migration logic is only added if needed to preserve/transform stable state safely."
-      ]
-    },
-    {
-      "id": "REQ-76",
-      "text": "Update the admin competition create/edit UI to allow selecting the competition fee mode and configuring the relevant amounts for that mode (per-event amounts, base+additional amounts, or all-events-flat amount), while keeping all user-facing text in English.",
+      "id": "REQ-92",
+      "text": "Update `frontend/public/env.json` so `BACKEND_CANISTER_ID` is set to the newly deployed backend canister ID (replace the placeholder value `\"YOUR_BACKEND_CANISTER_ID_HERE\"`).",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-6"
+          "msg-1"
         ],
         "quotes": [
-          "both features to be added"
+          "BACKEND_CANISTER_ID is not defined in env.json",
+          "Start"
         ]
       },
       "acceptanceCriteria": [
-        "`/admin/competitions/create` and the admin edit competition form provide controls to choose among: per-event fee, base+additional-event fee, and all-events-flat fee.",
-        "Admin forms validate required fee inputs for the selected mode and prevent submission with missing/invalid amounts (English error messages).",
-        "When editing an existing competition, the form loads and displays the stored fee mode and amounts correctly.",
-        "No edits are made to immutable frontend paths listed in SYSTEM_CONTEXT."
+        "`frontend/public/env.json` contains a non-placeholder, non-empty `BACKEND_CANISTER_ID` value.",
+        "Running the existing preflight check (`runPreflightChecks` in `frontend/src/lib/goLivePreflight.ts`) no longer reports the failure: \"BACKEND_CANISTER_ID is not defined in env.json\"."
       ]
     },
     {
-      "id": "REQ-77",
-      "text": "Update the public competition detail page payment/start UX to display the correct fee description for the selected fee mode and charge the correct amount when the user clicks Pay & Start for a chosen event, without changing the existing “Payments are temporarily unavailable…” behavior when Razorpay is not configured.",
-      "target": "frontend",
+      "id": "REQ-93",
+      "text": "Run the go-live build + deploy flow again after updating `frontend/public/env.json` and ensure it completes successfully without deployment errors.",
+      "target": "both",
       "source": {
         "messageIds": [
-          "msg-6"
+          "msg-1"
         ],
         "quotes": [
-          "For paid competition razorpay is not ready yet, error code: when click pay now: Payments are temporarily unavailable. The payment system has not been configured yet. Please contact support or try again later"
+          "Yes",
+          "Start"
         ]
       },
       "acceptanceCriteria": [
-        "CompetitionDetailPage shows an English fee summary that matches the configured fee mode (e.g., “₹X per event”, “₹A first event, then ₹B per additional event”, or “₹C for all events”).",
-        "When the user attempts to start a paid event, the flow uses backend order creation and charges the backend-returned amount for that event.",
-        "If Razorpay is not configured server-side, the page continues to show the existing clear English error state and does not attempt to open checkout.",
-        "No other unrelated UI/behavior changes are introduced."
+        "The go-live flow completes successfully end-to-end (no failed step in the deployment sequence).",
+        "Admin Go Live page no longer blocks deployment due to missing `BACKEND_CANISTER_ID`.",
+        "User-facing deployment/preflight messaging remains English-only."
       ]
     }
   ],
   "constraints": [
-    "Backend must remain a single Motoko actor with all logic in `backend/main.mo` (add `backend/migration.mo` only if needed for upgrade safety).",
-    "Do not edit any frontend files under immutable paths: `frontend/src/hooks/useInternetIdentity.ts`, `frontend/src/hooks/useInternetIdentity.tsx`, `frontend/src/hooks/useActor.ts`, `frontend/src/main.tsx`, `frontend/src/components/ui`.",
-    "All user-facing text must be English-only."
+    "Do not change anything else than necessary beyond deploying a new backend canister and updating `frontend/public/env.json` with the new canister ID.",
+    "Keep all user-facing text in English."
   ],
   "nonGoals": [
-    "Do not implement or modify Razorpay configuration/credential setup beyond what is required for fee computation; keep the existing “payments not configured” UX intact.",
-    "Do not add new admin sections/routes or change unrelated competition/solve/leaderboard behavior.",
-    "Do not change authentication or admin allowlist behavior."
+    "Do not implement new product features unrelated to deployment/configuration.",
+    "Do not attempt to preserve or migrate data from any previous backend canister into the new canister as part of this request (new canister implies a fresh state unless a separate migration plan is requested).",
+    "Do not modify immutable frontend paths listed in SYSTEM_CONTEXT."
   ],
   "imageRequirements": {
     "required": [],
     "edits": []
-  },
-  "userProfileUpdate": {
-    "goalsToAdd": [],
-    "goalsToRemove": [],
-    "preferencesToAdd": [],
-    "preferencesToRemove": [],
-    "miscToAdd": [],
-    "miscToRemove": [],
-    "fieldsToSet": {},
-    "fieldsToDelete": []
   }
 }

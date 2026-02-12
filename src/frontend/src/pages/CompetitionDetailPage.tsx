@@ -6,9 +6,9 @@ import {
   useGetCompetition,
   useGetUserResult,
   useStartCompetition,
-  useIsRazorpayConfigured,
   useCreateRazorpayOrder,
   useConfirmPayment,
+  type PaymentConfirmation,
 } from '../hooks/useQueries';
 import { storeSolveSession } from '../lib/solveSession';
 import { normalizeError } from '../api/errors';
@@ -18,7 +18,7 @@ import { EVENT_LABELS } from '../types/domain';
 import { ArrowLeft, Loader2, Play, Lock, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Event, PaymentConfirmation } from '../backend';
+import type { Event } from '../backend';
 
 export default function CompetitionDetailPage() {
   const navigate = useNavigate();
@@ -30,7 +30,6 @@ export default function CompetitionDetailPage() {
     BigInt(competitionId),
     selectedEvent as Event
   );
-  const { data: isRazorpayConfigured } = useIsRazorpayConfigured();
   const startCompetitionMutation = useStartCompetition();
   const createOrderMutation = useCreateRazorpayOrder();
   const confirmPaymentMutation = useConfirmPayment();

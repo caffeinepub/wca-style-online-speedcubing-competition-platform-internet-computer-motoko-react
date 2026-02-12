@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { simulateDeployment } from '@/lib/goLiveDiagnostics';
+import { runPreflightChecks, type PreflightFailure } from '@/lib/goLivePreflight';
 
 export type StepStatus = 'pending' | 'running' | 'success' | 'failed';
 
@@ -26,7 +27,8 @@ export function useGoLiveAttempt() {
   ]);
   const [currentStep, setCurrentStep] = useState<GoLiveStep | null>(null);
   const [error, setError] = useState<GoLiveError | null>(null);
-  const [diagnostics, setDiagnostics] = useState<string>('');
+  const [diagnostics, setDiagnostics] = useState<string[]>([]);
+  const [preflightFailures, setPreflightFailures] = useState<PreflightFailure[]>([]);
 
   const updateStep = useCallback((index: number, updates: Partial<GoLiveStep>) => {
     setSteps(prev => {
@@ -36,16 +38,27 @@ export function useGoLiveAttempt() {
     });
   }, []);
 
-  const startGoLive = useCallback(async () => {
+  const startDeployment = useCallback(async () => {
+    // Run preflight checks first
+    const preflightResult = await runPreflightChecks();
+    
+    if (!preflightResult.passed) {
+      setPreflightFailures(preflightResult.failures);
+      return;
+    }
+
+    setPreflightFailures([]);
     setIsRunning(true);
     setError(null);
-    setDiagnostics('');
+    setDiagnostics([]);
     
     // Reset all steps
     setSteps(prev => prev.map(step => ({ ...step, status: 'pending' as StepStatus, message: undefined })));
 
-    let diagnosticLog = '=== MCubes Deployment Log ===\n';
-    diagnosticLog += `Started at: ${new Date().toISOString()}\n\n`;
+    const diagnosticLog: string[] = [];
+    diagnosticLog.push('=== MCubes Deployment Log ===');
+    diagnosticLog.push(`Started at: ${new Date().toISOString()}`);
+    diagnosticLog.push('');
 
     try {
       // Run deployment simulation
@@ -53,13 +66,13 @@ export function useGoLiveAttempt() {
         updateStep(stepIndex, { status, message });
         setCurrentStep(steps[stepIndex]);
         
-        diagnosticLog += `[${new Date().toISOString()}] Step ${stepIndex + 1}: ${steps[stepIndex].name}\n`;
-        diagnosticLog += `Status: ${status}\n`;
+        diagnosticLog.push(`[${new Date().toISOString()}] Step ${stepIndex + 1}: ${steps[stepIndex].name}`);
+        diagnosticLog.push(`Status: ${status}`);
         if (message) {
-          diagnosticLog += `Message: ${message}\n`;
+          diagnosticLog.push(`Message: ${message}`);
         }
-        diagnosticLog += '\n';
-        setDiagnostics(diagnosticLog);
+        diagnosticLog.push('');
+        setDiagnostics([...diagnosticLog]);
       });
 
       if (!result.success) {
@@ -67,24 +80,27 @@ export function useGoLiveAttempt() {
           step: result.failedStep || 'Unknown',
           message: result.error || 'Deployment failed',
         });
-        diagnosticLog += `\n=== DEPLOYMENT FAILED ===\n`;
-        diagnosticLog += `Failed Step: ${result.failedStep}\n`;
-        diagnosticLog += `Error: ${result.error}\n`;
+        diagnosticLog.push('');
+        diagnosticLog.push('=== DEPLOYMENT FAILED ===');
+        diagnosticLog.push(`Failed Step: ${result.failedStep}`);
+        diagnosticLog.push(`Error: ${result.error}`);
       } else {
-        diagnosticLog += `\n=== DEPLOYMENT SUCCESSFUL ===\n`;
-        diagnosticLog += `Completed at: ${new Date().toISOString()}\n`;
+        diagnosticLog.push('');
+        diagnosticLog.push('=== DEPLOYMENT SUCCESSFUL ===');
+        diagnosticLog.push(`Completed at: ${new Date().toISOString()}`);
       }
 
-      setDiagnostics(diagnosticLog);
+      setDiagnostics([...diagnosticLog]);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       setError({
         step: 'Deployment Process',
         message: errorMessage,
       });
-      diagnosticLog += `\n=== DEPLOYMENT ERROR ===\n`;
-      diagnosticLog += `Error: ${errorMessage}\n`;
-      setDiagnostics(diagnosticLog);
+      diagnosticLog.push('');
+      diagnosticLog.push('=== DEPLOYMENT ERROR ===');
+      diagnosticLog.push(`Error: ${errorMessage}`);
+      setDiagnostics([...diagnosticLog]);
     } finally {
       setIsRunning(false);
       setCurrentStep(null);
@@ -96,16 +112,23 @@ export function useGoLiveAttempt() {
     setSteps(prev => prev.map(step => ({ ...step, status: 'pending' as StepStatus, message: undefined })));
     setCurrentStep(null);
     setError(null);
-    setDiagnostics('');
+    setDiagnostics([]);
+    setPreflightFailures([]);
   }, []);
+
+  const isComplete = steps.every(step => step.status === 'success' || step.status === 'failed');
+  const isSuccess = steps.every(step => step.status === 'success');
 
   return {
     isRunning,
+    isComplete,
+    isSuccess,
     currentStep,
     steps,
     error,
     diagnostics,
-    startGoLive,
+    preflightFailures,
+    startDeployment,
     reset,
   };
 }

@@ -1,70 +1,58 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-12T12:22:02.028Z",
-  "summary": "Diff adds a new backend feeMode type (plus a migration mapping old entryFee -> perEvent) and frontend UI helpers/components to select/display pricing modes. However, there is insufficient evidence that backend payment enforcement and Razorpay order amount computation were updated to use the new fee modes, and the diff also introduces several unrelated frontend features/changes (leaderboards hub, admin UX changes, query hook fallbacks).",
+  "generatedAt": "2026-02-12T14:26:36.459Z",
+  "summary": "The diff updates `frontend/public/env.json` with a non-placeholder `BACKEND_CANISTER_ID`, but there is no verifiable evidence of deploying a new backend canister or rerunning/completing the full go-live deploy flow. The diff also includes additional code and metadata changes (backend + preflight logic + project state summaries) that were not requested and conflict with the “do not change anything else than necessary” constraint.",
   "missing_requirements": [
     {
-      "id": "REQ-74",
-      "requirement": "Update backend paid-access enforcement and order creation to compute payable amount based on the competition’s selected fee mode and the caller’s existing purchases (including all-events-flat unlock behavior and base+additional logic, preventing repurchase).",
-      "reason": "The diff summary shows new FeeMode types but does not show any concrete changes to `createRazorpayOrder`, payment verification, or start-event gating logic that would compute amounts per fee mode and per user purchase state.",
+      "id": "REQ-91",
+      "requirement": "Deploy a NEW backend canister (new canister ID) and record the newly created backend canister ID for use by the frontend configuration.",
+      "reason": "The diff shows code changes to `backend/main.mo` but does not show any deployment artifacts, canister creation logs, dfx configuration updates, or other evidence that a new canister was actually created/deployed and that its new ID was captured as part of the deployment process.",
       "evidence": [
-        "backend/main.mo (truncated)"
+        "backend/main.mo",
+        "frontend/public/env.json"
       ]
     },
     {
-      "id": "REQ-73",
-      "requirement": "Competition creation and update APIs accept the new pricing fields and persist them.",
-      "reason": "Although the backend types were extended with `feeMode`, the diff summary does not show the implementation changes in the admin create/update backend methods to accept, validate, and store these new fields.",
+      "id": "REQ-93",
+      "requirement": "Run the go-live build + deploy flow again after updating `frontend/public/env.json` and ensure it completes successfully without deployment errors.",
+      "reason": "There is no evidence in the diff of running the go-live flow, its outputs, CI logs, or any deployment success indicators. Code changes alone do not demonstrate that the end-to-end flow completed successfully.",
       "evidence": [
-        "backend/main.mo (truncated)"
+        "frontend/src/lib/goLivePreflight.ts",
+        "frontend/public/env.json"
       ]
     }
   ],
   "hallucinated_features": [
     {
-      "description": "Frontend query hooks returning empty arrays/null because 'Backend method doesn't exist' (e.g., competitions list/detail/user result).",
-      "reason": "BuildRequest focuses on pricing model changes and related UI/payment UX, not replacing data fetching with placeholder fallbacks that effectively disable reading competitions/results.",
+      "description": "Expanded/modified preflight validation logic for BACKEND_CANISTER_ID (normalization and additional placeholder checks).",
+      "reason": "REQ-92 only asked to update `frontend/public/env.json` to a real canister ID so the existing preflight check no longer fails; it did not request changing `runPreflightChecks` logic.",
       "evidence": [
-        "frontend/src/hooks/useQueries.ts"
+        "frontend/src/lib/goLivePreflight.ts"
       ]
     },
     {
-      "description": "Added/modified Leaderboards hub page and related navigation/UX changes.",
-      "reason": "Not requested by REQ-73..REQ-77 and explicitly constrained to avoid unrelated UI/behavior changes.",
+      "description": "Backend Motoko source changes unrelated to deployment/configuration (large modifications within `backend/main.mo`).",
+      "reason": "The BuildRequest constrained changes to only what is necessary for deploying a new backend canister and updating `env.json`; backend feature/source changes were not requested.",
       "evidence": [
-        "frontend/src/pages/LeaderboardsHubPage.tsx",
-        "frontend-file-summaries.txt (mentions new \"Leaderboards\" link in AppShell)"
+        "backend/main.mo"
       ]
     },
     {
-      "description": "Broader admin pages/UX changes unrelated to competition pricing (users page, results management enhancements, etc.).",
-      "reason": "Non-goals/constraints ask not to add new admin sections/routes or change unrelated behavior; these appear outside the pricing UI scope.",
+      "description": "Project metadata/state updates not required for deploying a new canister or updating `env.json` (e.g., `project_state.json`, `frontend-file-summaries.txt`).",
+      "reason": "These files are not mentioned in the requirements and appear unrelated to the minimal deployment/configuration scope.",
       "evidence": [
-        "frontend/src/pages/admin/AdminUsersPage.tsx",
-        "frontend/src/pages/admin/AdminResultsPage.tsx",
-        "frontend/src/pages/admin/AdminCompetitionsPage.tsx"
+        "project_state.json",
+        "frontend-file-summaries.txt"
       ]
     }
   ],
-  "confidence": 0.63,
+  "confidence": 0.74,
   "changed_files": [
     "backend/main.mo",
-    "backend/migration.mo",
     "frontend-file-summaries.txt",
-    "frontend/src/api/errors.ts",
-    "frontend/src/components/admin/CompetitionPricingFields.tsx",
-    "frontend/src/components/competition/CompetitionCard.tsx",
-    "frontend/src/hooks/useQueries.ts",
-    "frontend/src/lib/competitionPricing.ts",
-    "frontend/src/pages/CompetitionDetailPage.tsx",
-    "frontend/src/pages/LeaderboardsHubPage.tsx",
-    "frontend/src/pages/admin/AdminCompetitionsPage.tsx",
-    "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
-    "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
-    "frontend/src/pages/admin/AdminResultsPage.tsx",
-    "frontend/src/pages/admin/AdminUsersPage.tsx",
-    "frontend/src/types/backend-extended.ts",
+    "frontend/public/env.json",
+    "frontend/src/lib/goLivePreflight.ts",
     "project_state.json"
   ]
 }

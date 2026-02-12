@@ -1,115 +1,123 @@
 export function normalizeError(error: unknown): string {
+  if (typeof error === 'string') {
+    return error;
+  }
+
   if (error instanceof Error) {
     const message = error.message;
 
-    // Session lock errors
-    if (message.includes('session is locked') || message.includes('Invalid session token')) {
-      return 'This competition session is locked to another tab or device. Please use the original tab where you started.';
-    }
-    
-    if (message.includes('Session not found') || message.includes('No active session')) {
-      return 'Your session has expired or was not found. Please return to the competition page and start again.';
-    }
-    
-    if (message.includes('Session token required')) {
-      return 'Session authentication failed. Please restart the competition from the competition page.';
+    // Backend method not available errors
+    if (message.includes('Backend method not available') || message.includes('Backend method doesn\'t exist')) {
+      return 'This feature is not yet available. The backend is missing required functionality.';
     }
 
-    // Progressive scramble errors
-    if (message.includes('Previous attempt not submitted') || message.includes('out of order')) {
-      return 'You must complete the previous attempt before accessing the next scramble.';
-    }
-    
-    if (message.includes('Scramble not available')) {
-      return 'The scramble for this attempt is not yet available. Please complete previous attempts first.';
-    }
-
-    // Duplicate submission errors
-    if (message.includes('Attempt already submitted') || message.includes('duplicate')) {
-      return 'This attempt has already been recorded. Your progress has been saved.';
-    }
-    
-    if (message.includes('Cannot overwrite attempt')) {
-      return 'This attempt cannot be modified as it has already been submitted.';
-    }
-
-    // Payment configuration errors
-    if (message.includes('Razorpay is not configured') || message.includes('payment system is not configured')) {
-      return 'Payments are temporarily unavailable. The payment system has not been configured yet. Please contact support or try again later.';
-    }
-
-    // Payment errors
-    if (message.includes('Payment was cancelled')) {
-      return 'Payment was cancelled. You can try again when ready.';
-    }
-
-    if (message.includes('Already paid')) {
-      return 'You have already paid for this event or competition.';
-    }
-
-    if (message.includes('Invalid order ID') || message.includes('Order does not belong')) {
-      return 'Payment verification failed. Please try again or contact support.';
-    }
-
-    if (message.includes('Invalid payment signature')) {
-      return 'Payment verification failed due to invalid signature. Please contact support.';
-    }
-
-    if (message.includes('Payment required')) {
-      return 'Payment is required to access this event. Please complete payment first.';
-    }
-
-    if (message.includes('all-events already unlocked') || message.includes('all events')) {
-      return 'You have already paid for all events in this competition.';
+    // Actor not available
+    if (message.includes('Actor not available')) {
+      return 'Unable to connect to the backend. Please try again.';
     }
 
     // Authorization errors
-    if (message.includes('Unauthorized') || message.includes('Only admins')) {
+    if (message.includes('Unauthorized') || message.includes('not authorized')) {
       return 'You do not have permission to perform this action.';
     }
 
+    // User blocked
     if (message.includes('User is blocked')) {
       return 'Your account has been blocked. Please contact support.';
     }
 
-    if (message.includes('User profile does not exist')) {
-      return 'Please complete your profile setup before continuing.';
-    }
-
     // Competition errors
     if (message.includes('Competition does not exist')) {
-      return 'This competition could not be found.';
+      return 'Competition not found.';
     }
 
-    if (message.includes('Competition is not running')) {
+    if (message.includes('Competition is not active')) {
       return 'This competition is not currently active.';
     }
 
+    if (message.includes('Competition registration is closed') || message.includes('Competition is locked')) {
+      return 'Registration for this competition is closed.';
+    }
+
+    if (message.includes('Competition has ended')) {
+      return 'This competition has already ended.';
+    }
+
+    if (message.includes('Competition is not currently running')) {
+      return 'This competition is not currently running.';
+    }
+
+    // Event errors
     if (message.includes('Event is not part of this competition')) {
-      return 'The selected event is not available in this competition.';
+      return 'This event is not available in this competition.';
     }
 
-    // Deployment errors
-    if (message.includes('Build artifacts not found')) {
-      return 'Build artifacts are missing. Please run a build first.';
+    // Session errors
+    if (message.includes('Session already exists')) {
+      return 'You already have an active session for this event.';
     }
 
-    if (message.includes('Network connectivity check failed')) {
-      return 'Unable to connect to the Internet Computer network. Please check your connection.';
+    if (message.includes('Session token required')) {
+      return 'Session token is missing. Please start a new session.';
     }
 
-    if (message.includes('Deployment failed')) {
-      return 'Deployment failed. Please check the diagnostics for details.';
+    // Payment errors
+    if (message.includes('Razorpay is not configured')) {
+      return 'Payment system is not configured. Please contact the administrator.';
     }
 
-    // Generic backend errors
-    if (message.includes('Call failed') || message.includes('Canister')) {
-      return 'A backend error occurred. Please try again or contact support.';
+    if (message.includes('This is a free competition')) {
+      return 'This is a free competition. No payment is required.';
     }
 
-    // Return the original message if no specific match
+    if (message.includes('Payment required') || message.includes('Unauthorized: Payment required')) {
+      return 'Payment is required to access this event.';
+    }
+
+    if (message.includes('Already paid for this event or competition')) {
+      return 'You have already paid for this event or competition.';
+    }
+
+    if (message.includes('Payment already confirmed')) {
+      return 'Payment has already been confirmed for this event.';
+    }
+
+    if (message.includes('Invalid order ID')) {
+      return 'Invalid payment order. Please try again.';
+    }
+
+    if (message.includes('Order details do not match')) {
+      return 'Payment order details do not match. Please try again.';
+    }
+
+    if (message.includes('This order does not belong to you')) {
+      return 'This payment order does not belong to you.';
+    }
+
+    // Profile errors
+    if (message.includes('User profile does not exist')) {
+      return 'User profile not found. Please create a profile first.';
+    }
+
+    if (message.includes('Can only view your own profile')) {
+      return 'You can only view your own profile.';
+    }
+
+    // Payment cancellation
+    if (message.includes('Payment was cancelled')) {
+      return 'Payment was cancelled.';
+    }
+
+    // Generic error message
     return message;
   }
 
+  // Handle ActorBootstrapError objects
+  if (typeof error === 'object' && error !== null && 'stage' in error && 'message' in error) {
+    const bootstrapError = error as { stage: string; message: string };
+    return bootstrapError.message;
+  }
+
+  // Fallback for unknown error types
   return 'An unexpected error occurred. Please try again.';
 }

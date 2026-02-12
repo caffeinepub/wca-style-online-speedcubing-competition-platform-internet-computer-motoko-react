@@ -1,64 +1,36 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Frontend support for competition fee modes (admin setup + public pay/start UX)",
+  "title": "Update frontend env.json BACKEND_CANISTER_ID for new backend canister deployment",
   "requirements": [
     {
-      "id": "REQ-76",
-      "summary": "Update admin competition create/edit forms to configure one of three competition fee modes and validate required amounts in English.",
+      "id": "REQ-92",
+      "summary": "Update frontend env.json BACKEND_CANISTER_ID to the newly deployed backend canister ID",
       "acceptanceCriteria": [
-        "`/admin/competitions/create` and the admin edit competition form provide controls to choose among: per-event fee, base+additional-event fee, and all-events-flat fee.",
-        "Admin forms validate required fee inputs for the selected mode and prevent submission with missing/invalid amounts (English error messages).",
-        "When editing an existing competition, the form loads and displays the stored fee mode and amounts correctly.",
-        "No edits are made to immutable frontend paths listed in SYSTEM_CONTEXT."
+        "`frontend/public/env.json` contains a non-placeholder, non-empty `BACKEND_CANISTER_ID` value.",
+        "Running the existing preflight check (`runPreflightChecks` in `frontend/src/lib/goLivePreflight.ts`) no longer reports the failure: \"BACKEND_CANISTER_ID is not defined in env.json\"."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/backend.d.ts",
+          "path": "frontend/public/env.json",
           "operation": "modify",
-          "description": "Update frontend type declarations for Competition/CompetitionPublic/CompetitionInput to include the new pricing mode and relevant amount fields so admin forms can load/save the configured mode (keep all text English-only)."
-        },
-        {
-          "path": "frontend/src/components/admin/CompetitionPricingFields.tsx",
-          "operation": "create",
-          "description": "Create a reusable pricing configuration section for admin competition forms. Use shadcn-ui form inputs (Select/Input/Label) to select fee mode and enter required amounts, and expose a validated value back to the parent form. Verify the component's usage instructions before implementing."
-        },
-        {
-          "path": "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
-          "operation": "modify",
-          "description": "Replace the single `entryFee` input with the new pricing UI (using the CompetitionPricingFields component) and update submission validation to require the correct amounts based on the selected mode (English-only error messages). Ensure the created CompetitionInput includes the new pricing fields. Verify the component's usage instructions before implementing."
-        },
-        {
-          "path": "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
-          "operation": "modify",
-          "description": "Load existing competition pricing mode/amounts into form state and render the new pricing UI (using CompetitionPricingFields). Update the update payload to send the new pricing fields and validate required amounts per selected mode (English-only error messages). Verify the component's usage instructions before implementing."
+          "description": "Replace the placeholder value \"YOUR_BACKEND_CANISTER_ID_HERE\" with the newly deployed backend canister ID for this deployment so preflight no longer flags BACKEND_CANISTER_ID as missing."
         }
       ]
     },
     {
-      "id": "REQ-77",
-      "summary": "Update CompetitionDetailPage to show correct fee summary per fee mode and always charge the backend-returned amount when paying for an event, keeping the existing Razorpay-not-configured UX intact.",
+      "id": "REQ-93",
+      "summary": "Ensure go-live preflight and deployment flow proceeds successfully after env.json is updated",
       "acceptanceCriteria": [
-        "CompetitionDetailPage shows an English fee summary that matches the configured fee mode (e.g., “₹X per event”, “₹A first event, then ₹B per additional event”, or “₹C for all events”).",
-        "When the user attempts to start a paid event, the flow uses backend order creation and charges the backend-returned amount for that event.",
-        "If Razorpay is not configured server-side, the page continues to show the existing clear English error state and does not attempt to open checkout.",
-        "No other unrelated UI/behavior changes are introduced."
+        "The go-live flow completes successfully end-to-end (no failed step in the deployment sequence).",
+        "Admin Go Live page no longer blocks deployment due to missing `BACKEND_CANISTER_ID`.",
+        "User-facing deployment/preflight messaging remains English-only."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/lib/competitionPricing.ts",
-          "operation": "create",
-          "description": "Add small frontend helpers to format an English fee summary string from the competition’s pricing mode/amounts and to determine whether the competition is paid (based on the new pricing fields) for display purposes."
-        },
-        {
-          "path": "frontend/src/pages/CompetitionDetailPage.tsx",
+          "path": "frontend/src/lib/goLivePreflight.ts",
           "operation": "modify",
-          "description": "Update the fee banner and Pay & Start button copy to reflect the configured pricing mode using the new helper(s). Adjust start/payment gating so the payable amount is always taken from `createRazorpayOrder` response (not computed on the client). Keep the existing behavior where Razorpay-not-configured results in the current English error state and no checkout attempt."
-        },
-        {
-          "path": "frontend/src/api/errors.ts",
-          "operation": "modify",
-          "description": "Extend error normalization (English-only) to gracefully map any new backend payment-related traps for the new pricing modes (e.g., payment required, already paid for this event, all-events already unlocked) while preserving the existing “Payments are temporarily unavailable…” messaging."
+          "description": "Harden BACKEND_CANISTER_ID validation by normalizing the loaded env.json value (e.g., handle non-string and trim whitespace) before placeholder/empty checks, so a valid newly pasted canister ID is reliably accepted and English-only messaging remains unchanged."
         }
       ]
     }

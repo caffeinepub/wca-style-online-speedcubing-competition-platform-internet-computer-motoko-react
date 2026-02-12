@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 37,
+  "projectStateVersion": 45,
   "summary": "Full-stack online speedcubing competition platform with multi-event, WCA-style 5-solve flow, paid entry via Razorpay, admin dashboard, strong integrity controls, post-completion UX enhancements (video evidence prompt + multi-event completion flow), leaderboard discoverability, and upcoming competition pricing enhancements to support event-based fee models (per-event fee, extra-event flat fee, and a flat fee for all events combined).",
   "architectural_notes": [
     "Tech stack: Next.js (App Router) + TypeScript + PostgreSQL + Prisma ORM + NextAuth; deploy on Vercel.",
@@ -443,6 +443,102 @@
         "REQ-77"
       ],
       "version": 1
+    },
+    {
+      "id": "feature-fix-admin-create-competition-so-it-calls-real-backend-canister-methods-not-stubbed-disabled-react-query-hooks-and-no-longer-throws-the-generic-toast-error-backend-method-not-available-when-creating-a-competition-with-any-pricing-mode-free-per-event-base-additional-all-events-flat",
+      "title": "Fix Admin Create Competition so it calls real backend canister methods (not stubbed/disabled React Query hooks) and no longer throws the generic toast error “Backend method not available” when creating a competition with any pricing mode (free, per-event, base+additional, all-events-flat).",
+      "reqIds": [
+        "REQ-78"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-align-frontend-competition-admin-mutations-with-the-backend-actor-interface-wire-usecreatecompetition-useadmincreatecompetition-to-the-backend-create-competition-method-and-wire-the-remaining-admin-competition-mutations-used-by-admin-pages-update-delete-lock-unlock-activate-deactivate-duplicate-if-present-in-ui-to-their-corresponding-backend-methods-so-admin-competition-management-screens-do-not-rely-on-placeholders",
+      "title": "Align frontend competition-admin mutations with the backend actor interface: wire `useCreateCompetition`/`useAdminCreateCompetition` to the backend create-competition method, and wire the remaining admin competition mutations used by admin pages (update, delete, lock/unlock, activate/deactivate, duplicate if present in UI) to their corresponding backend methods so admin competition management screens do not rely on placeholders.",
+      "reqIds": [
+        "REQ-79"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-ensure-the-public-read-competition-queries-used-across-the-app-are-implemented-or-re-enabled-end-to-end-usegetcompetitions-and-usegetcompetition-must-call-real-backend-methods-and-return-real-competition-data-instead-of-returning-empty-arrays-null",
+      "title": "Ensure the public-read competition queries used across the app are implemented (or re-enabled) end-to-end: `useGetCompetitions` and `useGetCompetition` must call real backend methods and return real competition data instead of returning empty arrays/null.",
+      "reqIds": [
+        "REQ-80"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-and-enforce-a-deployment-preflight-requirement-to-provide-env-json-with-backend-canister-id-and-update-any-go-live-publish-ux-that-depends-on-it-so-the-error-is-actionable-and-consistent-english-only",
+      "title": "Add and enforce a deployment/preflight requirement to provide `/env.json` with `BACKEND_CANISTER_ID`, and update any go-live/publish UX that depends on it so the error is actionable and consistent (English-only).",
+      "reqIds": [
+        "REQ-81"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-prevent-the-app-from-getting-stuck-in-an-infinite-loading-state-when-the-backend-actor-cannot-be-created-e-g-missing-invalid-env-json-placeholder-backend-canister-id-or-backend-unreachable-by-adding-a-fail-fast-actor-initialization-error-state-and-showing-a-clear-actionable-ui-message-instead-of-perpetual-spinners",
+      "title": "Prevent the app from getting stuck in an infinite loading state when the backend actor cannot be created (e.g., missing/invalid `/env.json`, placeholder `BACKEND_CANISTER_ID`, or backend unreachable) by adding a fail-fast actor initialization error state and showing a clear, actionable UI message instead of perpetual spinners.",
+      "reqIds": [
+        "REQ-82"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-minimal-non-secret-diagnostics-for-the-app-bootstrap-path-to-help-identify-where-loading-stops-config-fetch-actor-creation-initial-competitions-query-without-logging-any-sensitive-tokens-secrets",
+      "title": "Add minimal, non-secret diagnostics for the app bootstrap path to help identify where loading stops (config fetch, actor creation, initial competitions query), without logging any sensitive tokens/secrets.",
+      "reqIds": [
+        "REQ-83"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-remove-the-current-frontend-react-query-stubs-that-return-empty-arrays-null-or-throw-backend-method-not-available-for-core-reads-mutations-and-wire-them-to-the-real-backend-actor-methods-so-the-ui-is-functional-at-minimum-fix-usegetcompetitions-usegetcompetition-usegetuserresult-useadmingetallusers-useadmingetallcompetitions-useadmingetcompetition-useadmingetcompetitionresults-and-the-admin-competition-create-update-delete-lock-unlock-activate-deactivate-mutations-ensure-user-facing-errors-remain-english-only-and-are-routed-through-normalizeerror-where-applicable",
+      "title": "Remove the current frontend React Query stubs that return empty arrays/null or throw “Backend method not available” for core reads/mutations, and wire them to the real backend actor methods so the UI is functional: at minimum fix `useGetCompetitions`, `useGetCompetition`, `useGetUserResult`, `useAdminGetAllUsers`, `useAdminGetAllCompetitions`, `useAdminGetCompetition`, `useAdminGetCompetitionResults`, and the admin competition create/update/delete/lock/unlock/activate/deactivate mutations. Ensure user-facing errors remain English-only and are routed through `normalizeError` where applicable.",
+      "reqIds": [
+        "REQ-87"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-the-leaderboard-data-path-end-to-end-so-leaderboards-are-not-empty-when-results-exist-ensure-the-frontend-leaderboard-query-uses-the-intended-backend-leaderboard-results-api-and-that-the-backend-filters-correctly-completed-only-and-not-hidden-the-leaderboard-ui-must-show-real-competitor-display-names-when-available-fallback-to-anonymous-only-when-no-display-name-exists",
+      "title": "Fix the leaderboard data path end-to-end so leaderboards are not empty when results exist: ensure the frontend leaderboard query uses the intended backend leaderboard/results API and that the backend filters correctly (completed-only and not hidden). The leaderboard UI must show real competitor display names when available (fallback to “Anonymous” only when no display name exists).",
+      "reqIds": [
+        "REQ-88"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-restore-admin-sidebar-navigation-visibility-by-ensuring-the-app-shell-admin-link-rendering-is-driven-by-the-fixed-iscalleradmin-signal-and-that-routes-under-admin-are-accessible-for-allowlisted-admins-no-incorrect-access-denied-screen-for-valid-admins",
+      "title": "Restore admin sidebar/navigation visibility by ensuring the app-shell admin link rendering is driven by the fixed `isCallerAdmin()` signal and that routes under `/admin/*` are accessible for allowlisted admins (no incorrect “Access Denied” screen for valid admins).",
+      "reqIds": [
+        "REQ-89"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-focused-regression-test-checklist-manual-smoke-test-steps-documented-in-the-repo-as-developer-notes-covering-admin-login-access-to-admin-public-competitions-list-non-empty-when-data-exists-admin-create-competition-works-leaderboard-shows-completed-results-and-admin-users-list-shows-existing-users-keep-all-documented-text-in-english",
+      "title": "Add a focused regression test checklist (manual smoke-test steps documented in the repo as developer notes) covering: admin login + access to `/admin/*`, public competitions list non-empty when data exists, admin create competition works, leaderboard shows completed results, and admin users list shows existing users. Keep all documented text in English.",
+      "reqIds": [
+        "REQ-90"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-frontend-public-env-json-so-backend-canister-id-is-set-to-the-newly-deployed-backend-canister-id-replace-the-placeholder-value-your-backend-canister-id-here",
+      "title": "Update `frontend/public/env.json` so `BACKEND_CANISTER_ID` is set to the newly deployed backend canister ID (replace the placeholder value `\"YOUR_BACKEND_CANISTER_ID_HERE\"`).",
+      "reqIds": [
+        "REQ-92"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-run-the-go-live-build-deploy-flow-again-after-updating-frontend-public-env-json-and-ensure-it-completes-successfully-without-deployment-errors",
+      "title": "Run the go-live build + deploy flow again after updating `frontend/public/env.json` and ensure it completes successfully without deployment errors.",
+      "reqIds": [
+        "REQ-93"
+      ],
+      "version": 1
     }
   ],
   "new_feature_requests": [
@@ -853,6 +949,38 @@
       "summary": "Add any required upgrade/migration handling so existing competitions that currently use `entryFee` continue to behave as “per-event fee” competitions after upgrade, without breaking reads of existing competitions.",
       "reqIds": [
         "REQ-75"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-72",
+      "summary": "Fix the backend upgrade persistence regression so previously created competitions, results, user profiles/emails, payments, hidden-leaderboard flags, blocked-user flags, and access-control/admin state are durable across canister upgrades/redeploys (no data reset after deployment). Add upgrade-safe persistence using stable storage + preupgrade/postupgrade (and add a conditional `backend/migration.mo` if required by the current upgrade policy).",
+      "reqIds": [
+        "REQ-84"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-73",
+      "summary": "Ensure backend admin authorization works for allowlisted admins: backend admin checks must grant admin access to /admin features when the caller is an IC admin AND (their stored email matches the allowlist OR their `mcubesId` is exactly `MCUBES-0`). Ensure the allowlist includes exactly `midhun.speedcuber@gmail.com` and `thirdparty.mcubes@gmail.com`, and that `isCallerAdmin()` reflects this same allowlisted-admin rule so the frontend AdminGuard does not incorrectly deny access.",
+      "reqIds": [
+        "REQ-85"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-74",
+      "summary": "Implement or restore the public-read backend APIs needed for the app to display competitions and competition detail data, and wire them to persisted state. These APIs must return real data (not empty) and must support multi-event competitions. Ensure the public competitions list returns `CompetitionPublic` records and that competition detail retrieval returns the full `Competition` (including events and fee mode; scrambles must not be exposed through the public competition payload for non-admin solve-flow usage).",
+      "reqIds": [
+        "REQ-86"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-75",
+      "summary": "Deploy a NEW backend canister (as requested) and capture the newly created backend canister ID for this deployment.",
+      "reqIds": [
+        "REQ-91"
       ],
       "status": "pending"
     }

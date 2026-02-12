@@ -11,7 +11,31 @@ import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
 export interface Attempt { 'penalty' : bigint, 'time' : bigint }
-export interface AttemptInput { 'penalty' : bigint, 'time' : bigint }
+export interface Competition {
+  'id' : bigint,
+  'status' : CompetitionStatus,
+  'endDate' : Time,
+  'scrambles' : Array<[Array<string>, Event]>,
+  'name' : string,
+  'slug' : string,
+  'feeMode' : [] | [FeeMode],
+  'isActive' : boolean,
+  'events' : Array<Event>,
+  'isLocked' : boolean,
+  'participantLimit' : [] | [bigint],
+  'startDate' : Time,
+}
+export interface CompetitionPublic {
+  'id' : bigint,
+  'status' : CompetitionStatus,
+  'endDate' : Time,
+  'name' : string,
+  'slug' : string,
+  'feeMode' : [] | [FeeMode],
+  'events' : Array<Event>,
+  'participantLimit' : [] | [bigint],
+  'startDate' : Time,
+}
 export interface CompetitionResult {
   'status' : SolveStatus,
   'user' : Principal,
@@ -19,6 +43,9 @@ export interface CompetitionResult {
   'event' : Event,
   'userProfile' : [] | [UserProfile],
 }
+export type CompetitionStatus = { 'upcoming' : null } |
+  { 'completed' : null } |
+  { 'running' : null };
 export type Event = { 'megaminx' : null } |
   { 'fiveByFive' : null } |
   { 'threeByThreeOneHanded' : null } |
@@ -28,34 +55,13 @@ export type Event = { 'megaminx' : null } |
   { 'skewb' : null } |
   { 'twoByTwo' : null } |
   { 'fourByFour' : null };
-export interface PaymentConfirmation {
-  'razorpayPaymentId' : string,
-  'razorpaySignature' : string,
-  'event' : Event,
-  'razorpayOrderId' : string,
-  'competitionId' : bigint,
-}
-export interface RazorpayOrderRequest {
-  'event' : Event,
-  'competitionId' : bigint,
-}
-export interface RazorpayOrderResponse {
-  'orderId' : string,
-  'event' : Event,
-  'currency' : string,
-  'amount' : bigint,
-  'competitionName' : string,
-}
-export interface ResultInput {
-  'status' : SolveStatus,
-  'user' : Principal,
-  'attempts' : Array<AttemptInput>,
-  'event' : Event,
-  'competitionId' : bigint,
-}
+export type FeeMode = { 'perEvent' : bigint } |
+  { 'allEventsFlat' : bigint } |
+  { 'basePlusAdditional' : { 'baseFee' : bigint, 'additionalFee' : bigint } };
 export type SolveStatus = { 'in_progress' : null } |
   { 'completed' : null } |
   { 'not_started' : null };
+export type Time = bigint;
 export interface UserProfile {
   'country' : [] | [string],
   'displayName' : string,
@@ -68,26 +74,18 @@ export type UserRole = { 'admin' : null } |
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
-  'confirmPayment' : ActorMethod<[PaymentConfirmation], undefined>,
-  'createRazorpayOrder' : ActorMethod<
-    [RazorpayOrderRequest],
-    RazorpayOrderResponse
-  >,
-  'duplicateCompetition' : ActorMethod<[bigint], bigint>,
+  'createCompetition' : ActorMethod<[Competition], bigint>,
+  'getAllCompetitions' : ActorMethod<[], Array<CompetitionPublic>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getCompetition' : ActorMethod<[bigint], Competition>,
   'getCompetitionResults' : ActorMethod<
     [bigint, Event],
     Array<CompetitionResult>
   >,
-  'getRazorpayKeyId' : ActorMethod<[], [] | [string]>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
-  'isRazorpayConfigured' : ActorMethod<[], boolean>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
-  'setRazorpayCredentials' : ActorMethod<[string, string], undefined>,
-  'startSolveSession' : ActorMethod<[bigint, Event], undefined>,
-  'submitResult' : ActorMethod<[ResultInput], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

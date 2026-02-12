@@ -1,22 +1,18 @@
 import Array "mo:core/Array";
 import Map "mo:core/Map";
-import Order "mo:core/Order";
-import Principal "mo:core/Principal";
 import Text "mo:core/Text";
-import Runtime "mo:core/Runtime";
-import Time "mo:core/Time";
-import Nat "mo:core/Nat";
-import Nat8 "mo:core/Nat8";
+import List "mo:core/List";
+import Principal "mo:core/Principal";
 import Iter "mo:core/Iter";
+import Nat "mo:core/Nat";
+import Order "mo:core/Order";
+import Time "mo:core/Time";
+import Runtime "mo:core/Runtime";
 import AccessControl "authorization/access-control";
+import Nat8 "mo:core/Nat8";
 import MixinAuthorization "authorization/MixinAuthorization";
-import Migration "migration";
 
-(with migration = Migration.run)
 actor {
-  let accessControlState = AccessControl.initState();
-  include MixinAuthorization(accessControlState);
-
   module NatPrincipalEvent {
     public func compare(x : (Nat, Principal, Event), y : (Nat, Principal, Event)) : Order.Order {
       switch (Nat.compare(x.0, y.0)) {
@@ -48,18 +44,6 @@ actor {
       };
       Nat.compare(eventToNat(a), eventToNat(b));
     };
-  };
-
-  public type Event = {
-    #twoByTwo;
-    #threeByThree;
-    #fourByFour;
-    #fiveByFive;
-    #skewb;
-    #megaminx;
-    #clock;
-    #threeByThreeOneHanded;
-    #pyraminx;
   };
 
   public type PaidEvent = {
@@ -253,6 +237,18 @@ actor {
     decision : Text;
   };
 
+  public type Event = {
+    #twoByTwo;
+    #threeByThree;
+    #fourByFour;
+    #fiveByFive;
+    #skewb;
+    #megaminx;
+    #clock;
+    #threeByThreeOneHanded;
+    #pyraminx;
+  };
+
   public type AdminScrambleView = {
     id : Nat;
     event : Event;
@@ -262,6 +258,16 @@ actor {
   public type EventScrambles = {
     event : Event;
     scrambles : [Text];
+  };
+
+  public type ResultSession = {
+    user : Principal;
+    resultId : Nat;
+    attempts : [Nat];
+    penalties : [Nat];
+    event : Event;
+    status : SolveStatus;
+    attemptNo : Nat;
   };
 
   public type LeaderboardEntry = {
@@ -293,7 +299,7 @@ actor {
   let userPayments = Map.empty<Principal, Map.Map<Nat, PaidEvent>>();
   var razorpayKeySecret : ?Text = null;
   var razorpayKeyId : ?Text = null;
-  var createdOrders = Map.empty<Text, (Principal, Nat, Event)>();
+  let createdOrders = Map.empty<Text, (Principal, Nat, Event)>();
 
   let emailAllowlist : [Text] = [
     "midhun.speedcuber@gmail.com",
@@ -308,6 +314,9 @@ actor {
     };
   };
 
+  let accessControlState = AccessControl.initState();
+  include MixinAuthorization(accessControlState);
+
   private func toPublicCompetition(comp : Competition) : CompetitionPublic {
     {
       id = comp.id;
@@ -320,6 +329,66 @@ actor {
       feeMode = comp.feeMode;
       events = comp.events;
     };
+  };
+
+  public query ({ caller }) func getAllCompetitions() : async [CompetitionPublic] {
+    let allComps = competitions.values().toArray();
+    let activeComps = allComps.filter(func(c) { c.isActive });
+    activeComps.map<Competition, CompetitionPublic>(toPublicCompetition);
+  };
+
+  public query ({ caller }) func getCompetition(competitionId : Nat) : async Competition {
+    switch (competitions.get(competitionId)) {
+      case (?c) { c };
+      case (null) { Runtime.trap("Competition does not exist") };
+    };
+  };
+
+  public query ({ caller }) func getCompetitionResults(competitionId : Nat, event : Event) : async [CompetitionResult] {
+    let comp = switch (competitions.get(competitionId)) {
+      case (?c) { c };
+      case (null) { Runtime.trap("Competition does not exist") };
+    };
+
+    let filteredResults = results.filter(
+      func((cid, _, eventId), result) {
+        cid == competitionId and event == eventId and result.status == #completed and not (hiddenLeaderboardEntries.get((competitionId, caller, eventId)) == ?true);
+      }
+    );
+
+    let sortedResults = filteredResults.toArray().map(
+      func(((cid, user, event), result)) {
+        {
+          user;
+          userProfile = userProfiles.get(user);
+          event;
+          attempts = result.attempts.map(func(a) { { time = a.time; penalty = a.penalty } });
+          status = result.status;
+        };
+      }
+    );
+    sortedResults;
+  };
+
+  public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view profiles");
+    };
+    userProfiles.get(caller);
+  };
+
+  public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can save profiles");
+    };
+    userProfiles.add(caller, profile);
+  };
+
+  public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
+    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Can only view your own profile");
+    };
+    userProfiles.get(user);
   };
 
   private func hasCompletedPaymentForEvent(caller : Principal, competitionId : Nat, event : Event) : Bool {
@@ -353,433 +422,27 @@ actor {
     };
   };
 
-  private func hasAccessToEvent(caller : Principal, competitionId : Nat, event : Event, feeMode : ?FeeMode) : Bool {
-    switch (feeMode) {
-      case (null) { true };
-      case (?mode) {
-        switch (mode) {
-          case (#perEvent(_)) {
-            hasCompletedPaymentForEvent(caller, competitionId, event);
-          };
-          case (#basePlusAdditional(_)) {
-            hasCompletedPaymentForEvent(caller, competitionId, event);
-          };
-          case (#allEventsFlat(_)) {
-            hasAnyPaymentForCompetition(caller, competitionId);
-          };
-        };
-      };
-    };
-  };
-
-  private func isAllowlistedAdmin(caller : Principal) : Bool {
-    if (not AccessControl.isAdmin(accessControlState, caller)) {
-      return false;
-    };
-
-    switch (userProfiles.get(caller)) {
-      case (?profile) {
-        if (profile.mcubesId == "MCUBES-0") {
-          return true;
-        };
-      };
-      case (null) {};
-    };
-
-    switch (userEmails.get(caller)) {
-      case (?email) {
-        emailAllowlist.find(func(allowedEmail) { allowedEmail == email }) != null;
-      };
-      case (null) { false };
-    };
-  };
-
-  public shared ({ caller }) func createRazorpayOrder(request : RazorpayOrderRequest) : async RazorpayOrderResponse {
-    // Authorization: Only authenticated users
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can create orders");
-    };
-
-    // User must have a profile
-    if (not userProfiles.containsKey(caller)) {
-      Runtime.trap("User profile does not exist");
-    };
-
-    // User must not be blocked
-    switch (blockedUsers.get(caller)) {
-      case (?true) { Runtime.trap("User is blocked") };
-      case _ {};
-    };
-
-    // Razorpay must be configured
-    switch (razorpayKeyId, razorpayKeySecret) {
-      case (?_, ?_) {};
-      case _ { Runtime.trap("Razorpay is not configured") };
-    };
-
-    switch (competitions.get(request.competitionId)) {
-      case (null) { Runtime.trap("Competition does not exist") };
-      case (?competition) {
-        // Competition must be active
-        if (not competition.isActive) {
-          Runtime.trap("Competition is not active");
-        };
-
-        // Competition must not be locked
-        if (competition.isLocked) {
-          Runtime.trap("Competition registration is closed");
-        };
-
-        // Competition must be upcoming or running
-        switch (competition.status) {
-          case (#completed) { Runtime.trap("Competition has ended") };
-          case _ {};
-        };
-
-        switch (competition.feeMode) {
-          case (null) { Runtime.trap("This is a free competition") };
-          case (?mode) {
-            // Event must be part of competition
-            let eventExists = competition.events.find(func(e) { e == request.event }) != null;
-            if (not eventExists) {
-              Runtime.trap("Event is not part of this competition");
-            };
-
-            // Check if already paid based on fee mode
-            let alreadyPaid = switch (mode) {
-              case (#perEvent(_)) {
-                hasCompletedPaymentForEvent(caller, request.competitionId, request.event);
-              };
-              case (#basePlusAdditional(_)) {
-                hasCompletedPaymentForEvent(caller, request.competitionId, request.event);
-              };
-              case (#allEventsFlat(_)) {
-                hasAnyPaymentForCompetition(caller, request.competitionId);
-              };
-            };
-
-            if (alreadyPaid) {
-              Runtime.trap("Already paid for this event or competition");
-            };
-
-            // Create order
-            let orderId = "order_" # nextOrderId.toText();
-            nextOrderId += 1;
-            createdOrders.add(orderId, (caller, request.competitionId, request.event));
-
-            let amount = calculatePaymentAmount(caller, request.competitionId, request.event, mode);
-
-            {
-              orderId;
-              amount;
-              currency = "INR";
-              competitionName = competition.name;
-              event = request.event;
-            };
-          };
-        };
-      };
-    };
-  };
-
-  public shared ({ caller }) func confirmPayment(confirmation : PaymentConfirmation) : async () {
-    // Authorization: Only authenticated users
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can confirm payments");
-    };
-
-    // User must not be blocked
-    switch (blockedUsers.get(caller)) {
-      case (?true) { Runtime.trap("User is blocked") };
-      case _ {};
-    };
-
-    // Verify order exists and belongs to caller
-    switch (createdOrders.get(confirmation.razorpayOrderId)) {
-      case (null) { Runtime.trap("Invalid order ID") };
-      case (?(orderOwner, orderedCompId, orderedEvent)) {
-        // Authorization: Order must belong to caller
-        if (orderOwner != caller) {
-          Runtime.trap("Unauthorized: This order does not belong to you");
-        };
-
-        // Verify competition and event match
-        if (orderedCompId != confirmation.competitionId or orderedEvent != confirmation.event) {
-          Runtime.trap("Order details do not match");
-        };
-
-        // Check if already paid
-        if (payments.containsKey((confirmation.competitionId, caller, confirmation.event))) {
-          Runtime.trap("Payment already confirmed for this event");
-        };
-
-        // Get competition to determine fee mode
-        switch (competitions.get(confirmation.competitionId)) {
-          case (null) { Runtime.trap("Competition does not exist") };
-          case (?competition) {
-            switch (competition.feeMode) {
-              case (null) { Runtime.trap("This is a free competition") };
-              case (?mode) {
-                // For allEventsFlat mode, check if any payment exists
-                switch (mode) {
-                  case (#allEventsFlat(_)) {
-                    if (hasAnyPaymentForCompetition(caller, confirmation.competitionId)) {
-                      Runtime.trap("Payment already confirmed for this competition");
-                    };
-                  };
-                  case _ {};
-                };
-
-                // Store payment confirmation
-                payments.add((confirmation.competitionId, caller, confirmation.event), confirmation);
-
-                // Store in user payments history
-                let paymentId = nextPaymentId;
-                nextPaymentId += 1;
-
-                let amount = calculatePaymentAmount(caller, confirmation.competitionId, confirmation.event, mode);
-
-                let paidEvent : PaidEvent = {
-                  id = paymentId;
-                  competitionName = competition.name;
-                  event = confirmation.event;
-                  entryFee = amount;
-                  paymentDate = Time.now();
-                  razorpayOrderId = confirmation.razorpayOrderId;
-                  razorpayPaymentId = confirmation.razorpayPaymentId;
-                  razorpaySignature = confirmation.razorpaySignature;
-                };
-
-                switch (userPayments.get(caller)) {
-                  case (null) {
-                    let newMap = Map.empty<Nat, PaidEvent>();
-                    newMap.add(paymentId, paidEvent);
-                    userPayments.add(caller, newMap);
-                  };
-                  case (?existingMap) {
-                    existingMap.add(paymentId, paidEvent);
-                  };
-                };
-
-                // Remove order from pending orders
-                createdOrders.remove(confirmation.razorpayOrderId);
-              };
-            };
-          };
-        };
-      };
-    };
-  };
-
-  public shared ({ caller }) func startSolveSession(competitionId : Nat, event : Event) : async () {
-    // Authorization: Only authenticated users
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can start solve sessions");
-    };
-
-    // User must not be blocked
-    switch (blockedUsers.get(caller)) {
-      case (?true) { Runtime.trap("User is blocked") };
-      case _ {};
-    };
-
-    switch (competitions.get(competitionId)) {
-      case (null) { Runtime.trap("Competition does not exist") };
-      case (?competition) {
-        // Competition must be active and running
-        if (not competition.isActive) {
-          Runtime.trap("Competition is not active");
-        };
-
-        switch (competition.status) {
-          case (#running) {};
-          case _ { Runtime.trap("Competition is not currently running") };
-        };
-
-        // Event must be part of competition
-        let eventExists = competition.events.find(func(e) { e == event }) != null;
-        if (not eventExists) {
-          Runtime.trap("Event is not part of this competition");
-        };
-
-        // Authorization: Check payment/access for paid competitions
-        if (not hasAccessToEvent(caller, competitionId, event, competition.feeMode)) {
-          Runtime.trap("Unauthorized: Payment required to access this event");
-        };
-
-        // Check if session already exists
-        if (activeSessions.containsKey((competitionId, caller, event))) {
-          Runtime.trap("Session already exists for this event");
-        };
-
-        // Create session (implementation details omitted for brevity)
-      };
-    };
-  };
-
-  public shared ({ caller }) func submitResult(result : ResultInput) : async () {
-    // Authorization: Only authenticated users
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can submit results");
-    };
-
-    // Authorization: User can only submit their own results
-    if (result.user != caller) {
-      Runtime.trap("Unauthorized: You can only submit your own results");
-    };
-
-    // User must not be blocked
-    switch (blockedUsers.get(caller)) {
-      case (?true) { Runtime.trap("User is blocked") };
-      case _ {};
-    };
-
-    switch (competitions.get(result.competitionId)) {
-      case (null) { Runtime.trap("Competition does not exist") };
-      case (?competition) {
-        // Competition must be active
-        if (not competition.isActive) {
-          Runtime.trap("Competition is not active");
-        };
-
-        // Competition must be running
-        switch (competition.status) {
-          case (#running) {};
-          case _ { Runtime.trap("Competition is not currently running") };
-        };
-
-        // Event must be part of competition
-        let eventExists = competition.events.find(func(e) { e == result.event }) != null;
-        if (not eventExists) {
-          Runtime.trap("Event is not part of this competition");
-        };
-
-        // Authorization: Check payment/access for paid competitions
-        if (not hasAccessToEvent(caller, result.competitionId, result.event, competition.feeMode)) {
-          Runtime.trap("Unauthorized: Payment required to submit results for this event");
-        };
-
-        // Store result
-        results.add((result.competitionId, caller, result.event), result);
-      };
-    };
-  };
-
-  public query ({ caller }) func getCompetitionResults(competitionId : Nat, event : Event) : async [CompetitionResult] {
-    // No authentication required - public leaderboard
-    // However, hidden entries are filtered out
-
-    switch (competitions.get(competitionId)) {
-      case (null) { Runtime.trap("Competition does not exist") };
-      case (?_competition) {
-        let resultsList = results.entries().toArray().filter(
-          func((key, _result)) {
-            key.0 == competitionId and key.2 == event and not (hiddenLeaderboardEntries.get(key) == ?true);
-          }
-        );
-
-        resultsList.map<((Nat, Principal, Event), ResultInput), CompetitionResult>(
-          func((key, result)) {
-            {
-              user = result.user;
-              userProfile = userProfiles.get(result.user);
-              event = result.event;
-              attempts = result.attempts.map<AttemptInput, Attempt>(func(a) { { time = a.time; penalty = a.penalty } });
-              status = result.status;
-            };
-          }
-        );
-      };
-    };
-  };
-
-  public shared ({ caller }) func setRazorpayCredentials(keyId : Text, keySecret : Text) : async () {
-    // Authorization: Only admins
+  public shared ({ caller }) func createCompetition(comp : Competition) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can set Razorpay credentials");
+      Runtime.trap("Unauthorized: Only admins can create competitions");
     };
-
-    // Additional authorization: Only allowlisted admins
-    if (not isAllowlistedAdmin(caller)) {
-      Runtime.trap("Unauthorized: Only the allowlisted admin can set Razorpay credentials");
+    let compId = nextCompetitionId;
+    nextCompetitionId += 1;
+    let newComp : Competition = {
+      id = compId;
+      name = comp.name;
+      slug = comp.slug;
+      startDate = comp.startDate;
+      endDate = comp.endDate;
+      status = #upcoming;
+      participantLimit = comp.participantLimit;
+      feeMode = comp.feeMode;
+      events = comp.events;
+      scrambles = comp.scrambles;
+      isActive = true;
+      isLocked = false;
     };
-
-    razorpayKeyId := ?keyId;
-    razorpayKeySecret := ?keySecret;
-  };
-
-  public query func isRazorpayConfigured() : async Bool {
-    // Public query - no authorization needed
-    switch (razorpayKeyId, razorpayKeySecret) {
-      case (?_, ?_) { true };
-      case _ { false };
-    };
-  };
-
-  public query func getRazorpayKeyId() : async ?Text {
-    // Public query - key ID is safe to expose (not the secret)
-    razorpayKeyId;
-  };
-
-  public shared ({ caller }) func duplicateCompetition(id : Nat) : async Nat {
-    // Authorization: Only admins
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can duplicate competitions");
-    };
-
-    // Additional authorization: Only allowlisted admins
-    if (not isAllowlistedAdmin(caller)) {
-      Runtime.trap("Unauthorized: Only the allowlisted admin can duplicate competitions");
-    };
-
-    switch (competitions.get(id)) {
-      case (null) { Runtime.trap("Competition does not exist") };
-      case (?comp) {
-        let newId = nextCompetitionId;
-        nextCompetitionId += 1;
-
-        let duplicatedComp : Competition = {
-          id = newId;
-          name = comp.name # " (Copy)";
-          slug = comp.slug # "-copy-" # newId.toText();
-          startDate = comp.startDate;
-          endDate = comp.endDate;
-          status = #upcoming;
-          participantLimit = comp.participantLimit;
-          feeMode = comp.feeMode;
-          events = comp.events;
-          scrambles = comp.scrambles;
-          isActive = false;
-          isLocked = false;
-        };
-
-        competitions.add(newId, duplicatedComp);
-        newId;
-      };
-    };
-  };
-
-  public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
-    // Authorization: Only authenticated users
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view profiles");
-    };
-    userProfiles.get(caller);
-  };
-
-  public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
-    // Authorization: Users can view their own profile, admins can view any profile
-    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
-      Runtime.trap("Unauthorized: Can only view your own profile");
-    };
-    userProfiles.get(user);
-  };
-
-  public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
-    // Authorization: Only authenticated users
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can save profiles");
-    };
-    userProfiles.add(caller, profile);
+    competitions.add(compId, newComp);
+    compId;
   };
 };

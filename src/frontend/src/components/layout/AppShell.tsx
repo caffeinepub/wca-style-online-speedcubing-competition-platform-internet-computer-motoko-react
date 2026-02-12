@@ -1,107 +1,156 @@
-import { Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
-import { Timer, Trophy, Plus, Shield, Rocket, BarChart3 } from 'lucide-react';
-import LoginButton from '../auth/LoginButton';
-import ProfileMenu from '../profile/ProfileMenu';
+import { Outlet, useNavigate } from '@tanstack/react-router';
 import { useInternetIdentity } from '../../hooks/useInternetIdentity';
 import { useIsCallerAdmin } from '../../hooks/useQueries';
+import { Button } from '@/components/ui/button';
+import { Trophy, Menu, X, Shield } from 'lucide-react';
+import { useState } from 'react';
+import LoginButton from '../auth/LoginButton';
+import ProfileMenu from '../profile/ProfileMenu';
 
 export default function AppShell() {
   const navigate = useNavigate();
-  const routerState = useRouterState();
   const { identity } = useInternetIdentity();
-  const isAuthenticated = !!identity;
   const { data: isAdmin } = useIsCallerAdmin();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const isSolveFlow = routerState.location.pathname.includes('/solve');
-
-  if (isSolveFlow) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <header className="border-b border-border/50 bg-card/30 backdrop-blur-sm">
-          <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Timer className="w-4 h-4" />
-              <span>Solve in Progress</span>
-            </div>
-          </div>
-        </header>
-        <main className="flex-1">
-          <Outlet />
-        </main>
-      </div>
-    );
-  }
+  const isAuthenticated = !!identity;
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <button
-            onClick={() => navigate({ to: '/' })}
-            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-          >
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-chart-1 to-chart-2 flex items-center justify-center">
-              <Timer className="w-6 h-6 text-white" />
-            </div>
-            <div className="flex flex-col items-start">
-              <h1 className="text-xl font-bold tracking-tight">MCubes</h1>
-              <p className="text-xs text-muted-foreground">Online Competitions</p>
-            </div>
-          </button>
-
-          <nav className="flex items-center gap-4">
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Header */}
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4">
+          <div className="flex h-16 items-center justify-between">
+            {/* Logo */}
             <button
               onClick={() => navigate({ to: '/' })}
-              className="text-sm font-medium hover:text-chart-1 transition-colors"
+              className="flex items-center gap-2 font-bold text-xl hover:opacity-80 transition-opacity"
             >
-              Competitions
+              <Trophy className="h-6 w-6 text-primary" />
+              <span>MCubes</span>
             </button>
-            <button
-              onClick={() => navigate({ to: '/leaderboards' })}
-              className="flex items-center gap-2 text-sm font-medium hover:text-chart-1 transition-colors"
-            >
-              <BarChart3 className="w-4 h-4" />
-              Leaderboards
-            </button>
-            {isAdmin && (
-              <>
-                <button
+
+            {/* Desktop Navigation */}
+            <nav className="hidden md:flex items-center gap-6">
+              <Button
+                variant="ghost"
+                onClick={() => navigate({ to: '/competitions' })}
+              >
+                Competitions
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => navigate({ to: '/leaderboards' })}
+              >
+                Leaderboards
+              </Button>
+              {isAuthenticated && isAdmin && (
+                <Button
+                  variant="ghost"
                   onClick={() => navigate({ to: '/admin' })}
-                  className="flex items-center gap-2 text-sm font-medium hover:text-chart-1 transition-colors"
+                  className="text-primary"
                 >
-                  <Shield className="w-4 h-4" />
+                  <Shield className="h-4 w-4 mr-2" />
                   Admin
-                </button>
-                <button
-                  onClick={() => navigate({ to: '/admin/competitions/create' })}
-                  className="flex items-center gap-2 text-sm font-medium hover:text-chart-1 transition-colors"
+                </Button>
+              )}
+            </nav>
+
+            {/* Auth Section */}
+            <div className="hidden md:flex items-center gap-4">
+              {isAuthenticated ? (
+                <ProfileMenu />
+              ) : (
+                <LoginButton />
+              )}
+            </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              className="md:hidden p-2"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
+            </button>
+          </div>
+
+          {/* Mobile Menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden py-4 space-y-4 border-t">
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => {
+                  navigate({ to: '/competitions' });
+                  setMobileMenuOpen(false);
+                }}
+              >
+                Competitions
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => {
+                  navigate({ to: '/leaderboards' });
+                  setMobileMenuOpen(false);
+                }}
+              >
+                Leaderboards
+              </Button>
+              {isAuthenticated && isAdmin && (
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-primary"
+                  onClick={() => {
+                    navigate({ to: '/admin' });
+                    setMobileMenuOpen(false);
+                  }}
                 >
-                  <Plus className="w-4 h-4" />
-                  Create
-                </button>
-                <button
-                  onClick={() => navigate({ to: '/admin/go-live' })}
-                  className="flex items-center gap-2 text-sm font-medium hover:text-chart-1 transition-colors"
-                >
-                  <Rocket className="w-4 h-4" />
-                  Go Live
-                </button>
-              </>
-            )}
-            {isAuthenticated ? <ProfileMenu /> : <LoginButton />}
-          </nav>
+                  <Shield className="h-4 w-4 mr-2" />
+                  Admin
+                </Button>
+              )}
+              <div className="pt-4 border-t">
+                {isAuthenticated ? (
+                  <ProfileMenu />
+                ) : (
+                  <LoginButton />
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
+      {/* Main Content */}
       <main className="flex-1">
         <Outlet />
       </main>
 
-      <footer className="border-t border-border bg-card/30 mt-auto">
-        <div className="container mx-auto px-4 py-6 flex items-center justify-center">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Trophy className="w-4 h-4" />
-            <span>© {new Date().getFullYear()} MCubes Platform</span>
+      {/* Footer */}
+      <footer className="border-t bg-muted/50">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">
+              © {new Date().getFullYear()} MCubes. All rights reserved.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Built with ❤️ using{' '}
+              <a
+                href={`https://caffeine.ai/?utm_source=Caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(
+                  typeof window !== 'undefined' ? window.location.hostname : 'mcubes-app'
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-foreground transition-colors"
+              >
+                caffeine.ai
+              </a>
+            </p>
           </div>
         </div>
       </footer>

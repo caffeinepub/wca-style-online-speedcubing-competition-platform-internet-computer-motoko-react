@@ -7,24 +7,20 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
-export interface ResultInput {
-    status: SolveStatus;
-    user: Principal;
-    attempts: Array<AttemptInput>;
-    event: Event;
-    competitionId: bigint;
-}
-export interface RazorpayOrderResponse {
-    orderId: string;
-    event: Event;
-    currency: string;
-    amount: bigint;
-    competitionName: string;
-}
-export interface RazorpayOrderRequest {
-    event: Event;
-    competitionId: bigint;
-}
+export type Time = bigint;
+export type FeeMode = {
+    __kind__: "perEvent";
+    perEvent: bigint;
+} | {
+    __kind__: "allEventsFlat";
+    allEventsFlat: bigint;
+} | {
+    __kind__: "basePlusAdditional";
+    basePlusAdditional: {
+        baseFee: bigint;
+        additionalFee: bigint;
+    };
+};
 export interface CompetitionResult {
     status: SolveStatus;
     user: Principal;
@@ -32,9 +28,30 @@ export interface CompetitionResult {
     event: Event;
     userProfile?: UserProfile;
 }
-export interface AttemptInput {
-    penalty: bigint;
-    time: bigint;
+export interface Competition {
+    id: bigint;
+    status: CompetitionStatus;
+    endDate: Time;
+    scrambles: Array<[Array<string>, Event]>;
+    name: string;
+    slug: string;
+    feeMode?: FeeMode;
+    isActive: boolean;
+    events: Array<Event>;
+    isLocked: boolean;
+    participantLimit?: bigint;
+    startDate: Time;
+}
+export interface CompetitionPublic {
+    id: bigint;
+    status: CompetitionStatus;
+    endDate: Time;
+    name: string;
+    slug: string;
+    feeMode?: FeeMode;
+    events: Array<Event>;
+    participantLimit?: bigint;
+    startDate: Time;
 }
 export interface Attempt {
     penalty: bigint;
@@ -46,53 +63,10 @@ export interface UserProfile {
     gender?: string;
     mcubesId: string;
 }
-export interface PaymentConfirmation {
-    razorpayPaymentId: string;
-    razorpaySignature: string;
-    event: Event;
-    razorpayOrderId: string;
-    competitionId: bigint;
-}
-export interface FeeMode {
-    perEvent?: bigint;
-    basePlusAdditional?: { baseFee: bigint; additionalFee: bigint };
-    allEventsFlat?: bigint;
-}
-export interface CompetitionPublic {
-    id: bigint;
-    name: string;
-    slug: string;
-    startDate: bigint;
-    endDate: bigint;
-    status: CompetitionStatus;
-    participantLimit?: bigint;
-    feeMode?: FeeMode;
-    events: Array<Event>;
-}
-export interface Competition {
-    id: bigint;
-    name: string;
-    slug: string;
-    startDate: bigint;
-    endDate: bigint;
-    status: CompetitionStatus;
-    participantLimit?: bigint;
-    feeMode?: FeeMode;
-    events: Array<Event>;
-    scrambles: Array<[Array<string>, Event]>;
-    isActive: boolean;
-    isLocked: boolean;
-}
-export interface CompetitionInput {
-    name: string;
-    slug: string;
-    startDate: bigint;
-    endDate: bigint;
-    status: CompetitionStatus;
-    participantLimit?: bigint;
-    feeMode?: FeeMode;
-    events: Array<Event>;
-    scrambles: Array<[Array<string>, Event]>;
+export enum CompetitionStatus {
+    upcoming = "upcoming",
+    completed = "completed",
+    running = "running"
 }
 export enum Event {
     megaminx = "megaminx",
@@ -110,11 +84,6 @@ export enum SolveStatus {
     completed = "completed",
     not_started = "not_started"
 }
-export enum CompetitionStatus {
-    upcoming = "upcoming",
-    running = "running",
-    completed = "completed"
-}
 export enum UserRole {
     admin = "admin",
     user = "user",
@@ -122,18 +91,13 @@ export enum UserRole {
 }
 export interface backendInterface {
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
-    confirmPayment(confirmation: PaymentConfirmation): Promise<void>;
-    createRazorpayOrder(request: RazorpayOrderRequest): Promise<RazorpayOrderResponse>;
-    duplicateCompetition(id: bigint): Promise<bigint>;
+    createCompetition(comp: Competition): Promise<bigint>;
+    getAllCompetitions(): Promise<Array<CompetitionPublic>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
+    getCompetition(competitionId: bigint): Promise<Competition>;
     getCompetitionResults(competitionId: bigint, event: Event): Promise<Array<CompetitionResult>>;
-    getRazorpayKeyId(): Promise<string | null>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
-    isRazorpayConfigured(): Promise<boolean>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
-    setRazorpayCredentials(keyId: string, keySecret: string): Promise<void>;
-    startSolveSession(competitionId: bigint, event: Event): Promise<void>;
-    submitResult(result: ResultInput): Promise<void>;
 }

@@ -23,7 +23,21 @@ export async function runPreflightChecks(): Promise<PreflightResult> {
       });
     } else {
       const envData = await response.json();
-      if (!envData.BACKEND_CANISTER_ID) {
+      let backendCanisterId = envData.BACKEND_CANISTER_ID;
+      
+      // Normalize the value: convert to string and trim whitespace
+      if (typeof backendCanisterId !== 'string') {
+        backendCanisterId = String(backendCanisterId || '');
+      }
+      backendCanisterId = backendCanisterId.trim();
+      
+      // Check if BACKEND_CANISTER_ID is missing or is a placeholder value
+      if (!backendCanisterId || 
+          backendCanisterId === 'YOUR_BACKEND_CANISTER_ID_HERE' ||
+          backendCanisterId === 'PLACEHOLDER' ||
+          backendCanisterId === '' ||
+          backendCanisterId === 'undefined' ||
+          backendCanisterId === 'null') {
         failures.push({
           check: 'Backend Canister ID',
           message: 'BACKEND_CANISTER_ID is not defined in env.json',
@@ -115,3 +129,4 @@ async function checkBuildArtifacts(): Promise<{ passed: boolean; message: string
     };
   }
 }
+
