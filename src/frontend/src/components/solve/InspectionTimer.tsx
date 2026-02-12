@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 interface InspectionTimerProps {
-  scramble: string;
-  onComplete: (penalty: number) => void;
+  scramble?: string;
+  onComplete: () => void;
 }
 
 export default function InspectionTimer({ scramble, onComplete }: InspectionTimerProps) {
@@ -33,17 +33,8 @@ export default function InspectionTimer({ scramble, onComplete }: InspectionTime
       intervalRef.current = null;
     }
 
-    const elapsed = (Date.now() - startTimeRef.current) / 1000;
-    let penalty = 0;
-
-    if (elapsed >= 17) {
-      penalty = 999999; // DNF
-    } else if (elapsed >= 15) {
-      penalty = 2000; // +2 seconds in milliseconds
-    }
-
     setPhase('complete');
-    onComplete(penalty);
+    onComplete();
   };
 
   useEffect(() => {
@@ -53,6 +44,16 @@ export default function InspectionTimer({ scramble, onComplete }: InspectionTime
       }
     };
   }, []);
+
+  // Show loading state if scramble is not yet available
+  if (!scramble) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-8">
+        <Loader2 className="w-12 h-12 animate-spin text-chart-1" />
+        <p className="text-muted-foreground">Loading scramble...</p>
+      </div>
+    );
+  }
 
   if (phase === 'ready') {
     return (

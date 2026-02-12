@@ -1,46 +1,27 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-12T01:22:44.200Z",
+  "generatedAt": "2026-02-12T11:42:27.473Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 3,
-    "implemented": 3,
+    "total": 1,
+    "implemented": 1,
     "items": [
       {
-        "id": "REQ-34",
-        "summary": "Fix the paid competition payment-start flow on `frontend/src/pages/CompetitionDetailPage.tsx` so the Pay button cannot silently do nothing: remove/replace the current early-return guard `if (!competition || !competition.entryFee || !userProfile) return;` with explicit user-facing feedback (English) when prerequisites are missing (e.g., user profile not loaded/does not exist, competition data missing, or entry fee missing). Ensure that clicking the Pay button always results in either (a) a visible loading state, (b) Razorpay Checkout opening, or (c) a clear visible error message on the page and/or toast routed through `normalizeError`.",
+        "id": "REQ-72",
+        "summary": "Fix Admin Results Management so that admins can both hide and unhide a leaderboard entry, and the UI accurately reflects the current hidden state per result row (i.e., not a hide-only action). This must ensure that the admin results list includes a reliable per-result hidden flag from the backend (not a frontend-only guess), and the toggle action can set hidden=false as well as hidden=true.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/pages/CompetitionDetailPage.tsx"
+          "frontend/src/backend.d.ts",
+          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/pages/admin/AdminResultsPage.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/pages/CompetitionDetailPage.tsx"
-        ]
-      },
-      {
-        "id": "REQ-35",
-        "summary": "Improve Pay button disabled/loading logic in `frontend/src/pages/CompetitionDetailPage.tsx` to account for payment-system configuration checks: while `useIsRazorpayConfigured()` is still loading (`configLoading`), disable the Pay button and show an inline loading label (English) such as \"Checking payments…\". If `isRazorpayConfigured === false`, show the existing page-level error state (via `paymentError`) and keep the Pay button disabled without attempting to open Razorpay.",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/pages/CompetitionDetailPage.tsx"
-        ],
-        "matchedFiles": [
-          "frontend/src/pages/CompetitionDetailPage.tsx"
-        ]
-      },
-      {
-        "id": "REQ-36",
-        "summary": "Add minimal diagnostics for the payment click path in `frontend/src/pages/CompetitionDetailPage.tsx` to aid future debugging: ensure the click handler and each payment step boundary (script load, order creation, checkout open, confirmation) emits a `console.log`/`console.error` with enough context to identify where the flow stops, without logging secrets. Keep all user-facing text in English.",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/pages/CompetitionDetailPage.tsx"
-        ],
-        "matchedFiles": [
-          "frontend/src/pages/CompetitionDetailPage.tsx"
+          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/pages/admin/AdminResultsPage.tsx"
         ]
       }
     ]
@@ -50,7 +31,9 @@
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
-    "frontend/src/pages/CompetitionDetailPage.tsx",
+    "frontend/src/hooks/useQueries.ts",
+    "frontend/src/pages/admin/AdminResultsPage.tsx",
+    "frontend/src/pages/admin/AdminUsersPage.tsx",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

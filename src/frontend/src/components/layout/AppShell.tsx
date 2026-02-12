@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
-import { Timer, Trophy, Plus } from 'lucide-react';
+import { Timer, Trophy, Plus, Shield, Rocket, BarChart3 } from 'lucide-react';
 import LoginButton from '../auth/LoginButton';
 import ProfileMenu from '../profile/ProfileMenu';
 import { useInternetIdentity } from '../../hooks/useInternetIdentity';
@@ -56,14 +56,37 @@ export default function AppShell() {
             >
               Competitions
             </button>
+            <button
+              onClick={() => navigate({ to: '/leaderboards' })}
+              className="flex items-center gap-2 text-sm font-medium hover:text-chart-1 transition-colors"
+            >
+              <BarChart3 className="w-4 h-4" />
+              Leaderboards
+            </button>
             {isAdmin && (
-              <button
-                onClick={() => navigate({ to: '/admin/create-competition' })}
-                className="flex items-center gap-2 text-sm font-medium hover:text-chart-1 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Create
-              </button>
+              <>
+                <button
+                  onClick={() => navigate({ to: '/admin' })}
+                  className="flex items-center gap-2 text-sm font-medium hover:text-chart-1 transition-colors"
+                >
+                  <Shield className="w-4 h-4" />
+                  Admin
+                </button>
+                <button
+                  onClick={() => navigate({ to: '/admin/competitions/create' })}
+                  className="flex items-center gap-2 text-sm font-medium hover:text-chart-1 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create
+                </button>
+                <button
+                  onClick={() => navigate({ to: '/admin/go-live' })}
+                  className="flex items-center gap-2 text-sm font-medium hover:text-chart-1 transition-colors"
+                >
+                  <Rocket className="w-4 h-4" />
+                  Go Live
+                </button>
+              </>
             )}
             {isAuthenticated ? <ProfileMenu /> : <LoginButton />}
           </nav>
@@ -75,23 +98,10 @@ export default function AppShell() {
       </main>
 
       <footer className="border-t border-border bg-card/30 mt-auto">
-        <div className="container mx-auto px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="container mx-auto px-4 py-6 flex items-center justify-center">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Trophy className="w-4 h-4" />
             <span>© {new Date().getFullYear()} MCubes Platform</span>
-          </div>
-          <div className="text-sm text-muted-foreground">
-            Built with ❤️ using{' '}
-            <a
-              href={`https://caffeine.ai/?utm_source=Caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(
-                window.location.hostname
-              )}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-chart-1 hover:underline"
-            >
-              caffeine.ai
-            </a>
           </div>
         </div>
       </footer>

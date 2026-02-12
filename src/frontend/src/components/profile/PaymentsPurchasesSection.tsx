@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function PaymentsPurchasesSection() {
-  const { data: payments, isLoading, error } = useGetUserPaymentHistory();
+  const { data: payments = [], isLoading, error } = useGetUserPaymentHistory();
 
   if (isLoading) {
     return (
@@ -37,8 +37,8 @@ export default function PaymentsPurchasesSection() {
     );
   }
 
-  // Sort by most recent first
-  const sortedPayments = [...payments].sort((a, b) => {
+  // Sort by most recent first - cast to any to handle type issues
+  const sortedPayments = [...payments].sort((a: any, b: any) => {
     const timeA = Number(a.paymentDate);
     const timeB = Number(b.paymentDate);
     return timeB - timeA;
@@ -53,7 +53,7 @@ export default function PaymentsPurchasesSection() {
 
       <ScrollArea className="h-[400px] pr-4">
         <div className="space-y-3">
-          {sortedPayments.map((payment, index) => (
+          {sortedPayments.map((payment: any, index) => (
             <Card key={index} className="border-border">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">

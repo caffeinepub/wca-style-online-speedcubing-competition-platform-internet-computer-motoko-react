@@ -6,11 +6,10 @@ import Text "mo:core/Text";
 import Runtime "mo:core/Runtime";
 import Time "mo:core/Time";
 import Nat "mo:core/Nat";
+import Iter "mo:core/Iter";
+import Nat8 "mo:core/Nat8";
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
-import Iter "mo:core/Iter";
-import Blob "mo:core/Blob";
-import Nat8 "mo:core/Nat8";
 
 
 
@@ -74,8 +73,6 @@ actor {
     razorpaySignature : Text;
   };
 
-  var userPayments = Map.empty<Principal, Map.Map<Nat, PaidEvent>>();
-
   public type CompetitionStatus = {
     #upcoming;
     #running;
@@ -112,6 +109,8 @@ actor {
     entryFee : ?Nat;
     events : [Event];
     scrambles : [([Text], Event)];
+    isActive : Bool;
+    isLocked : Bool;
   };
 
   public type CompetitionPublic = {
@@ -185,63 +184,120 @@ actor {
     razorpaySignature : Text;
   };
 
+  public type UserSummary = {
+    principal : Principal;
+    profile : ?UserProfile;
+    email : ?Text;
+    isBlocked : Bool;
+  };
+
+  public type SolveSession = {
+    sessionToken : [Nat8];
+    event : Event;
+    createdAt : Time.Time;
+    lastUpdated : Time.Time;
+    currentAttempt : Nat;
+    inspectionStarted : Bool;
+    startTime : ?Nat;
+    endTime : ?Nat;
+    attempts : [Attempt];
+    competitionId : Nat;
+    isCompleted : Bool;
+  };
+
+  public type SessionStateResponse = {
+    currentAttempt : Nat;
+    inspectionStarted : Bool;
+    startTime : ?Nat;
+    endTime : ?Nat;
+    attempts : [Attempt];
+    isCompleted : Bool;
+    event : Event;
+  };
+
+  public type CompetitionResult = {
+    user : Principal;
+    userProfile : ?UserProfile;
+    event : Event;
+    attempts : [Attempt];
+    status : SolveStatus;
+  };
+
+  public type AttemptValidation = {
+    time : Nat;
+    penalty : Nat;
+    isValid : Bool;
+    validationTime : Time.Time;
+  };
+
+  public type JudgeDecision = {
+    judgeName : Text;
+    decisionTime : Time.Time;
+    notes : ?Text;
+  };
+
+  public type CompetitionResultValidation = {
+    id : ?Nat;
+    result : ?CompetitionResult;
+    judgeName : Text;
+    decisionTime : Time.Time;
+    attempts : [AttemptValidation];
+    finalTime : ?Nat;
+    notes : ?Text;
+    decision : Text;
+  };
+
+  public type AdminScrambleView = {
+    id : Nat;
+    event : Event;
+    scrambleRecords : [(Text, Bool)];
+  };
+
+  public type EventScrambles = {
+    event : Event;
+    scrambles : [Text];
+  };
+
+  public type LeaderboardEntry = {
+    user : Principal;
+    userProfile : ?PublicProfileInfo;
+    attempts : [Attempt];
+    bestTime : Nat;
+  };
+
+  public type AdminLeaderboardToggleResult = {
+    user : Principal;
+    competitionId : Nat;
+    event : Event;
+    isHidden : Bool;
+  };
+
   var nextCompetitionId = 0;
   var nextMcubesId = 1;
   var nextOrderId = 0;
-
-  var competitions = Map.empty<Nat, Competition>();
-  var userProfiles = Map.empty<Principal, UserProfile>();
-  var results = Map.empty<(Nat, Principal, Event), ResultInput>();
-  var payments = Map.empty<(Nat, Principal, Event), PaymentConfirmation>();
-  var userEmails = Map.empty<Principal, Text>();
-
-  // Email allowlist for admin access
-  let emailAllowlist : [Text] = ["admin@mcubes.com"];
-
-  // Razorpay configuration - admin only, never exposed
+  let competitions = Map.empty<Nat, Competition>();
+  let userProfiles = Map.empty<Principal, UserProfile>();
+  let activeSessions = Map.empty<(Nat, Principal, Event), SolveSession>();
+  let payments = Map.empty<(Nat, Principal, Event), PaymentConfirmation>();
+  let results = Map.empty<(Nat, Principal, Event), ResultInput>();
+  let userEmails = Map.empty<Principal, Text>();
+  let hiddenLeaderboardEntries = Map.empty<(Nat, Principal, Event), Bool>();
+  let blockedUsers = Map.empty<Principal, Bool>();
+  let userPayments = Map.empty<Principal, Map.Map<Nat, PaidEvent>>();
   var razorpayKeySecret : ?Text = null;
   var razorpayKeyId : ?Text = null;
-
-  // Track created orders to prevent replay attacks
   var createdOrders = Map.empty<Text, (Principal, Nat, Event)>();
+
+  let emailAllowlist : [Text] = [
+    "midhun.speedcuber@gmail.com",
+    "thirdparty.mcubes@gmail.com"
+  ];
 
   module Result {
     public func compareByBestScore(a : ResultInput, b : ResultInput) : Order.Order {
       let bestScoreA = a.attempts[0].time + a.attempts[0].penalty;
       let bestScoreB = b.attempts[0].time + b.attempts[0].penalty;
       Nat.compare(bestScoreA, bestScoreB);
-    };
-  };
-
-  private func isAllowlistedAdmin(caller : Principal) : Bool {
-    // Must be an IC admin first
-    if (not AccessControl.isAdmin(accessControlState, caller)) {
-      return false;
-    };
-
-    // Check if user has a profile with mcubesId == "MCUBES-0"
-    switch (userProfiles.get(caller)) {
-      case (?profile) {
-        if (profile.mcubesId == "MCUBES-0") {
-          return true;
-        };
-      };
-      case (null) {};
-    };
-
-    // OR check if their stored email is in the allowlist
-    switch (userEmails.get(caller)) {
-      case (?email) {
-        emailAllowlist.find(func(allowedEmail) { allowedEmail == email }) != null;
-      };
-      case (null) { false };
-    };
-  };
-
-  private func hasCompletedPayment(caller : Principal, competitionId : Nat, event : Event, entryFee : ?Nat) : Bool {
-    switch (entryFee) {
-      case (null) { true };
-      case (?_fee) { payments.containsKey((competitionId, caller, event)) };
     };
   };
 
@@ -259,9 +315,91 @@ actor {
     };
   };
 
-  // For demonstration only, not a real signature verification
+  private func hasCompletedPayment(caller : Principal, competitionId : Nat, event : Event, entryFee : ?Nat) : Bool {
+    switch (entryFee) {
+      case (null) { true };
+      case (?_fee) { payments.containsKey((competitionId, caller, event)) };
+    };
+  };
+
+  private func isAllowlistedAdmin(caller : Principal) : Bool {
+    if (not AccessControl.isAdmin(accessControlState, caller)) {
+      return false;
+    };
+
+    switch (userProfiles.get(caller)) {
+      case (?profile) {
+        if (profile.mcubesId == "MCUBES-0") {
+          return true;
+        };
+      };
+      case (null) {};
+    };
+
+    switch (userEmails.get(caller)) {
+      case (?email) {
+        emailAllowlist.find(func(allowedEmail) { allowedEmail == email }) != null;
+      };
+      case (null) { false };
+    };
+  };
+
   private func verifyRazorpaySignature(orderId : Text, paymentId : Text, signature : Text) : Bool {
     signature == (orderId # "|" # paymentId);
+  };
+
+  private func validateSessionToken(
+    caller : Principal,
+    competitionId : Nat,
+    event : Event,
+    providedToken : [Nat8]
+  ) : Bool {
+    let sessionKey = (competitionId, caller, event);
+    switch (activeSessions.get(sessionKey)) {
+      case (null) { false };
+      case (?session) {
+        if (session.sessionToken.size() != providedToken.size()) {
+          return false;
+        };
+        var i = 0;
+        while (i < session.sessionToken.size()) {
+          if (session.sessionToken[i] != providedToken[i]) {
+            return false;
+          };
+          i += 1;
+        };
+        true;
+      };
+    };
+  };
+
+  private func toPublicProfileInfo(profile : UserProfile) : PublicProfileInfo {
+    {
+      displayName = profile.displayName;
+      country = profile.country;
+      gender = profile.gender;
+    };
+  };
+
+  private func validateScrambles(scrambles : [([Text], Event)]) : Bool {
+    for ((scrambleList, _event) in scrambles.vals()) {
+      if (scrambleList.size() != 5) {
+        return false;
+      };
+    };
+    true;
+  };
+
+  func defaultPublicProfile() : PublicProfileInfo {
+    {
+      displayName = "Anonymous";
+      country = null;
+      gender = null;
+    };
+  };
+
+  public shared ({ caller }) func generateSecureToken() : async [Nat8] {
+    [] : [Nat8];
   };
 
   public shared ({ caller }) func setRazorpayCredentials(keyId : Text, keySecret : Text) : async () {
@@ -292,6 +430,10 @@ actor {
     };
     if (not userProfiles.containsKey(caller)) {
       Runtime.trap("User profile does not exist");
+    };
+    switch (blockedUsers.get(caller)) {
+      case (?true) { Runtime.trap("User is blocked") };
+      case _ {};
     };
     switch (razorpayKeyId, razorpayKeySecret) {
       case (?_, ?_) {};
@@ -359,6 +501,10 @@ actor {
     userProfiles.add(caller, profile);
   };
 
+  public query ({ caller }) func getPublicProfileInfo(user : Principal) : async ?PublicProfileInfo {
+    userProfiles.get(user).map(toPublicProfileInfo);
+  };
+
   public shared ({ caller }) func createUserProfile(displayName : Text, country : ?Text, gender : ?Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can create profiles");
@@ -385,6 +531,10 @@ actor {
       Runtime.trap("Unauthorized: Only the allowlisted admin can create competitions");
     };
 
+    if (not validateScrambles(compInput.scrambles)) {
+      Runtime.trap("Invalid scrambles: Each event must have exactly 5 scrambles");
+    };
+
     let competitionId = nextCompetitionId;
     nextCompetitionId += 1;
 
@@ -399,10 +549,225 @@ actor {
       entryFee = compInput.entryFee;
       events = compInput.events;
       scrambles = compInput.scrambles;
+      isActive = true;
+      isLocked = false;
     };
 
     competitions.add(competitionId, newComp);
     competitionId;
+  };
+
+  public shared ({ caller }) func updateCompetition(id : Nat, compInput : CompetitionInput) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can update competitions");
+    };
+    if (not isAllowlistedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only the allowlisted admin can update competitions");
+    };
+
+    switch (competitions.get(id)) {
+      case (null) { Runtime.trap("Competition does not exist") };
+      case (?existingComp) {
+        if (existingComp.isLocked) {
+          Runtime.trap("Cannot update a locked competition");
+        };
+
+        if (not validateScrambles(compInput.scrambles)) {
+          Runtime.trap("Invalid scrambles: Each event must have exactly 5 scrambles");
+        };
+
+        let updatedComp : Competition = {
+          id;
+          name = compInput.name;
+          slug = compInput.slug;
+          startDate = compInput.startDate;
+          endDate = compInput.endDate;
+          status = compInput.status;
+          participantLimit = compInput.participantLimit;
+          entryFee = compInput.entryFee;
+          events = compInput.events;
+          scrambles = compInput.scrambles;
+          isActive = existingComp.isActive;
+          isLocked = existingComp.isLocked;
+        };
+
+        competitions.add(id, updatedComp);
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteCompetition(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can delete competitions");
+    };
+    if (not isAllowlistedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only the allowlisted admin can delete competitions");
+    };
+
+    switch (competitions.get(id)) {
+      case (null) { Runtime.trap("Competition does not exist") };
+      case (?comp) {
+        if (comp.isLocked) {
+          Runtime.trap("Cannot delete a locked competition");
+        };
+        competitions.remove(id);
+      };
+    };
+  };
+
+  public shared ({ caller }) func duplicateCompetition(id : Nat) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can duplicate competitions");
+    };
+    if (not isAllowlistedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only the allowlisted admin can duplicate competitions");
+    };
+
+    switch (competitions.get(id)) {
+      case (null) { Runtime.trap("Competition does not exist") };
+      case (?comp) {
+        let newId = nextCompetitionId;
+        nextCompetitionId += 1;
+
+        let duplicatedComp : Competition = {
+          id = newId;
+          name = comp.name # " (Copy)";
+          slug = comp.slug # "-copy-" # newId.toText();
+          startDate = comp.startDate;
+          endDate = comp.endDate;
+          status = #upcoming;
+          participantLimit = comp.participantLimit;
+          entryFee = comp.entryFee;
+          events = comp.events;
+          scrambles = comp.scrambles;
+          isActive = false;
+          isLocked = false;
+        };
+
+        competitions.add(newId, duplicatedComp);
+        newId;
+      };
+    };
+  };
+
+  public shared ({ caller }) func lockCompetition(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can lock competitions");
+    };
+    if (not isAllowlistedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only the allowlisted admin can lock competitions");
+    };
+
+    switch (competitions.get(id)) {
+      case (null) { Runtime.trap("Competition does not exist") };
+      case (?comp) {
+        let updatedComp : Competition = {
+          id = comp.id;
+          name = comp.name;
+          slug = comp.slug;
+          startDate = comp.startDate;
+          endDate = comp.endDate;
+          status = comp.status;
+          participantLimit = comp.participantLimit;
+          entryFee = comp.entryFee;
+          events = comp.events;
+          scrambles = comp.scrambles;
+          isActive = comp.isActive;
+          isLocked = true;
+        };
+        competitions.add(id, updatedComp);
+      };
+    };
+  };
+
+  public shared ({ caller }) func unlockCompetition(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can unlock competitions");
+    };
+    if (not isAllowlistedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only the allowlisted admin can unlock competitions");
+    };
+
+    switch (competitions.get(id)) {
+      case (null) { Runtime.trap("Competition does not exist") };
+      case (?comp) {
+        let updatedComp : Competition = {
+          id = comp.id;
+          name = comp.name;
+          slug = comp.slug;
+          startDate = comp.startDate;
+          endDate = comp.endDate;
+          status = comp.status;
+          participantLimit = comp.participantLimit;
+          entryFee = comp.entryFee;
+          events = comp.events;
+          scrambles = comp.scrambles;
+          isActive = comp.isActive;
+          isLocked = false;
+        };
+        competitions.add(id, updatedComp);
+      };
+    };
+  };
+
+  public shared ({ caller }) func activateCompetition(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can activate competitions");
+    };
+    if (not isAllowlistedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only the allowlisted admin can activate competitions");
+    };
+
+    switch (competitions.get(id)) {
+      case (null) { Runtime.trap("Competition does not exist") };
+      case (?comp) {
+        let updatedComp : Competition = {
+          id = comp.id;
+          name = comp.name;
+          slug = comp.slug;
+          startDate = comp.startDate;
+          endDate = comp.endDate;
+          status = comp.status;
+          participantLimit = comp.participantLimit;
+          entryFee = comp.entryFee;
+          events = comp.events;
+          scrambles = comp.scrambles;
+          isActive = true;
+          isLocked = comp.isLocked;
+        };
+        competitions.add(id, updatedComp);
+      };
+    };
+  };
+
+  public shared ({ caller }) func deactivateCompetition(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can deactivate competitions");
+    };
+    if (not isAllowlistedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only the allowlisted admin can deactivate competitions");
+    };
+
+    switch (competitions.get(id)) {
+      case (null) { Runtime.trap("Competition does not exist") };
+      case (?comp) {
+        let updatedComp : Competition = {
+          id = comp.id;
+          name = comp.name;
+          slug = comp.slug;
+          startDate = comp.startDate;
+          endDate = comp.endDate;
+          status = comp.status;
+          participantLimit = comp.participantLimit;
+          entryFee = comp.entryFee;
+          events = comp.events;
+          scrambles = comp.scrambles;
+          isActive = false;
+          isLocked = comp.isLocked;
+        };
+        competitions.add(id, updatedComp);
+      };
+    };
   };
 
   public query ({ caller }) func getCompetitions() : async [CompetitionPublic] {
@@ -437,6 +802,383 @@ actor {
     };
   };
 
+  public shared ({ caller }) func startCompetition(competitionId : Nat, event : Event) : async [Nat8] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated users can start competitions");
+    };
+
+    switch (blockedUsers.get(caller)) {
+      case (?true) { Runtime.trap("User is blocked") };
+      case _ {};
+    };
+
+    switch (competitions.get(competitionId)) {
+      case (null) { Runtime.trap("Competition does not exist") };
+      case (?comp) {
+        if (not hasCompletedPayment(caller, competitionId, event, comp.entryFee)) {
+          Runtime.trap("Payment required for this event");
+        };
+
+        let sessionKey = (competitionId, caller, event);
+        let sessionToken : [Nat8] = [];
+
+        let newSession : SolveSession = {
+          sessionToken;
+          event;
+          createdAt = Time.now();
+          lastUpdated = Time.now();
+          currentAttempt = 0;
+          inspectionStarted = false;
+          startTime = null;
+          endTime = null;
+          attempts = [];
+          competitionId;
+          isCompleted = false;
+        };
+
+        activeSessions.add(sessionKey, newSession);
+        sessionToken;
+      };
+    };
+  };
+
+  public query ({ caller }) func getSessionState(competitionId : Nat, event : Event) : async ?SessionStateResponse {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated users can view session state");
+    };
+
+    let sessionKey = (competitionId, caller, event);
+    switch (activeSessions.get(sessionKey)) {
+      case (null) { null };
+      case (?session) {
+        ?{
+          currentAttempt = session.currentAttempt;
+          inspectionStarted = session.inspectionStarted;
+          startTime = session.startTime;
+          endTime = session.endTime;
+          attempts = session.attempts;
+          isCompleted = session.isCompleted;
+          event = session.event;
+        };
+      };
+    };
+  };
+
+  public query ({ caller }) func getScramble(competitionId : Nat, event : Event, attemptNumber : Nat, sessionToken : [Nat8]) : async ?Text {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated users can fetch scrambles");
+    };
+
+    if (not validateSessionToken(caller, competitionId, event, sessionToken)) {
+      Runtime.trap("Invalid session token");
+    };
+
+    let sessionKey = (competitionId, caller, event);
+    switch (activeSessions.get(sessionKey)) {
+      case (null) { Runtime.trap("No active session") };
+      case (?session) {
+        if (attemptNumber != session.currentAttempt) {
+          Runtime.trap("Can only fetch scramble for current attempt");
+        };
+
+        if (attemptNumber >= 5) {
+          return null;
+        };
+
+        switch (competitions.get(competitionId)) {
+          case (null) { null };
+          case (?comp) {
+            let eventScrambles = comp.scrambles.find(func((_, e)) { e == event });
+            switch (eventScrambles) {
+              case (null) { null };
+              case (?(scrambles, _)) {
+                if (attemptNumber < scrambles.size()) {
+                  ?scrambles[attemptNumber];
+                } else {
+                  null;
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  public shared ({ caller }) func submitAttempt(
+    competitionId : Nat,
+    event : Event,
+    attemptNumber : Nat,
+    time : Nat,
+    penalty : Nat,
+    sessionToken : [Nat8]
+  ) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated users can submit attempts");
+    };
+
+    switch (blockedUsers.get(caller)) {
+      case (?true) { Runtime.trap("User is blocked") };
+      case _ {};
+    };
+
+    if (not validateSessionToken(caller, competitionId, event, sessionToken)) {
+      Runtime.trap("Invalid session token");
+    };
+
+    let sessionKey = (competitionId, caller, event);
+    switch (activeSessions.get(sessionKey)) {
+      case (null) { Runtime.trap("No active session") };
+      case (?session) {
+        if (attemptNumber != session.currentAttempt) {
+          Runtime.trap("Can only submit current attempt");
+        };
+
+        if (session.isCompleted) {
+          return;
+        };
+
+        let newAttempt : Attempt = { time; penalty };
+        let updatedAttempts = session.attempts.concat([newAttempt]);
+        let isCompleted = updatedAttempts.size() >= 5;
+
+        let updatedSession : SolveSession = {
+          sessionToken = session.sessionToken;
+          event = session.event;
+          createdAt = session.createdAt;
+          lastUpdated = Time.now();
+          currentAttempt = session.currentAttempt + 1;
+          inspectionStarted = false;
+          startTime = null;
+          endTime = null;
+          attempts = updatedAttempts;
+          competitionId = session.competitionId;
+          isCompleted;
+        };
+
+        activeSessions.add(sessionKey, updatedSession);
+
+        if (isCompleted) {
+          let resultKey = (competitionId, caller, event);
+          let resultInput : ResultInput = {
+            user = caller;
+            competitionId;
+            event;
+            attempts = updatedAttempts.map(func(a : Attempt) : AttemptInput {
+              { time = a.time; penalty = a.penalty };
+            });
+            status = #completed;
+          };
+          results.add(resultKey, resultInput);
+        };
+      };
+    };
+  };
+
+  public query ({ caller }) func getCallerResult(competitionId : Nat, event : Event) : async ?Result {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated users can view results");
+    };
+
+    let resultKey = (competitionId, caller, event);
+    switch (results.get(resultKey)) {
+      case (null) { null };
+      case (?resultInput) {
+        ?{
+          user = resultInput.user;
+          competitionId = resultInput.competitionId;
+          event = resultInput.event;
+          attempts = resultInput.attempts.map(func(a : AttemptInput) : Attempt {
+            { time = a.time; penalty = a.penalty };
+          });
+          status = resultInput.status;
+        };
+      };
+    };
+  };
+
+  public query ({ caller }) func getLeaderboard(competitionId : Nat, event : Event) : async [LeaderboardEntry] {
+    let allResults = results.entries().toArray();
+    let filteredResults = allResults.filter(func((key, result)) : Bool {
+      let (cId, user, ev) = key;
+      cId == competitionId and ev == event and result.status == #completed and not hiddenLeaderboardEntries.containsKey((competitionId, user, event));
+    });
+
+    let leaderboardEntries = filteredResults.map(func((key, result)) : LeaderboardEntry {
+      let (_, user, _) = key;
+      let attempts = result.attempts.map(func(a : AttemptInput) : Attempt {
+        { time = a.time; penalty = a.penalty };
+      });
+      let bestTime = attempts[0].time + attempts[0].penalty;
+
+      let userProfile = switch (userProfiles.get(user)) {
+        case (?profile) { ?toPublicProfileInfo(profile) };
+        case (null) { null };
+      };
+
+      {
+        user;
+        userProfile;
+        attempts;
+        bestTime;
+      };
+    });
+
+    leaderboardEntries.sort(func(a : LeaderboardEntry, b : LeaderboardEntry) : Order.Order {
+      Nat.compare(a.bestTime, b.bestTime);
+    });
+  };
+
+  public shared ({ caller }) func toggleLeaderboardEntryVisibility(user : Principal, competitionId : Nat, event : Event, shouldHide : Bool) : async AdminLeaderboardToggleResult {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can toggle leaderboard entry visibility");
+    };
+    if (not isAllowlistedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only the allowlisted admin can toggle leaderboard entry visibility");
+    };
+
+    let key = (competitionId, user, event);
+
+    if (shouldHide) {
+      hiddenLeaderboardEntries.add(key, true);
+    } else {
+      hiddenLeaderboardEntries.remove(key);
+    };
+
+    {
+      user;
+      competitionId;
+      event;
+      isHidden = shouldHide;
+    };
+  };
+
+  public query ({ caller }) func listAllUsers() : async [UserSummary] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can list users");
+    };
+
+    userProfiles.entries().toArray().map(func((principal, profile)) : UserSummary {
+      {
+        principal;
+        profile = ?profile;
+        email = userEmails.get(principal);
+        isBlocked = switch (blockedUsers.get(principal)) {
+          case (?blocked) { blocked };
+          case (null) { false };
+        };
+      };
+    });
+  };
+
+  public shared ({ caller }) func blockUser(user : Principal) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can block users");
+    };
+    if (not isAllowlistedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only the allowlisted admin can block users");
+    };
+
+    blockedUsers.add(user, true);
+  };
+
+  public shared ({ caller }) func unblockUser(user : Principal) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can unblock users");
+    };
+    if (not isAllowlistedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only the allowlisted admin can unblock users");
+    };
+
+    blockedUsers.remove(user);
+  };
+
+  public shared ({ caller }) func deleteUser(user : Principal) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can delete users");
+    };
+    if (not isAllowlistedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only the allowlisted admin can delete users");
+    };
+
+    userProfiles.remove(user);
+    userEmails.remove(user);
+    blockedUsers.remove(user);
+    userPayments.remove(user);
+  };
+
+  public shared ({ caller }) func resetUserCompetitionStatus(user : Principal, competitionId : Nat, event : Event) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can reset competition status");
+    };
+    if (not isAllowlistedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only the allowlisted admin can reset competition status");
+    };
+
+    let sessionKey = (competitionId, user, event);
+    activeSessions.remove(sessionKey);
+
+    let resultKey = (competitionId, user, event);
+    results.remove(resultKey);
+
+    let hiddenKey = (competitionId, user, event);
+    hiddenLeaderboardEntries.remove(hiddenKey);
+  };
+
+  public query ({ caller }) func listCompetitionResults(competitionId : Nat, event : Event) : async [CompetitionResult] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can list competition results");
+    };
+
+    let allResults = results.entries().toArray();
+    let filteredResults = allResults.filter(func((key, _result)) : Bool {
+      let (cId, _user, ev) = key;
+      cId == competitionId and ev == event;
+    });
+
+    filteredResults.map(func((key, result)) : CompetitionResult {
+      let (_, user, _) = key;
+      {
+        user;
+        userProfile = userProfiles.get(user);
+        event = result.event;
+        attempts = result.attempts.map(func(a : AttemptInput) : Attempt {
+          { time = a.time; penalty = a.penalty };
+        });
+        status = result.status;
+      };
+    });
+  };
+
+  public shared ({ caller }) func updateResultAttempts(
+    user : Principal,
+    competitionId : Nat,
+    event : Event,
+    attempts : [AttemptInput]
+  ) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can update result attempts");
+    };
+    if (not isAllowlistedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only the allowlisted admin can update result attempts");
+    };
+
+    let resultKey = (competitionId, user, event);
+    switch (results.get(resultKey)) {
+      case (null) { Runtime.trap("Result does not exist") };
+      case (?existingResult) {
+        let updatedResult : ResultInput = {
+          user = existingResult.user;
+          competitionId = existingResult.competitionId;
+          event = existingResult.event;
+          attempts;
+          status = existingResult.status;
+        };
+        results.add(resultKey, updatedResult);
+      };
+    };
+  };
+
   public shared ({ caller }) func confirmPayment(payment : PaymentConfirmation) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can confirm payments");
@@ -444,6 +1186,11 @@ actor {
 
     if (not userProfiles.containsKey(caller)) {
       Runtime.trap("User profile does not exist");
+    };
+
+    switch (blockedUsers.get(caller)) {
+      case (?true) { Runtime.trap("User is blocked") };
+      case _ {};
     };
 
     switch (createdOrders.get(payment.razorpayOrderId)) {
@@ -470,14 +1217,12 @@ actor {
           case (?entryFee) {
             let paymentKey = (payment.competitionId, caller, payment.event);
 
-            // Prevent double payment
             if (payments.containsKey(paymentKey)) {
               Runtime.trap("Payment already confirmed for this event");
             };
 
             payments.add(paymentKey, payment);
 
-            // Create PaidEvent record
             let paidEvent : PaidEvent = {
               id = payment.competitionId;
               competitionName = competition.name;
@@ -502,211 +1247,42 @@ actor {
     };
   };
 
-  public shared ({ caller }) func startCompetition(competitionId : Nat, event : Event) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can participate in competitions");
-    };
-
-    if (not userProfiles.containsKey(caller)) {
-      Runtime.trap("User profile does not exist");
-    };
-
-    switch (competitions.get(competitionId)) {
-      case (null) { Runtime.trap("Competition does not exist") };
-      case (?competition) {
-        if (competition.status != #running) {
-          Runtime.trap("Competition is not running");
-        };
-
-        if (not hasCompletedPayment(caller, competitionId, event, competition.entryFee)) {
-          Runtime.trap("Payment required: Please complete payment before starting this competition");
-        };
-
-        let resultKey = (competitionId, caller, event);
-        switch (results.get(resultKey)) {
-          case (?existingResult) {
-            if (existingResult.status != #not_started) {
-              Runtime.trap("Already started or completed");
-            };
-          };
-          case (null) {};
-        };
-
-        let newResult : ResultInput = {
-          user = caller;
-          competitionId;
-          event;
-          attempts = Array.tabulate(5, func(_) { { time = 0; penalty = 0 } });
-          status = #in_progress;
-        };
-        results.add(resultKey, newResult);
+  private func getResultsForUser(user : Principal, includeHidden : Bool) : [CompetitionResult] {
+    let allResults = results.entries().toArray();
+    let filteredResults = allResults.filter(func((key, result)) : Bool {
+      let (_compId, resultUser, _event) = key;
+      if (resultUser != user) {
+        return false;
       };
-    };
-  };
-
-  public shared ({ caller }) func submitAttempt(competitionId : Nat, event : Event, attemptIndex : Nat, attempt : AttemptInput) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can submit attempts");
-    };
-
-    if (attemptIndex >= 5) {
-      Runtime.trap("Invalid attempt index");
-    };
-
-    let resultKey = (competitionId, caller, event);
-    switch (results.get(resultKey)) {
-      case (null) { Runtime.trap("Result does not exist or not started") };
-      case (?result) {
-        if (result.user != caller) {
-          Runtime.trap("Unauthorized: Can only submit your own attempts");
-        };
-
-        if (result.status != #in_progress) {
-          Runtime.trap("Cannot modify completed result");
-        };
-
-        switch (competitions.get(competitionId)) {
-          case (null) { Runtime.trap("Competition does not exist") };
-          case (?competition) {
-            if (competition.status != #running) {
-              Runtime.trap("Competition is not running");
-            };
-          };
-        };
-
-        let newAttempts = Array.tabulate(
-          5,
-          func(i) {
-            if (i == attemptIndex) { attempt : AttemptInput } else { result.attempts[i] };
-          },
-        );
-
-        let allAttemptsCompleted = newAttempts.foldLeft(true, func(acc, att) { acc and (att.time > 0) });
-
-        let newStatus = if (allAttemptsCompleted) { #completed } else { #in_progress };
-
-        let newResult = {
-          user = result.user;
-          competitionId = result.competitionId;
-          event = result.event;
-          attempts = newAttempts;
-          status = newStatus;
-        };
-        results.add(resultKey, newResult);
+      if (not includeHidden) {
+        return not hiddenLeaderboardEntries.containsKey(key);
       };
-    };
-  };
+      true;
+    });
 
-  public query ({ caller }) func getResults(competitionId : Nat, event : Event) : async [ResultInput] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can view results");
-    };
-
-    switch (competitions.get(competitionId)) {
-      case (null) { Runtime.trap("Competition does not exist") };
-      case (?competition) {
-        if (not hasCompletedPayment(caller, competitionId, event, competition.entryFee) and not isAllowlistedAdmin(caller)) {
-          Runtime.trap("Unauthorized: Payment required to view results");
-        };
+    filteredResults.map(func((key, resultInput)) {
+      let (_compId, resultUser, _event) = key;
+      {
+        user = resultUser;
+        userProfile = userProfiles.get(resultUser);
+        event = resultInput.event;
+        attempts = resultInput.attempts.map(func(a : AttemptInput) : Attempt {
+          { time = a.time; penalty = a.penalty };
+        });
+        status = resultInput.status;
       };
-    };
-
-    results.toArray().filter(func((key, _)) { key.0 == competitionId and key.2 == event }).map(
-      func((_, resultInput)) { resultInput }
-    );
+    });
   };
 
-  public query ({ caller }) func getLeaderboard(competitionId : Nat, event : Event) : async [ResultInput] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can view leaderboard");
-    };
-
-    switch (competitions.get(competitionId)) {
-      case (null) { Runtime.trap("Competition does not exist") };
-      case (?competition) {
-        if (not hasCompletedPayment(caller, competitionId, event, competition.entryFee) and not isAllowlistedAdmin(caller)) {
-          Runtime.trap("Unauthorized: Payment required to view leaderboard");
-        };
-      };
-    };
-
-    let filteredResults = results.values().toArray().filter(
-      func(result) {
-        result.competitionId == competitionId and result.event == event and result.status == #completed
-      }
-    );
-    filteredResults.sort(Result.compareByBestScore);
-  };
-
-  public query ({ caller }) func getUserResult(competitionId : Nat, event : Event) : async ?ResultInput {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view their results");
-    };
-
-    results.get((competitionId, caller, event));
-  };
-
-  public query ({ caller }) func getPublicProfileInfo(user : Principal) : async PublicProfileInfo {
-    switch (userProfiles.get(user)) {
-      case (?profile) {
-        {
-          displayName = profile.displayName;
-          country = profile.country;
-          gender = profile.gender;
-        };
-      };
-      case (null) { defaultPublicProfile() };
-    };
-  };
-
-  public query ({ caller }) func getMultiplePublicProfiles(users : [Principal]) : async [(Principal, PublicProfileInfo)] {
-    users.map(
-      func(user) {
-        let profile = switch (userProfiles.get(user)) {
-          case (?profile) {
-            {
-              displayName = profile.displayName;
-              country = profile.country;
-              gender = profile.gender;
-            };
-          };
-          case (null) { defaultPublicProfile() };
-        };
-        (user, profile);
-      }
-    );
-  };
-
-  public query ({ caller }) func getUserPaymentHistory() : async [PaidEvent] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view payment history");
-    };
-
-    let payments = switch (userPayments.get(caller)) {
-      case (?events) { events.values().toArray() };
-      case (null) { [] };
-    };
-
-    payments;
-  };
-
-  public shared ({ caller }) func getAllUserPayments() : async [PaymentConfirmation] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can view all user payments");
-    };
-
-    if (not isAllowlistedAdmin(caller)) {
-      Runtime.trap("Unauthorized: Only the allowlisted admin can view all user payments");
-    };
-
-    payments.values().toArray();
-  };
-
-  func defaultPublicProfile() : PublicProfileInfo {
+  public query ({ caller }) func getPublicResultsForUser(user : Principal, includeHidden : Bool) : async {
+    profile : ?PublicProfileInfo;
+    results : [CompetitionResult];
+  } {
+    let publicProfile = userProfiles.get(user).map(toPublicProfileInfo);
+    let userResults = getResultsForUser(user, includeHidden);
     {
-      displayName = "Anonymous";
-      country = null;
-      gender = null;
+      profile = publicProfile;
+      results = userResults;
     };
   };
 };

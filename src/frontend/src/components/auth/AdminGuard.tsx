@@ -6,10 +6,6 @@ interface AdminGuardProps {
   children: ReactNode;
 }
 
-// AdminGuard enforces the allowlisted-admin rule from the backend.
-// The backend checks if the caller's stored profile email or mcubesId matches the allowlist.
-// Note: Internet Identity does not provide cryptographically verified email,
-// so this relies on the email value stored in the user profile (app-level rule).
 export default function AdminGuard({ children }: AdminGuardProps) {
   const { data: isAdmin, isLoading } = useIsCallerAdmin();
 
@@ -34,8 +30,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
             </div>
             <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
             <p className="text-muted-foreground">
-              You do not have permission to access this page. Only allowlisted administrators can create
-              competitions.
+              You do not have permission to access this page. Only allowlisted administrators can access admin features.
             </p>
           </div>
         </div>

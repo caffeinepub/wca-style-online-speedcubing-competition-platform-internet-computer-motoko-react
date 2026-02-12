@@ -1,7 +1,8 @@
 import { Trophy, Medal } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
 import { formatTime } from '../../lib/timeUtils';
 import { calculateAo5 } from '../../lib/ao5';
-import type { ResultInput, PublicProfileInfo } from '../../backend';
+import type { ResultInput, PublicProfileInfo } from '../../types/admin';
 
 interface LeaderboardTableProps {
   results: ResultInput[];
@@ -9,6 +10,8 @@ interface LeaderboardTableProps {
 }
 
 export default function LeaderboardTable({ results, publicProfiles }: LeaderboardTableProps) {
+  const navigate = useNavigate();
+
   const getRankIcon = (rank: number) => {
     if (rank === 1) return <Trophy className="w-5 h-5 text-chart-4" />;
     if (rank === 2) return <Medal className="w-5 h-5 text-muted-foreground" />;
@@ -27,6 +30,11 @@ export default function LeaderboardTable({ results, publicProfiles }: Leaderboar
     return 'Anonymous';
   };
 
+  const handleNameClick = (userPrincipal: any) => {
+    const principalStr = userPrincipal.toString();
+    navigate({ to: '/profiles/$principal', params: { principal: principalStr } });
+  };
+
   const entries = results.map((result, index) => {
     const attempts = result.attempts.map((a) => ({
       time: Number(a.time),
@@ -37,6 +45,7 @@ export default function LeaderboardTable({ results, publicProfiles }: Leaderboar
     return {
       rank: index + 1,
       displayName: getDisplayName(result.user),
+      userPrincipal: result.user,
       ao5,
       attempts,
     };
@@ -66,7 +75,14 @@ export default function LeaderboardTable({ results, publicProfiles }: Leaderboar
                   <span className="font-bold text-lg">{entry.rank}</span>
                 </div>
               </td>
-              <td className="py-4 px-4 font-medium">{entry.displayName}</td>
+              <td className="py-4 px-4">
+                <button
+                  onClick={() => handleNameClick(entry.userPrincipal)}
+                  className="font-medium text-chart-1 hover:underline focus:outline-none focus:underline"
+                >
+                  {entry.displayName}
+                </button>
+              </td>
               <td className="py-4 px-4 font-bold text-chart-1">{formatTime(entry.ao5)}</td>
               {entry.attempts.map((attempt, idx) => (
                 <td key={idx} className="py-4 px-4 text-muted-foreground">

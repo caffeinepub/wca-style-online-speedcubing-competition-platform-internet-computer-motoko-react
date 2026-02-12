@@ -1,87 +1,41 @@
 {
   "kind": "build_request",
-  "title": "Fix paid competition Pay button becoming idle (no checkout, no error)",
-  "priority": "high",
+  "title": "Add unhide option to Admin Results visibility toggle",
+  "priority": "normal",
   "requirements": [
     {
-      "id": "REQ-34",
-      "text": "Fix the paid competition payment-start flow on `frontend/src/pages/CompetitionDetailPage.tsx` so the Pay button cannot silently do nothing: remove/replace the current early-return guard `if (!competition || !competition.entryFee || !userProfile) return;` with explicit user-facing feedback (English) when prerequisites are missing (e.g., user profile not loaded/does not exist, competition data missing, or entry fee missing). Ensure that clicking the Pay button always results in either (a) a visible loading state, (b) Razorpay Checkout opening, or (c) a clear visible error message on the page and/or toast routed through `normalizeError`.",
-      "target": "frontend",
+      "id": "REQ-72",
+      "text": "Fix Admin Results Management so that admins can both hide and unhide a leaderboard entry, and the UI accurately reflects the current hidden state per result row (i.e., not a hide-only action). This must ensure that the admin results list includes a reliable per-result hidden flag from the backend (not a frontend-only guess), and the toggle action can set hidden=false as well as hidden=true.",
+      "target": "both",
       "source": {
         "messageIds": [
-          "msg-5"
+          "recent-messages-user-1"
         ],
         "quotes": [
-          "Pay button is idle now"
+          "View profile is now added, but the hide result from result management in admin works but no option to unhide the action. No other changes"
         ]
       },
       "acceptanceCriteria": [
-        "When a paid competition is running and the Pay button is visible, clicking it never results in a no-op (no checkout + no spinner + no error).",
-        "If `userProfile` is not yet loaded, show a disabled button state and a visible message such as \"Loading your profile…\" OR show a toast explaining the user must wait.",
-        "If `userProfile` is missing (not created), show a clear English message (page-level or toast) telling the user to complete profile setup first; do not silently return.",
-        "If competition data is missing/unavailable, show a clear English error and do not attempt to load Razorpay or create an order.",
-        "All unexpected errors in the pay/start flow are surfaced using `normalizeError(error)` (toast and/or page alert), not swallowed."
-      ]
-    },
-    {
-      "id": "REQ-35",
-      "text": "Improve Pay button disabled/loading logic in `frontend/src/pages/CompetitionDetailPage.tsx` to account for payment-system configuration checks: while `useIsRazorpayConfigured()` is still loading (`configLoading`), disable the Pay button and show an inline loading label (English) such as \"Checking payments…\". If `isRazorpayConfigured === false`, show the existing page-level error state (via `paymentError`) and keep the Pay button disabled without attempting to open Razorpay.",
-      "target": "frontend",
-      "source": {
-        "messageIds": [
-          "msg-5"
-        ],
-        "quotes": [
-          "Pay button is idle now"
-        ]
-      },
-      "acceptanceCriteria": [
-        "While `configLoading === true`, the Pay button is disabled and shows a clear English loading state indicating payments are being checked.",
-        "If `isRazorpayConfigured === false`, the page shows a persistent English error message (using the existing `paymentError` alert) and the Pay button remains disabled.",
-        "When `isRazorpayConfigured === true` and prerequisites are met, clicking Pay proceeds to show \"Processing...\" and continues the payment flow (load script → create order → open checkout → confirm → start)."
-      ]
-    },
-    {
-      "id": "REQ-36",
-      "text": "Add minimal diagnostics for the payment click path in `frontend/src/pages/CompetitionDetailPage.tsx` to aid future debugging: ensure the click handler and each payment step boundary (script load, order creation, checkout open, confirmation) emits a `console.log`/`console.error` with enough context to identify where the flow stops, without logging secrets. Keep all user-facing text in English.",
-      "target": "frontend",
-      "source": {
-        "messageIds": [
-          "msg-5"
-        ],
-        "quotes": [
-          "Pay button is idle now"
-        ]
-      },
-      "acceptanceCriteria": [
-        "Developer console shows a clear breadcrumb trail when Pay is clicked (e.g., \"pay_click\", \"razorpay_script_loaded\", \"order_created\", \"checkout_opened\", \"payment_confirmed\").",
-        "No secrets (Razorpay key secret, signatures beyond what is already returned by Razorpay checkout, etc.) are printed to the console.",
-        "On any thrown error, a `console.error` is present and the UI shows a user-facing English error (toast and/or alert)."
+        "In /admin/results, each result row shows a visibility action that clearly supports both states: when a result is visible, the action hides it; when a result is hidden, the action unhides it.",
+        "After hiding a result, reloading /admin/results (or re-selecting competition+event) still shows that row as hidden (state is persisted server-side), and the action available is to unhide.",
+        "After unhiding a result, reloading /admin/results still shows that row as visible, and the action available is to hide.",
+        "The backend results listing used by the admin UI includes an explicit boolean field indicating whether the result is currently hidden for (competitionId, event, user). The frontend uses this field (not `(result as any).isHidden`).",
+        "All user-facing strings introduced/changed for this fix remain English-only (e.g., tooltip and toast text for hide/unhide)."
       ]
     }
   ],
   "constraints": [
-    "Do not edit any files under `frontend/src/components/ui` (read-only components must be composed, not modified).",
-    "Do not modify immutable frontend hook files: `frontend/src/hooks/useInternetIdentity.ts`, `frontend/src/hooks/useInternetIdentity.tsx`, `frontend/src/hooks/useActor.ts`, `frontend/src/main.tsx`.",
-    "Keep user-facing text in English."
+    "Do not make unrelated UI/UX or feature changes beyond adding the missing unhide capability in Admin Results Management.",
+    "Respect the existing single-actor Motoko backend architecture (all logic in backend/main.mo).",
+    "Do not edit files under frontend/src/components/ui (immutable Shadcn sources)."
   ],
   "nonGoals": [
-    "Implementing real Razorpay signature verification on the backend (the current backend verification logic is acknowledged as demo-only and is not part of this request).",
-    "Changing payment configuration storage or admin allowlist rules.",
-    "Redesigning the entire Competition Detail page layout beyond the payment-button states and messaging."
+    "Do not change the newly added View Profile / public profile functionality.",
+    "Do not add new admin sections or new result-editing features beyond the hide/unhide toggle.",
+    "Do not implement any new payment, competition, or leaderboard computation changes."
   ],
   "imageRequirements": {
     "required": [],
     "edits": []
-  },
-  "userProfileUpdate": {
-    "goalsToAdd": [],
-    "goalsToRemove": [],
-    "preferencesToAdd": [],
-    "preferencesToRemove": [],
-    "miscToAdd": [],
-    "miscToRemove": [],
-    "fieldsToSet": {},
-    "fieldsToDelete": []
   }
 }

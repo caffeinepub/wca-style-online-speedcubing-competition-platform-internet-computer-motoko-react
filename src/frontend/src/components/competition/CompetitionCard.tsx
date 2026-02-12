@@ -24,7 +24,7 @@ export default function CompetitionCard({ competition }: CompetitionCardProps) {
 
   return (
     <button
-      onClick={() => navigate({ to: '/competition/$competitionId', params: { competitionId: competition.id.toString() } })}
+      onClick={() => navigate({ to: '/competitions/$competitionId', params: { competitionId: competition.id.toString() } })}
       className="w-full bg-card border border-border rounded-xl p-6 hover:border-chart-1/50 hover:shadow-lg hover:shadow-chart-1/5 transition-all text-left group"
     >
       <div className="flex items-start justify-between mb-4">

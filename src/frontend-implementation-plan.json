@@ -1,55 +1,33 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Fix paid competition Pay button no-op + improve loading/disabled states and diagnostics",
+  "title": "Admin Results: true hide/unhide toggle backed by persisted hidden flag",
   "requirements": [
     {
-      "id": "REQ-34",
-      "summary": "Ensure Pay click in CompetitionDetailPage never silently no-ops by replacing early-return guard with explicit English UI feedback for missing prerequisites and surfacing all unexpected errors via normalizeError.",
+      "id": "REQ-72",
+      "summary": "Update Admin Results Management to use a backend-provided per-result hidden flag and provide a true hide/unhide toggle with correct per-row UI state and English-only strings.",
       "acceptanceCriteria": [
-        "When a paid competition is running and the Pay button is visible, clicking it never results in a no-op (no checkout + no spinner + no error).",
-        "If `userProfile` is not yet loaded, show a disabled button state and a visible message such as \"Loading your profile…\" OR show a toast explaining the user must wait.",
-        "If `userProfile` is missing (not created), show a clear English message (page-level or toast) telling the user to complete profile setup first; do not silently return.",
-        "If competition data is missing/unavailable, show a clear English error and do not attempt to load Razorpay or create an order.",
-        "All unexpected errors in the pay/start flow are surfaced using `normalizeError(error)` (toast and/or page alert), not swallowed."
+        "In /admin/results, each result row shows a visibility action that clearly supports both states: when a result is visible, the action hides it; when a result is hidden, the action unhides it.",
+        "After hiding a result, reloading /admin/results (or re-selecting competition+event) still shows that row as hidden (state is persisted server-side), and the action available is to unhide.",
+        "After unhiding a result, reloading /admin/results still shows that row as visible, and the action available is to hide.",
+        "The backend results listing used by the admin UI includes an explicit boolean field indicating whether the result is currently hidden for (competitionId, event, user). The frontend uses this field (not `(result as any).isHidden`).",
+        "All user-facing strings introduced/changed for this fix remain English-only (e.g., tooltip and toast text for hide/unhide)."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/pages/CompetitionDetailPage.tsx",
+          "path": "frontend/src/backend.d.ts",
           "operation": "modify",
-          "description": "Replace the current early-return guard in the paid payment-start flow with explicit prerequisite checks that always produce a visible outcome (disable + inline message, page-level alert, and/or toast) for: competition missing, entry fee missing, user profile still loading, and user profile missing (not created). Ensure any thrown/unknown errors are routed through normalizeError(error) and displayed (toast and/or alert), never swallowed."
-        }
-      ]
-    },
-    {
-      "id": "REQ-35",
-      "summary": "Improve Pay button disabled/loading logic to reflect Razorpay configuration loading/availability states.",
-      "acceptanceCriteria": [
-        "While `configLoading === true`, the Pay button is disabled and shows a clear English loading state indicating payments are being checked.",
-        "If `isRazorpayConfigured === false`, the page shows a persistent English error message (using the existing `paymentError` alert) and the Pay button remains disabled.",
-        "When `isRazorpayConfigured === true` and prerequisites are met, clicking Pay proceeds to show \"Processing...\" and continues the payment flow (load script → create order → open checkout → confirm → start)."
-      ],
-      "file_operations": [
+          "description": "Align generated frontend backend typings with the backend results listing used by /admin/results by adding an explicit boolean hidden flag to the admin results row type (e.g., extend CompetitionResult with `isHidden: boolean` or introduce a dedicated admin result type). This enables the UI to read persisted hidden state without casting to `any`."
+        },
         {
-          "path": "frontend/src/pages/CompetitionDetailPage.tsx",
+          "path": "frontend/src/hooks/useQueries.ts",
           "operation": "modify",
-          "description": "Update Pay button state computation and label rendering so that while useIsRazorpayConfigured() is loading (configLoading), the Pay button is disabled and displays an inline English label such as \"Checking payments…\". If isRazorpayConfigured is false, set/keep the existing paymentError alert visible and keep the Pay button disabled without attempting Razorpay script load/order creation."
-        }
-      ]
-    },
-    {
-      "id": "REQ-36",
-      "summary": "Add minimal, non-secret console diagnostics for each boundary in the payment click path (script load, order creation, checkout open, confirmation).",
-      "acceptanceCriteria": [
-        "Developer console shows a clear breadcrumb trail when Pay is clicked (e.g., \"pay_click\", \"razorpay_script_loaded\", \"order_created\", \"checkout_opened\", \"payment_confirmed\").",
-        "No secrets (Razorpay key secret, signatures beyond what is already returned by Razorpay checkout, etc.) are printed to the console.",
-        "On any thrown error, a `console.error` is present and the UI shows a user-facing English error (toast and/or alert)."
-      ],
-      "file_operations": [
+          "description": "Update the admin results query hook typing for `useAdminGetResultsForCompetition` to return the results type that includes the explicit `isHidden` boolean from the backend results listing, and ensure cache invalidation/refetch behavior remains correct after toggling visibility (keep changes minimal and scoped to admin results)."
+        },
         {
-          "path": "frontend/src/pages/CompetitionDetailPage.tsx",
+          "path": "frontend/src/pages/admin/AdminResultsPage.tsx",
           "operation": "modify",
-          "description": "Add console.log breadcrumbs at the start of the click handler and around each payment step boundary (script load result, order created, checkout opened/resolved, confirmation succeeded, start succeeded). Add console.error on failures with safe context (competitionId/event and high-level status only). Ensure no secrets are logged (do not print signatures/keys; avoid dumping full payment objects) and keep all user-facing text in English."
+          "description": "Replace the current hidden-state guess `(result as any).isHidden` with the explicit backend-provided `result.isHidden` flag, and ensure the per-row action properly toggles both directions (hide when visible, unhide when hidden) with accurate icon/title/English-only toast text reflecting the current state. Keep all other UI/UX unchanged and do not modify any files under frontend/src/components/ui."
         }
       ]
     }

@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import AdminGuard from '../../components/auth/AdminGuard';
-import { useCreateCompetition } from '../../hooks/useQueries';
+import { useGetCompetition, useAdminUpdateCompetition } from '../../hooks/useQueries';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,22 +12,43 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { normalizeError } from '../../api/errors';
 import { EVENT_LABELS, ALL_EVENTS } from '../../types/domain';
-import { CompetitionStatus } from '../../backend';
-import type { Event, CompetitionInput } from '../../backend';
+import type { Event, CompetitionStatus, CompetitionInput } from '../../backend';
 
-export default function AdminCreateCompetitionPage() {
+export default function AdminEditCompetitionPage() {
   const navigate = useNavigate();
-  const createCompetitionMutation = useCreateCompetition();
+  const { competitionId } = useParams({ strict: false }) as { competitionId: string };
+  const { data: competition, isLoading } = useGetCompetition(BigInt(competitionId));
+  const updateCompetitionMutation = useAdminUpdateCompetition();
 
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [status, setStatus] = useState<CompetitionStatus>(CompetitionStatus.upcoming);
+  const [status, setStatus] = useState<CompetitionStatus>('upcoming' as CompetitionStatus);
   const [participantLimit, setParticipantLimit] = useState('');
   const [entryFee, setEntryFee] = useState('');
   const [selectedEvents, setSelectedEvents] = useState<Event[]>([]);
   const [scramblesByEvent, setScramblesByEvent] = useState<Partial<Record<Event, string[]>>>({});
+
+  useEffect(() => {
+    if (competition) {
+      setName(competition.name);
+      setSlug(competition.slug);
+      setStartDate(new Date(Number(competition.startDate) / 1000000).toISOString().slice(0, 16));
+      setEndDate(new Date(Number(competition.endDate) / 1000000).toISOString().slice(0, 16));
+      setStatus(competition.status);
+      setParticipantLimit(competition.participantLimit ? competition.participantLimit.toString() : '');
+      setEntryFee(competition.entryFee ? competition.entryFee.toString() : '');
+      setSelectedEvents(competition.events);
+
+      // Load existing scrambles
+      const scrambles: Partial<Record<Event, string[]>> = {};
+      for (const [scrambleList, event] of competition.scrambles) {
+        scrambles[event] = scrambleList;
+      }
+      setScramblesByEvent(scrambles);
+    }
+  }, [competition]);
 
   const handleEventToggle = (event: Event, checked: boolean) => {
     if (checked) {
@@ -89,13 +110,36 @@ export default function AdminCreateCompetitionPage() {
     };
 
     try {
-      const id = await createCompetitionMutation.mutateAsync(competitionInput);
-      toast.success('Competition created successfully');
-      navigate({ to: '/competitions/$competitionId', params: { competitionId: id.toString() } });
+      await updateCompetitionMutation.mutateAsync({
+        id: BigInt(competitionId),
+        competition: competitionInput,
+      });
+      toast.success('Competition updated successfully');
+      navigate({ to: '/admin/competitions' });
     } catch (error) {
       toast.error(normalizeError(error));
     }
   };
+
+  if (isLoading) {
+    return (
+      <AdminGuard>
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </AdminGuard>
+    );
+  }
+
+  if (!competition) {
+    return (
+      <AdminGuard>
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <p className="text-muted-foreground">Competition not found</p>
+        </div>
+      </AdminGuard>
+    );
+  }
 
   return (
     <AdminGuard>
@@ -110,7 +154,7 @@ export default function AdminCreateCompetitionPage() {
             Back to Competitions
           </Button>
 
-          <h1 className="text-4xl font-bold mb-8">Create Competition</h1>
+          <h1 className="text-4xl font-bold mb-8">Edit Competition</h1>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="bg-card rounded-lg border p-6 space-y-4">
@@ -167,9 +211,9 @@ export default function AdminCreateCompetitionPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={CompetitionStatus.upcoming}>Upcoming</SelectItem>
-                    <SelectItem value={CompetitionStatus.running}>Running</SelectItem>
-                    <SelectItem value={CompetitionStatus.completed}>Completed</SelectItem>
+                    <SelectItem value="upcoming">Upcoming</SelectItem>
+                    <SelectItem value="running">Running</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -244,13 +288,13 @@ export default function AdminCreateCompetitionPage() {
             <div className="flex gap-4">
               <Button
                 type="submit"
-                disabled={createCompetitionMutation.isPending}
+                disabled={updateCompetitionMutation.isPending}
                 className="flex-1"
               >
-                {createCompetitionMutation.isPending && (
+                {updateCompetitionMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                Create Competition
+                Update Competition
               </Button>
               <Button
                 type="button"

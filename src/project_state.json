@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 19,
-  "summary": "Full-stack online speedcubing competition platform (Next.js + TS + PostgreSQL/Prisma + NextAuth on Vercel) with WCA-style 5-solve flow, per-user unique \"mcubes\" user ID and profile, immediate leaderboard updates on completion, multi-event competitions, paid entry via Razorpay (frontend Key ID + backend-protected secret with server-side order creation), payment-gated participation for paid competitions, and admin-only competition creation restricted via an allowlist (currently email-based) that needs to include thiirdparty.mcubes@gmail.com and/or MCUBES-0.",
+  "projectStateVersion": 35,
+  "summary": "Full-stack online speedcubing competition platform with multi-event, WCA-style 5-solve flow, paid entry via Razorpay, admin dashboard, strong integrity controls, and now post-completion UX enhancements including a user-visible video evidence submission option after finishing an event plus explicit multi-event completion flow (choose another event or end competition), and ensuring leaderboards are visible from both the main page and each competition page.",
   "architectural_notes": [
     "Tech stack: Next.js (App Router) + TypeScript + PostgreSQL + Prisma ORM + NextAuth; deploy on Vercel.",
     "Competition format mirrors WCA-style online comps: 5 scrambles/solves with inspection and penalties.",
@@ -10,16 +10,21 @@
     "Add a persistent, app-specific \"mcubes user ID\" for each user profile (separate from auth provider identifiers).",
     "Introduce paid competitions via Razorpay integration (test credentials first), with a competition entry fee and payment-gated participation where applicable.",
     "Extend data model to support multiple events per competition (event catalog includes 2x2, 3x3, 4x4, 5x5, Skewb, Megaminx, Clock, 3x3 OH, Pyraminx).",
-    "Admin authorization allowlist email should be midhun.speedcuber@gmail.com (used for competition creation and admin UI guards).",
-    "Admin authorization should support expanding the allowlist beyond a single email, potentially including multiple emails and/or specific mcubes user IDs (e.g., MCUBES-0).",
-    "Extend User/Profile model to include optional country and gender fields; ensure leaderboard joins results with user profile for display name (fallback to \"Anonymous\" only if missing)."
+    "Competition integrity: when a user starts a competition/event, persist a server-side session lock and session token; enforce single active session to reduce replay (second tab / refresh / direct URL re-entry).",
+    "Competition integrity: scrambles should be fetched progressively from the server (not all at once); gate access to the next scramble until the prior attempt is successfully stored server-side.",
+    "Resilience: persist attempt progress/state (e.g., currentScrambleIndex, inspectionStartTimestamp, solveStartTimestamp) so the solve flow can recover after refresh/offline without allowing duplicate submissions."
   ],
   "known_issues": [
     "Creating a competition currently fails with a generic \"unable to create\" error when the logged-in user's stored email does not match the allowlisted admin email; needs clearer messaging and/or updated allowlist value.",
     "Leaderboard currently shows \"Anonymous\" instead of the user's profile/display name; needs to render the correct name from the user profile.",
     "Razorpay live Key Secret was shared in chat; ensure keys are regenerated/rotated and never stored in code or client-exposed config.",
     "Razorpay payment popup immediately shows \"Something went wrong\" with no error code; payment fails before any observable order-creation network request completes/appears.",
-    "After Version 8 deployment, the paid competition \"Pay Now\" button is now idle (no processing state, no Razorpay Checkout popup, no visible error), indicating the click handler/flow may not be firing or is being short-circuited silently."
+    "After Version 8 deployment, the paid competition \"Pay Now\" button is now idle (no processing state, no Razorpay Checkout popup, no visible error), indicating the click handler/flow may not be firing or is being short-circuited silently.",
+    "Production go-live failed due to a deployment error; needs retry/investigation of build/deploy pipeline.",
+    "Regression/missing functionality in current build: cannot edit competitions in admin.",
+    "Regression/missing functionality in current build: /admin users list is missing or not showing users.",
+    "Regression/data missing: competition scrambles are missing/not visible.",
+    "Regression/data missing: previously submitted results are missing/not visible."
   ],
   "isFixRequest": true,
   "existing_features": [
@@ -212,6 +217,214 @@
       "title": "Add minimal diagnostics for the payment click path in `frontend/src/pages/CompetitionDetailPage.tsx` to aid future debugging: ensure the click handler and each payment step boundary (script load, order creation, checkout open, confirmation) emits a `console.log`/`console.error` with enough context to identify where the flow stops, without logging secrets. Keep all user-facing text in English.",
       "reqIds": [
         "REQ-36"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-new-admin-only-dashboard-area-in-the-frontend-with-routes-exactly-admin-users-admin-competitions-admin-results-plus-an-admin-landing-page-that-links-to-these-sections-all-admin-routes-must-be-protected-by-the-existing-adminguard",
+      "title": "Add a new admin-only dashboard area in the frontend with routes exactly: /admin/users, /admin/competitions, /admin/results, plus an /admin landing page that links to these sections. All /admin routes must be protected by the existing AdminGuard.",
+      "reqIds": [
+        "REQ-42"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-frontend-implement-admin-users-ui-for-admin-user-management-to-a-view-all-users-b-block-unblock-c-delete-d-reset-a-user-s-competition-status-for-a-selected-competition-event-and-e-view-user-solve-history-in-a-detail-view",
+      "title": "Frontend: implement /admin/users UI for admin user management to (a) view all users, (b) block/unblock, (c) delete, (d) reset a user's competition status for a selected competition+event, and (e) view user solve history in a detail view.",
+      "reqIds": [
+        "REQ-43"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-frontend-implement-admin-competitions-ui-to-manage-competitions-list-competitions-edit-a-competition-including-event-list-and-per-event-scrambles-delete-duplicate-set-active-inactive-lock-unlock-and-update-start-end-times-reuse-existing-competition-creation-ui-patterns-where-possible-without-changing-immutable-component-sources",
+      "title": "Frontend: implement /admin/competitions UI to manage competitions: list competitions, edit a competition (including event list and per-event scrambles), delete, duplicate, set active/inactive, lock/unlock, and update start/end times. Reuse existing competition creation UI patterns where possible without changing immutable component sources.",
+      "reqIds": [
+        "REQ-44"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-frontend-implement-admin-results-ui-to-a-search-select-a-competition-and-event-b-list-results-c-edit-results-attempt-penalties-2-dnf-d-disqualify-a-specific-solve-e-hide-unhide-a-user-from-leaderboard-f-trigger-a-recalculate-leaderboard-action-implemented-as-a-refetch-invalidate-of-leaderboard-results-queries-and-g-download-results-as-csv",
+      "title": "Frontend: implement /admin/results UI to (a) search/select a competition and event, (b) list results, (c) edit results/attempt penalties (+2/DNF), (d) disqualify a specific solve, (e) hide/unhide a user from leaderboard, (f) trigger a “Recalculate leaderboard” action (implemented as a refetch/invalidate of leaderboard/results queries), and (g) download results as CSV.",
+      "reqIds": [
+        "REQ-45"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-an-admin-access-status-section-in-the-frontend-admin-area-that-clearly-indicates-when-the-current-user-is-an-administrator-e-g-registered-as-an-administrator-and-shows-a-clear-english-message-when-the-user-is-not-an-administrator",
+      "title": "Add an admin access status section in the frontend admin area that clearly indicates when the current user is an administrator (e.g., “Registered as an administrator”), and shows a clear English message when the user is not an administrator.",
+      "reqIds": [
+        "REQ-46"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-create-a-separate-user-profile-page-route-e-g-profile-where-authenticated-users-can-manage-their-profile-fields-and-payments-purchases-and-update-the-existing-navigation-via-profilemenu-to-link-to-this-page-while-preserving-existing-profile-functionality",
+      "title": "Create a separate user Profile page route (e.g., /profile) where authenticated users can manage their profile fields and payments/purchases, and update the existing navigation (via ProfileMenu) to link to this page while preserving existing profile functionality.",
+      "reqIds": [
+        "REQ-47"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-remove-the-caffeine-caffeine-ai-branding-link-section-from-the-global-site-footer-so-the-footer-no-longer-displays-any-caffeine-caffeine-ai-attribution-text-or-external-link",
+      "title": "Remove the Caffeine (\"caffeine.ai\") branding/link section from the global site footer so the footer no longer displays any Caffeine/Caffeine.ai attribution text or external link.",
+      "reqIds": [
+        "REQ-48"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-retry-the-production-go-live-build-deploy-flow-and-ensure-it-completes-successfully-without-a-deployment-error",
+      "title": "Retry the production go-live (build + deploy) flow and ensure it completes successfully without a deployment error.",
+      "reqIds": [
+        "REQ-49"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-when-a-go-live-attempt-fails-capture-and-surface-the-complete-error-output-needed-to-diagnose-the-deployment-error-build-step-canister-install-step-and-any-configuration-env-checks-using-english-only-messages",
+      "title": "When a go-live attempt fails, capture and surface the complete error output needed to diagnose the deployment error (build step, canister install step, and any configuration/env checks), using English-only messages.",
+      "reqIds": [
+        "REQ-50"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-pre-deployment-validation-step-that-checks-for-common-go-live-blockers-e-g-missing-required-configuration-files-values-typescript-build-failures-motoko-compilation-errors-and-fails-fast-with-clear-english-messaging-before-attempting-deployment",
+      "title": "Add a pre-deployment validation step that checks for common go-live blockers (e.g., missing required configuration files/values, TypeScript build failures, Motoko compilation errors) and fails fast with clear English messaging before attempting deployment.",
+      "reqIds": [
+        "REQ-51"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-a-one-time-secure-solve-session-lock-that-is-created-when-an-authenticated-user-clicks-start-competition-persisted-in-canister-state-and-enforced-for-all-solve-flow-actions-scope-backend-must-generate-a-per-attempt-session-token-on-successful-start-and-store-a-session-record-keyed-by-competitionid-caller-principal-event-backend-must-require-the-valid-session-token-for-any-solve-flow-sensitive-method-fetching-scrambles-submitting-attempts-and-any-new-session-state-apis-backend-must-reject-attempts-to-use-the-same-in-progress-session-from-a-different-tab-device-where-the-session-token-is-missing-or-mismatched-i-e-second-tab-direct-url-entry-without-the-token-frontend-must-store-the-session-token-in-tab-scoped-storage-sessionstorage-and-include-it-in-all-solve-flow-api-calls-frontend-must-show-clear-english-messaging-when-the-solve-route-is-accessed-without-a-valid-session-token-for-an-in-progress-result-do-not-silently-fail",
+      "title": "Implement a one-time secure solve session lock that is created when an authenticated user clicks “Start Competition”, persisted in canister state, and enforced for all solve-flow actions.\n\nScope:\n- Backend must generate a per-attempt-session token on successful start and store a session record keyed by (competitionId, caller principal, event).\n- Backend must require the valid session token for any solve-flow sensitive method (fetching scrambles, submitting attempts, and any new session-state APIs).\n- Backend must reject attempts to use the same in-progress session from a different tab/device where the session token is missing or mismatched (i.e., second tab, direct URL entry without the token).\n- Frontend must store the session token in tab-scoped storage (sessionStorage) and include it in all solve-flow API calls.\n- Frontend must show clear English messaging when the solve route is accessed without a valid session token for an in-progress result (do not silently fail).",
+      "reqIds": [
+        "REQ-52"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-progressive-scramble-reveal-with-server-side-scramble-fetching-so-the-client-cannot-fetch-all-scrambles-for-an-event-in-one-call-and-cannot-access-future-scrambles-until-eligible-scope-backend-must-add-a-dedicated-api-to-fetch-only-the-current-next-scramble-for-the-caller-s-active-session-competitionid-event-session-token-backend-must-enforce-that-the-scramble-for-attempt-n-can-only-be-retrieved-when-attempts-0-n-1-are-already-stored-server-side-check-backend-must-not-expose-the-full-event-scramble-list-to-non-admin-users-via-an-api-used-during-the-solve-flow-frontend-solveflow-must-stop-reading-scrambles-from-the-competition-payload-and-instead-fetch-the-scramble-per-attempt-from-the-backend-only-when-needed",
+      "title": "Implement progressive scramble reveal with server-side scramble fetching so the client cannot fetch all scrambles for an event in one call and cannot access future scrambles until eligible.\n\nScope:\n- Backend must add a dedicated API to fetch only the current/next scramble for the caller’s active session (competitionId + event + session token).\n- Backend must enforce that the scramble for attempt N can only be retrieved when attempts 0..N-1 are already stored (server-side check).\n- Backend must not expose the full event scramble list to non-admin users via an API used during the solve flow.\n- Frontend SolveFlow must stop reading scrambles from the competition payload and instead fetch the scramble per attempt from the backend only when needed.",
+      "reqIds": [
+        "REQ-53"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-attempt-state-recovery-so-that-refreshes-or-transient-connectivity-loss-resume-the-current-attempt-instead-of-restarting-and-do-not-allow-duplicate-solve-submissions-scope-backend-must-persist-per-session-recovery-fields-at-minimum-currentscrambleindex-or-equivalent-derived-current-attempt-index-inspectionstarttimestamp-solvestarttimestamp-backend-must-expose-an-api-to-fetch-the-caller-s-current-solve-session-state-competitionid-event-session-token-including-enough-information-for-the-frontend-to-resume-at-the-correct-attempt-and-phase-backend-submitattempt-must-be-idempotent-defensive-if-an-attempt-index-has-already-been-stored-with-a-non-zero-time-the-backend-must-reject-or-no-op-in-a-way-that-prevents-overwriting-duplicating-that-solve-frontend-solveflow-must-on-load-fetch-session-state-and-resume-the-correct-attempt-index-and-phase-rather-than-resetting-to-attempt-1-frontend-must-present-clear-english-messaging-for-recovery-states-e-g-reconnected-resuming-attempt-3-and-for-blocked-duplicate-submissions",
+      "title": "Implement attempt state recovery so that refreshes or transient connectivity loss resume the current attempt instead of restarting, and do not allow duplicate solve submissions.\n\nScope:\n- Backend must persist per-session recovery fields at minimum: currentScrambleIndex (or equivalent derived current attempt index), inspectionStartTimestamp, solveStartTimestamp.\n- Backend must expose an API to fetch the caller’s current solve session state (competitionId + event + session token), including enough information for the frontend to resume at the correct attempt and phase.\n- Backend submitAttempt must be idempotent/defensive: if an attempt index has already been stored with a non-zero time, the backend must reject or no-op in a way that prevents overwriting/duplicating that solve.\n- Frontend SolveFlow must, on load, fetch session state and resume the correct attempt index and phase rather than resetting to attempt 1.\n- Frontend must present clear English messaging for recovery states (e.g., “Reconnected. Resuming attempt 3.”) and for blocked duplicate submissions.",
+      "reqIds": [
+        "REQ-54"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-frontend-react-query-data-layer-to-support-the-new-session-lock-scramble-fetching-and-session-recovery-apis-scope-add-new-query-keys-in-frontend-src-api-querykeys-ts-for-solve-session-state-and-per-attempt-scramble-fetch-add-new-hooks-in-frontend-src-hooks-usequeries-ts-for-the-new-backend-methods-update-frontend-src-pages-competitiondetailpage-tsx-and-frontend-src-pages-solveflowpage-tsx-to-use-the-new-hooks-and-to-pass-store-the-session-token-ensure-all-surfaced-errors-are-normalized-through-normalizeerror-where-applicable-and-remain-english-only",
+      "title": "Update frontend React Query data layer to support the new session-lock, scramble-fetching, and session-recovery APIs.\n\nScope:\n- Add new query keys in `frontend/src/api/queryKeys.ts` for: solve session state and per-attempt scramble fetch.\n- Add new hooks in `frontend/src/hooks/useQueries.ts` for the new backend methods.\n- Update `frontend/src/pages/CompetitionDetailPage.tsx` and `frontend/src/pages/SolveFlowPage.tsx` to use the new hooks and to pass/store the session token.\n- Ensure all surfaced errors are normalized through `normalizeError` where applicable and remain English-only.",
+      "reqIds": [
+        "REQ-55"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-restore-the-admin-users-screen-by-enabling-the-existing-react-query-hooks-remove-stubs-disabled-flags-and-wiring-them-to-the-newly-implemented-backend-admin-apis-so-admin-users-shows-real-users-and-actions-work-block-unblock-delete-reset-history",
+      "title": "Restore the admin Users screen by enabling the existing React Query hooks (remove stubs/disabled flags) and wiring them to the newly implemented backend admin APIs so /admin/users shows real users and actions work (block/unblock/delete/reset/history).",
+      "reqIds": [
+        "REQ-61"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-restore-the-admin-results-screen-by-enabling-hooks-and-wiring-admin-results-to-the-backend-admin-results-apis-so-previously-submitted-results-are-visible-and-editable-in-the-admin-ui",
+      "title": "Restore the admin Results screen by enabling hooks and wiring /admin/results to the backend admin results APIs so previously submitted results are visible and editable in the admin UI.",
+      "reqIds": [
+        "REQ-62"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-restore-scrambles-visibility-in-the-solve-flow-by-removing-dependency-on-competition-payload-scrambles-and-using-the-per-attempt-scramble-fetch-api-progressive-reveal-and-session-state-recovery-api-ensure-clear-english-error-states-when-session-token-is-missing-mismatched",
+      "title": "Restore scrambles visibility in the solve flow by removing dependency on competition payload scrambles and using the per-attempt scramble-fetch API (progressive reveal) and session-state recovery API; ensure clear English error states when session token is missing/mismatched.",
+      "reqIds": [
+        "REQ-63"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-couldn-t-edit-competition-in-admin-by-adding-a-dedicated-admin-competition-edit-flow-from-admin-competitions-the-edit-action-must-open-an-admin-edit-page-form-not-the-public-competition-detail-route-that-loads-the-existing-competition-allows-editing-events-and-per-event-scrambles-and-saves-via-the-backend-update-api",
+      "title": "Fix ‘Couldn’t edit competition’ in admin by adding a dedicated admin competition edit flow: from /admin/competitions, the Edit action must open an admin edit page/form (not the public competition detail route) that loads the existing competition, allows editing events and per-event scrambles, and saves via the backend update API.",
+      "reqIds": [
+        "REQ-64"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-after-a-user-completes-all-5-solves-for-a-competition-event-show-a-clearly-visible-video-evidence-section-on-the-completion-screen-that-instructs-the-user-to-submit-video-evidence-by-emailing-hellobugentertainment-gmail-com-with-either-a-a-public-google-drive-link-or-b-an-unlisted-youtube-link-this-section-must-only-appear-after-the-event-is-completed",
+      "title": "After a user completes all 5 solves for a competition event, show a clearly visible “Video Evidence” section on the completion screen that instructs the user to submit video evidence by emailing **hellobugentertainment@gmail.com** with either (a) a public Google Drive link or (b) an unlisted YouTube link. This section must only appear after the event is completed.",
+      "reqIds": [
+        "REQ-65"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-for-multi-event-competitions-update-the-post-event-completion-ux-so-that-when-a-user-finishes-an-event-they-are-given-explicit-options-to-either-a-choose-another-event-in-the-same-competition-or-b-finish-end-the-competition-for-themselves-if-they-are-not-doing-other-events",
+      "title": "For multi-event competitions, update the post-event completion UX so that when a user finishes an event they are given explicit options to either (a) choose another event in the same competition or (b) finish/end the competition for themselves if they are not doing other events.",
+      "reqIds": [
+        "REQ-66"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-ensure-the-leaderboard-is-visible-and-accessible-to-users-for-each-competition-by-updating-the-competition-detail-page-so-the-view-leaderboard-action-is-available-even-when-the-selected-event-is-already-completed-not-hidden-removed-based-on-completion-status",
+      "title": "Ensure the leaderboard is visible and accessible to users for each competition by updating the competition detail page so the “View Leaderboard” action is available even when the selected event is already completed (not hidden/removed based on completion status).",
+      "reqIds": [
+        "REQ-67"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-main-navigation-tab-entry-that-makes-leaderboards-discoverable-from-the-main-area-of-the-app-outside-an-individual-competition-page-implement-a-dedicated-page-that-lets-users-pick-a-competition-and-then-view-its-leaderboard",
+      "title": "Add a main navigation/tab entry that makes leaderboards discoverable from the main area of the app (outside an individual competition page). Implement a dedicated page that lets users pick a competition and then view its leaderboard.",
+      "reqIds": [
+        "REQ-68"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-admin-results-management-so-admins-can-both-hide-and-unhide-a-leaderboard-entry-with-the-ui-accurately-reflecting-the-current-hidden-state-per-result-row-not-a-hide-only-action",
+      "title": "Fix Admin Results Management so admins can both hide and unhide a leaderboard entry, with the UI accurately reflecting the current hidden state per result row (not a hide-only action).",
+      "reqIds": [
+        "REQ-69"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-a-public-user-profile-page-accessible-by-clicking-a-competitor-name-e-g-from-the-leaderboard-showing-that-competitor-s-public-profile-info-and-their-visible-results-following-the-layout-intent-shown-in-the-uploaded-screenshots",
+      "title": "Implement a public user profile page accessible by clicking a competitor name (e.g., from the leaderboard), showing that competitor’s public profile info and their visible results, following the layout intent shown in the uploaded screenshots.",
+      "reqIds": [
+        "REQ-70"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-wire-react-query-hooks-and-query-keys-for-the-new-public-profile-apis-and-remove-any-disabled-stubs-that-prevent-public-profile-and-leaderboard-name-linking-from-working-end-to-end",
+      "title": "Wire React Query hooks and query keys for the new public profile APIs and remove any disabled stubs that prevent public profile and leaderboard-name linking from working end-to-end.",
+      "reqIds": [
+        "REQ-71"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-admin-results-management-so-that-admins-can-both-hide-and-unhide-a-leaderboard-entry-and-the-ui-accurately-reflects-the-current-hidden-state-per-result-row-i-e-not-a-hide-only-action-this-must-ensure-that-the-admin-results-list-includes-a-reliable-per-result-hidden-flag-from-the-backend-not-a-frontend-only-guess-and-the-toggle-action-can-set-hidden-false-as-well-as-hidden-true",
+      "title": "Fix Admin Results Management so that admins can both hide and unhide a leaderboard entry, and the UI accurately reflects the current hidden state per result row (i.e., not a hide-only action). This must ensure that the admin results list includes a reliable per-result hidden flag from the backend (not a frontend-only guess), and the toggle action can set hidden=false as well as hidden=true.",
+      "reqIds": [
+        "REQ-72"
       ],
       "version": 1
     }
@@ -431,6 +644,164 @@
       "reqIds": [
         "REQ-32"
       ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-41",
+      "summary": "Admin allowlist/UI: show an admin access section indicating the user is registered as admin; ensure allowlist includes midhun.speedcuber@gmail.com and thirdparty.mcubes@gmail.com (and existing mcubesId option like MCUBES-0 where applicable).",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-42",
+      "summary": "Create an admin-only dashboard area with routes: /admin/users, /admin/competitions, /admin/results; enforce admin-only access on all these pages.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-43",
+      "summary": "Admin user management: view all users; block/unblock; delete user; reset a user's competition status; view user solve history; (future) capture/show IP/device info for anti-cheat later.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-44",
+      "summary": "Admin competition management beyond creation: edit competition; delete competition; duplicate previous competition; set active/inactive; upload scrambles; manually lock competition; set start & end time; add more control over event editing.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-45",
+      "summary": "Admin post-competition editing & leaderboard controls: edit/fix scrambles; edit results manually; recalculate leaderboard/averages; disqualify specific solve; apply +2/DNF manually; mark user as DNF; hide user from leaderboard; download results as CSV.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-46",
+      "summary": "Update backend allowlisted-admin authorization so that admin access is granted to allowlisted emails that include exactly: \"midhun.speedcuber@gmail.com\" and \"thirdparty.mcubes@gmail.com\" (in addition to any existing mcubesId == \"MCUBES-0\" rule), and ensure all admin-only backend methods use this same allowlisted-admin rule.",
+      "reqIds": [
+        "REQ-37"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-47",
+      "summary": "Implement backend admin APIs for user management: list all users (principal + profile summary + stored email if present), block/unblock a user, delete a user, and reset a user's competition status for a given (competitionId, event) by clearing or reverting the user's Result state so they can start again.",
+      "reqIds": [
+        "REQ-38"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-48",
+      "summary": "Implement backend admin APIs to view a specific user's solve history: return that user's Result records (including attempts, penalties, status) filterable by competitionId and/or event.",
+      "reqIds": [
+        "REQ-39"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-49",
+      "summary": "Implement backend admin APIs for competition management beyond creation: edit an existing competition (name/slug/start/end/status/participantLimit/entryFee/events and event scrambles), delete a competition, duplicate a competition (including its events and scrambles), set active/inactive (mapped to a clear backend field/state), and manually lock a competition to prevent new starts/submissions.",
+      "reqIds": [
+        "REQ-40"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-50",
+      "summary": "Implement backend admin APIs for results/leaderboard controls: edit a user's result attempts (time/penalty) for a specific competitionId+event, mark a user as DNF for an event (represented consistently in the stored attempts/penalty model), disqualify a specific solve, and hide/unhide a user from the leaderboard for a specific competitionId+event.",
+      "reqIds": [
+        "REQ-41"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-51",
+      "summary": "Remove the \"caffaien\" branding from the site footer (update footer UI to eliminate/replace the branding text/link).",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-52",
+      "summary": "Competition integrity: implement a one-time secure session lock when user clicks \"Start Competition\" (persist session lock in DB, generate session token) and prevent replay vectors like opening in second tab, refreshing to restart, or re-entering via URL.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-53",
+      "summary": "Competition integrity: implement progressive scramble reveal with server-side scramble fetching so the next scramble is only retrievable after the previous solve is stored; prevent fetching all scrambles in a single API call and reduce exposure via page source.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-54",
+      "summary": "Competition integrity: implement attempt state recovery so refresh/network loss resumes at current scramble (not restart) and does not allow duplicate solves; persist fields like currentScrambleIndex, solveStartTimestamp, inspectionStartTimestamp.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-55",
+      "summary": "Fix upgrade/data-loss regression by making all critical canister state durable across upgrades, so previously created competitions (including scrambles), user profiles, payments, results, and admin user records are still present after a redeploy/upgrade.",
+      "reqIds": [
+        "REQ-56"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-56",
+      "summary": "Implement the missing public competition/result APIs in the Motoko canister so the app can show previously submitted results and current competition progress: (1) get the caller’s Result for (competitionId,event), (2) get leaderboard results for (competitionId,event) with completed results only and hiding any hidden entries, and (3) ensure these APIs work with multi-event competitions.",
+      "reqIds": [
+        "REQ-57"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-57",
+      "summary": "Implement the missing solve-session integrity APIs in the Motoko canister (session lock/token, progressive scramble reveal, and session recovery) and wire them to persisted session state: start competition must return a non-empty per-session token; fetch session state must return recovery fields; fetch scramble must return only the eligible scramble for the current attempt; submit attempt must be idempotent and enforce token validity.",
+      "reqIds": [
+        "REQ-58"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-58",
+      "summary": "Implement missing admin backend APIs required by the existing admin UI screens: list all users (principal + optional profile + optional email + blocked status), block/unblock a user, delete a user, reset a user’s competition status for a selected competition+event, list results for a competition+event for admin review, and update result attempts/penalties and hide/unhide leaderboard entries (as required by the existing admin results tooling).",
+      "reqIds": [
+        "REQ-59"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-59",
+      "summary": "Implement missing competition management backend APIs needed for admin editing: update an existing competition (including events and per-event scrambles), delete competition, duplicate competition, lock/unlock, and activate/deactivate; ensure updates validate the “exactly 5 scrambles per event” rule.",
+      "reqIds": [
+        "REQ-60"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-60",
+      "summary": "After a user completes all 5 solves for an event, show a UI section prompting them to submit video evidence by sending a Google Drive public link or an unlisted YouTube link to hellobugentertainment@gmail.com (visible only after event completion).",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-61",
+      "summary": "Multi-event completion UX: when a user finishes an event, provide options to (a) choose/start another event in the same competition, or (b) end/complete the competition for that user if they are not doing other events.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-65",
+      "summary": "Admin results management: when an admin hides a result/leaderboard entry, provide an option to unhide/restore it (UI + backend support as needed).",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-66",
+      "summary": "Public user profile page: clicking a competitor name opens a public profile showing their visible results (and related profile info) to other users.",
+      "reqIds": [],
       "status": "pending"
     }
   ],

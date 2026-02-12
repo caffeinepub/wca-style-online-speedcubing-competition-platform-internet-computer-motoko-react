@@ -10,6 +10,13 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface AdminLeaderboardToggleResult {
+  'user' : Principal,
+  'event' : Event,
+  'isHidden' : boolean,
+  'competitionId' : bigint,
+}
+export interface Attempt { 'penalty' : bigint, 'time' : bigint }
 export interface AttemptInput { 'penalty' : bigint, 'time' : bigint }
 export interface Competition {
   'id' : bigint,
@@ -18,7 +25,9 @@ export interface Competition {
   'scrambles' : Array<[Array<string>, Event]>,
   'name' : string,
   'slug' : string,
+  'isActive' : boolean,
   'events' : Array<Event>,
+  'isLocked' : boolean,
   'entryFee' : [] | [bigint],
   'participantLimit' : [] | [bigint],
   'startDate' : Time,
@@ -45,6 +54,13 @@ export interface CompetitionPublic {
   'participantLimit' : [] | [bigint],
   'startDate' : Time,
 }
+export interface CompetitionResult {
+  'status' : SolveStatus,
+  'user' : Principal,
+  'attempts' : Array<Attempt>,
+  'event' : Event,
+  'userProfile' : [] | [UserProfile],
+}
 export type CompetitionStatus = { 'upcoming' : null } |
   { 'completed' : null } |
   { 'running' : null };
@@ -57,15 +73,11 @@ export type Event = { 'megaminx' : null } |
   { 'skewb' : null } |
   { 'twoByTwo' : null } |
   { 'fourByFour' : null };
-export interface PaidEvent {
-  'id' : bigint,
-  'razorpayPaymentId' : string,
-  'razorpaySignature' : string,
-  'event' : Event,
-  'razorpayOrderId' : string,
-  'paymentDate' : Time,
-  'entryFee' : bigint,
-  'competitionName' : string,
+export interface LeaderboardEntry {
+  'bestTime' : bigint,
+  'user' : Principal,
+  'attempts' : Array<Attempt>,
+  'userProfile' : [] | [PublicProfileInfo],
 }
 export interface PaymentConfirmation {
   'razorpayPaymentId' : string,
@@ -90,12 +102,21 @@ export interface RazorpayOrderResponse {
   'amount' : bigint,
   'competitionName' : string,
 }
-export interface ResultInput {
+export interface Result {
   'status' : SolveStatus,
   'user' : Principal,
-  'attempts' : Array<AttemptInput>,
+  'attempts' : Array<Attempt>,
   'event' : Event,
   'competitionId' : bigint,
+}
+export interface SessionStateResponse {
+  'startTime' : [] | [bigint],
+  'isCompleted' : boolean,
+  'endTime' : [] | [bigint],
+  'currentAttempt' : bigint,
+  'attempts' : Array<Attempt>,
+  'event' : Event,
+  'inspectionStarted' : boolean,
 }
 export type SolveStatus = { 'in_progress' : null } |
   { 'completed' : null } |
@@ -110,9 +131,17 @@ export interface UserProfile {
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
+export interface UserSummary {
+  'principal' : Principal,
+  'isBlocked' : boolean,
+  'email' : [] | [string],
+  'profile' : [] | [UserProfile],
+}
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'activateCompetition' : ActorMethod<[bigint], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'blockUser' : ActorMethod<[Principal], undefined>,
   'confirmPayment' : ActorMethod<[PaymentConfirmation], undefined>,
   'createCompetition' : ActorMethod<[CompetitionInput], bigint>,
   'createRazorpayOrder' : ActorMethod<
@@ -123,30 +152,61 @@ export interface _SERVICE {
     [string, [] | [string], [] | [string]],
     undefined
   >,
-  'getAllUserPayments' : ActorMethod<[], Array<PaymentConfirmation>>,
+  'deactivateCompetition' : ActorMethod<[bigint], undefined>,
+  'deleteCompetition' : ActorMethod<[bigint], undefined>,
+  'deleteUser' : ActorMethod<[Principal], undefined>,
+  'duplicateCompetition' : ActorMethod<[bigint], bigint>,
+  'generateSecureToken' : ActorMethod<[], Uint8Array>,
+  'getCallerResult' : ActorMethod<[bigint, Event], [] | [Result]>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getCompetition' : ActorMethod<[bigint], [] | [Competition]>,
   'getCompetitions' : ActorMethod<[], Array<CompetitionPublic>>,
-  'getLeaderboard' : ActorMethod<[bigint, Event], Array<ResultInput>>,
-  'getMultiplePublicProfiles' : ActorMethod<
-    [Array<Principal>],
-    Array<[Principal, PublicProfileInfo]>
+  'getLeaderboard' : ActorMethod<[bigint, Event], Array<LeaderboardEntry>>,
+  'getPublicProfileInfo' : ActorMethod<[Principal], [] | [PublicProfileInfo]>,
+  'getPublicResultsForUser' : ActorMethod<
+    [Principal, boolean],
+    {
+      'results' : Array<CompetitionResult>,
+      'profile' : [] | [PublicProfileInfo],
+    }
   >,
-  'getPublicProfileInfo' : ActorMethod<[Principal], PublicProfileInfo>,
   'getRazorpayKeyId' : ActorMethod<[], [] | [string]>,
-  'getResults' : ActorMethod<[bigint, Event], Array<ResultInput>>,
-  'getUserPaymentHistory' : ActorMethod<[], Array<PaidEvent>>,
+  'getScramble' : ActorMethod<
+    [bigint, Event, bigint, Uint8Array],
+    [] | [string]
+  >,
+  'getSessionState' : ActorMethod<[bigint, Event], [] | [SessionStateResponse]>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
-  'getUserResult' : ActorMethod<[bigint, Event], [] | [ResultInput]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isRazorpayConfigured' : ActorMethod<[], boolean>,
+  'listAllUsers' : ActorMethod<[], Array<UserSummary>>,
+  'listCompetitionResults' : ActorMethod<
+    [bigint, Event],
+    Array<CompetitionResult>
+  >,
+  'lockCompetition' : ActorMethod<[bigint], undefined>,
+  'resetUserCompetitionStatus' : ActorMethod<
+    [Principal, bigint, Event],
+    undefined
+  >,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'setRazorpayCredentials' : ActorMethod<[string, string], undefined>,
   'setUserEmail' : ActorMethod<[string], undefined>,
-  'startCompetition' : ActorMethod<[bigint, Event], undefined>,
+  'startCompetition' : ActorMethod<[bigint, Event], Uint8Array>,
   'submitAttempt' : ActorMethod<
-    [bigint, Event, bigint, AttemptInput],
+    [bigint, Event, bigint, bigint, bigint, Uint8Array],
+    undefined
+  >,
+  'toggleLeaderboardEntryVisibility' : ActorMethod<
+    [Principal, bigint, Event, boolean],
+    AdminLeaderboardToggleResult
+  >,
+  'unblockUser' : ActorMethod<[Principal], undefined>,
+  'unlockCompetition' : ActorMethod<[bigint], undefined>,
+  'updateCompetition' : ActorMethod<[bigint, CompetitionInput], undefined>,
+  'updateResultAttempts' : ActorMethod<
+    [Principal, bigint, Event, Array<AttemptInput>],
     undefined
   >,
 }

@@ -1,19 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
-import { Timer, Square } from 'lucide-react';
+import { Timer, Square, Loader2 } from 'lucide-react';
 
 interface SolveTimerProps {
-  onComplete: (time: number) => void;
-  disabled?: boolean;
+  onComplete: (time: number, penalty: number) => void;
+  isSubmitting?: boolean;
 }
 
-export default function SolveTimer({ onComplete, disabled }: SolveTimerProps) {
+export default function SolveTimer({ onComplete, isSubmitting }: SolveTimerProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [time, setTime] = useState(0);
   const startTimeRef = useRef<number>(0);
   const intervalRef = useRef<number | null>(null);
 
   const startTimer = () => {
-    if (disabled) return;
+    if (isSubmitting) return;
     setIsRunning(true);
     startTimeRef.current = Date.now();
     
@@ -28,7 +28,7 @@ export default function SolveTimer({ onComplete, disabled }: SolveTimerProps) {
       intervalRef.current = null;
     }
     setIsRunning(false);
-    onComplete(time);
+    onComplete(time, 0); // No penalty for now
   };
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export default function SolveTimer({ onComplete, disabled }: SolveTimerProps) {
         </div>
         <button
           onClick={startTimer}
-          disabled={disabled}
+          disabled={isSubmitting}
           className="px-12 py-6 bg-chart-2 hover:bg-chart-2/90 text-white font-bold text-xl rounded-xl transition-colors shadow-lg shadow-chart-2/20 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Start Timer
@@ -77,10 +77,20 @@ export default function SolveTimer({ onComplete, disabled }: SolveTimerProps) {
         </div>
         <button
           onClick={stopTimer}
-          className="px-12 py-6 bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold text-xl rounded-xl transition-colors shadow-lg shadow-destructive/20 flex items-center gap-3"
+          disabled={isSubmitting}
+          className="px-12 py-6 bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold text-xl rounded-xl transition-colors shadow-lg shadow-destructive/20 flex items-center gap-3 disabled:opacity-50"
         >
-          <Square className="w-6 h-6" />
-          Stop Timer
+          {isSubmitting ? (
+            <>
+              <Loader2 className="w-6 h-6 animate-spin" />
+              Submitting...
+            </>
+          ) : (
+            <>
+              <Square className="w-6 h-6" />
+              Stop Timer
+            </>
+          )}
         </button>
       </div>
     );

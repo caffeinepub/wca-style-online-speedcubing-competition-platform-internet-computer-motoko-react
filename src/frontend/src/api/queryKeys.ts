@@ -1,14 +1,31 @@
-import { Event } from '../backend';
-
 export const QUERY_KEYS = {
-  isAdmin: ['isAdmin'],
-  currentUserProfile: ['currentUserProfile'],
-  competitions: ['competitions'],
-  competition: (id: bigint) => ['competition', id.toString()],
-  results: (competitionId: bigint, event: Event) => ['results', competitionId.toString(), event],
-  leaderboard: (competitionId: bigint, event: Event) => ['leaderboard', competitionId.toString(), event],
-  userResult: (competitionId: bigint, event: Event) => ['userResult', competitionId.toString(), event],
-  publicProfiles: (principalIds: string[]) => ['publicProfiles', ...principalIds.sort()],
-  paymentHistory: ['paymentHistory'],
-  razorpayConfigured: ['razorpayConfigured'],
+  competitions: ['competitions'] as const,
+  competition: (id: bigint) => ['competition', id.toString()] as const,
+  userResult: (competitionId: bigint, event: string) =>
+    ['userResult', competitionId.toString(), event] as const,
+  leaderboard: (competitionId: bigint, event: string) =>
+    ['leaderboard', competitionId.toString(), event] as const,
+  userProfile: (principal?: string) =>
+    principal ? ['userProfile', principal] : ['userProfile'] as const,
+  currentUserProfile: ['currentUserProfile'] as const,
+  razorpayConfigured: ['razorpayConfigured'] as const,
+  paymentHistory: ['paymentHistory'] as const,
+  
+  // Public profile keys
+  publicProfile: (principal: string) => ['publicProfile', principal] as const,
+  publicResults: (principal: string) => ['publicResults', principal] as const,
+  
+  // Admin keys
+  adminUsers: ['admin', 'users'] as const,
+  adminCompetitions: ['admin', 'competitions'] as const,
+  adminResults: (competitionId: bigint, event: string) =>
+    ['admin', 'results', competitionId.toString(), event] as const,
+  adminUserSolveHistory: (principal: string, competitionId: bigint, event: string) =>
+    ['admin', 'userSolveHistory', principal, competitionId.toString(), event] as const,
+  
+  // Solve session keys
+  solveSessionState: (competitionId: bigint, event: string) =>
+    ['solveSession', 'state', competitionId.toString(), event] as const,
+  scrambleForAttempt: (competitionId: bigint, event: string, attemptIndex: number) =>
+    ['scramble', competitionId.toString(), event, attemptIndex] as const,
 } as const;

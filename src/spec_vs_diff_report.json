@@ -1,48 +1,42 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-12T01:22:44.196Z",
-  "summary": "The diff shows partial updates to `CompetitionDetailPage.tsx` adding explicit prerequisite checks (competition present, entryFee present), user-facing toasts on failure, persistent `paymentError` when Razorpay is not configured, and initial console diagnostics (`[pay_click]`, `[pay_error]`). However, due to truncation, several acceptance-criteria details (configLoading button label/disable behavior, full step-boundary logs, and guaranteed `normalizeError` surfacing for unexpected errors) cannot be confirmed from the provided evidence.",
+  "generatedAt": "2026-02-12T11:42:27.468Z",
+  "summary": "Diff shows frontend work toward a hide/unhide toggle (computing `shouldHide: !isCurrentlyHidden`, English toast text, and a local `AdminCompetitionResult` type with `isHidden`). However, there is no evidence in the provided diff summary of the required Motoko backend changes to persist and return a reliable per-result hidden flag for admin listings, and the Admin Results table rendering is truncated so the UI’s per-row state reflection cannot be confirmed. There are also modifications in AdminUsersPage/project metadata that appear unrelated to the requested change.",
   "missing_requirements": [
     {
-      "id": "REQ-34",
-      "requirement": "Replace the early-return guard with explicit user-facing feedback for all missing prerequisites, including the cases where userProfile is still loading vs missing/not created, and ensure no click becomes a silent no-op; unexpected errors must be surfaced via normalizeError(error).",
-      "reason": "The diff snippet confirms explicit checks for missing `competition` and missing `competition.entryFee` with toast + console.error, but the `userProfile` loading/missing branches and the overall try/catch using `normalizeError(error)` are not visible due to truncation.",
+      "id": "REQ-72",
+      "requirement": "Backend admin results listing includes an explicit boolean field indicating whether the result is currently hidden (persisted server-side) and the frontend uses that field to render per-row state and allow both hide and unhide after reload.",
+      "reason": "The diff summary contains no backend (Motoko) changes (e.g., backend/main.mo) showing persistence of hidden state or inclusion of an explicit hidden boolean in the admin results listing response. The AdminResultsPage table rendering is truncated, so it cannot be verified that the UI uses a backend-provided `isHidden` flag per row (and not a frontend guess) to display Hide vs Unhide after reload.",
       "evidence": [
-        "frontend/src/pages/CompetitionDetailPage.tsx (truncated at `if (profileLoading) { console.lo`)"
-      ]
-    },
-    {
-      "id": "REQ-35",
-      "requirement": "Disable the Pay button and show an inline loading label such as \"Checking payments…\" while `configLoading === true`; if `isRazorpayConfigured === false`, show persistent page-level `paymentError` and keep Pay disabled without attempting Razorpay; if configured and prerequisites met, Pay shows \"Processing...\" and proceeds.",
-      "reason": "The diff shows `useIsRazorpayConfigured()` usage and a `useEffect` setting/clearing `paymentError` based on `isRazorpayConfigured`, but does not show any Pay button rendering logic (disabled state, inline label \"Checking payments…\", or \"Processing...\") because the relevant JSX/logic is not present in the truncated excerpt.",
-      "evidence": [
-        "frontend/src/pages/CompetitionDetailPage.tsx (shows configLoading/isRazorpayConfigured state and paymentError effect, but no button JSX in provided snippet)"
-      ]
-    },
-    {
-      "id": "REQ-36",
-      "requirement": "Emit console.log/console.error breadcrumbs at each payment step boundary (script load, order creation, checkout open, confirmation), without logging secrets, and ensure thrown errors show console.error and user-facing error via normalizeError.",
-      "reason": "Only the initial click breadcrumb (`console.log('[pay_click]')`) and some prerequisite-failure console.errors are visible. No evidence is shown for logging at boundaries like script load/order creation/checkout open/confirmation, nor for a catch block with `console.error` + `normalizeError` handling (truncated).",
-      "evidence": [
-        "frontend/src/pages/CompetitionDetailPage.tsx (only `[pay_click]` and prerequisite `[pay_error]` logs visible; remainder truncated)"
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/pages/admin/AdminResultsPage.tsx"
       ]
     }
   ],
   "hallucinated_features": [
     {
-      "description": "Updates to repository meta/documentation/state files (`frontend-file-summaries.txt`, `project_state.json`).",
-      "reason": "The BuildRequest only asked for changes to the payment flow in `frontend/src/pages/CompetitionDetailPage.tsx` (with constraints about not editing certain files). Modifying these meta files is not requested by the BuildRequest requirements.",
+      "description": "Changes to Admin Users page behavior/UI (e.g., new imports/actions around solve history/reset dialog) not directly related to adding unhide capability in Admin Results Management.",
+      "reason": "BuildRequest constrains changes to adding the missing unhide capability in Admin Results Management and avoiding unrelated UI/feature changes; AdminUsersPage modifications are outside /admin/results functionality.",
       "evidence": [
-        "frontend-file-summaries.txt",
-        "project_state.json"
+        "frontend/src/pages/admin/AdminUsersPage.tsx"
+      ]
+    },
+    {
+      "description": "Project-wide summary/metadata updates unrelated to the hide/unhide toggle.",
+      "reason": "BuildRequest asks to avoid unrelated feature/UI changes beyond the missing unhide capability; updating project_state summary does not appear required for implementing REQ-72.",
+      "evidence": [
+        "project_state.json",
+        "frontend-file-summaries.txt"
       ]
     }
   ],
-  "confidence": 0.47,
+  "confidence": 0.62,
   "changed_files": [
     "frontend-file-summaries.txt",
-    "frontend/src/pages/CompetitionDetailPage.tsx",
+    "frontend/src/hooks/useQueries.ts",
+    "frontend/src/pages/admin/AdminResultsPage.tsx",
+    "frontend/src/pages/admin/AdminUsersPage.tsx",
     "project_state.json"
   ]
 }

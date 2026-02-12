@@ -1,224 +1,185 @@
 import { useState, useEffect } from 'react';
-import { useParams, useSearch, useNavigate } from '@tanstack/react-router';
-import { useGetCompetition, useGetUserResult, useSubmitAttempt } from '../hooks/useQueries';
+import { useNavigate, useParams } from '@tanstack/react-router';
+import { toast } from 'sonner';
+import RequireAuth from '../components/auth/RequireAuth';
 import InspectionTimer from '../components/solve/InspectionTimer';
 import SolveTimer from '../components/solve/SolveTimer';
 import SolveCompletionScreen from '../components/solve/SolveCompletionScreen';
-import RequireAuth from '../components/auth/RequireAuth';
-import { Loader2, CreditCard, AlertCircle } from 'lucide-react';
+import {
+  useGetCompetition,
+  useGetSolveSessionState,
+  useGetScrambleForAttempt,
+  useSubmitAttempt,
+} from '../hooks/useQueries';
+import { getSolveSession, clearSolveSession } from '../lib/solveSession';
+import { normalizeError } from '../api/errors';
 import { useBeforeUnloadWarning } from '../hooks/useBeforeUnloadWarning';
 import { useNavigationBlocker } from '../hooks/useNavigationBlocker';
-import { Event } from '../backend';
-import { DEFAULT_EVENT, EVENT_LABELS } from '../types/domain';
-import { useQueryClient } from '@tanstack/react-query';
-import { QUERY_KEYS } from '../api/queryKeys';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-
-type Phase = 'inspection' | 'solving' | 'submitting' | 'next';
+import { Loader2 } from 'lucide-react';
+import type { Event } from '../backend';
 
 export default function SolveFlowPage() {
-  const { competitionId } = useParams({ from: '/competition/$competitionId/solve' });
-  const search = useSearch({ from: '/competition/$competitionId/solve' }) as { event?: Event };
-  const selectedEvent = search.event || DEFAULT_EVENT;
   const navigate = useNavigate();
-
-  const { data: competition, isLoading: compLoading } = useGetCompetition(BigInt(competitionId));
-  const { data: myResult, isLoading: resultLoading } = useGetUserResult(BigInt(competitionId), selectedEvent);
-  const submitAttempt = useSubmitAttempt();
-  const queryClient = useQueryClient();
-
-  const [currentAttemptIndex, setCurrentAttemptIndex] = useState(0);
-  const [phase, setPhase] = useState<Phase>('inspection');
+  const { competitionId, event } = useParams({ strict: false }) as { competitionId: string; event: Event };
+  const [sessionToken, setSessionToken] = useState<Uint8Array | null>(null);
+  const [currentAttempt, setCurrentAttempt] = useState(0);
+  const [phase, setPhase] = useState<'inspection' | 'solving' | 'completed'>('inspection');
+  const [solveTime, setSolveTime] = useState<number | null>(null);
   const [penalty, setPenalty] = useState(0);
 
-  const isInProgress = phase === 'inspection' || phase === 'solving';
-  useBeforeUnloadWarning(isInProgress);
-  useNavigationBlocker(isInProgress);
+  const { data: competition } = useGetCompetition(BigInt(competitionId));
+  const { data: sessionState, isLoading: sessionLoading } = useGetSolveSessionState(
+    BigInt(competitionId),
+    event
+  );
+  const { data: scramble, isLoading: scrambleLoading } = useGetScrambleForAttempt(
+    BigInt(competitionId),
+    event,
+    currentAttempt,
+    sessionToken
+  );
+  const submitAttemptMutation = useSubmitAttempt();
 
+  // Session recovery on mount
   useEffect(() => {
-    if (myResult && myResult.status === 'in_progress') {
-      const completedAttempts = myResult.attempts.filter((a) => Number(a.time) > 0).length;
-      setCurrentAttemptIndex(completedAttempts);
+    const storedToken = getSolveSession(competitionId, event);
+    if (storedToken && storedToken.length > 0) {
+      setSessionToken(storedToken);
+    } else {
+      toast.error('No active session found. Please return to the competition page and start again.');
+      navigate({ to: `/competitions/${competitionId}` });
     }
-  }, [myResult]);
+  }, [competitionId, event, navigate]);
 
-  const handleInspectionComplete = (penaltyMs: number) => {
-    setPenalty(penaltyMs);
+  // Restore session state
+  useEffect(() => {
+    if (sessionState) {
+      setCurrentAttempt(Number(sessionState.currentAttempt));
+      
+      if (sessionState.isCompleted) {
+        setPhase('completed');
+      } else if (sessionState.inspectionStarted) {
+        setPhase('solving');
+      } else {
+        setPhase('inspection');
+      }
+    }
+  }, [sessionState]);
+
+  // Block navigation and page unload during active session
+  const isSessionActive = phase !== 'completed';
+  useBeforeUnloadWarning(isSessionActive);
+  useNavigationBlocker(isSessionActive);
+
+  const handleInspectionComplete = () => {
     setPhase('solving');
   };
 
-  const handleSolveComplete = async (timeMs: number) => {
-    setPhase('submitting');
+  const handleSolveComplete = (time: number, penaltyValue: number) => {
+    setSolveTime(time);
+    setPenalty(penaltyValue);
+    handleSubmitAttempt(time, penaltyValue);
+  };
+
+  const handleSubmitAttempt = async (time: number, penaltyValue: number) => {
+    if (!sessionToken) {
+      toast.error('Session token missing. Please restart the competition.');
+      return;
+    }
+
     try {
-      await submitAttempt.mutateAsync({
+      await submitAttemptMutation.mutateAsync({
         competitionId: BigInt(competitionId),
-        event: selectedEvent,
-        attemptIndex: BigInt(currentAttemptIndex),
-        attempt: {
-          time: BigInt(timeMs),
-          penalty: BigInt(penalty),
-        },
+        event,
+        attemptIndex: currentAttempt,
+        time,
+        penalty: penaltyValue,
+        sessionToken,
       });
 
-      // After 5th solve, proactively refetch leaderboard
-      if (currentAttemptIndex === 4) {
-        await queryClient.invalidateQueries({
-          queryKey: QUERY_KEYS.leaderboard(BigInt(competitionId), selectedEvent),
-        });
-      }
-
-      if (currentAttemptIndex < 4) {
-        setCurrentAttemptIndex(currentAttemptIndex + 1);
-        setPenalty(0);
-        setPhase('next');
+      // Check if all attempts are complete
+      if (currentAttempt >= 4) {
+        setPhase('completed');
+        clearSolveSession(competitionId, event);
       } else {
-        setPhase('next');
+        // Move to next attempt
+        setCurrentAttempt(currentAttempt + 1);
+        setPhase('inspection');
+        setSolveTime(null);
+        setPenalty(0);
       }
     } catch (error) {
-      console.error('Failed to submit attempt:', error);
-      setPhase('next');
+      toast.error(normalizeError(error));
     }
   };
 
-  const handleNextAttempt = () => {
-    setPhase('inspection');
-  };
-
-  const handleBackToCompetition = () => {
-    navigate({
-      to: '/competition/$competitionId',
-      params: { competitionId },
-      search: { event: selectedEvent },
-    });
-  };
-
-  if (compLoading || resultLoading) {
+  if (sessionLoading || !sessionToken) {
     return (
-      <div className="container mx-auto px-4 py-12">
-        <div className="flex items-center justify-center min-h-[400px]">
+      <RequireAuth>
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  if (!sessionState) {
+    return (
+      <RequireAuth>
+        <div className="min-h-screen bg-background flex items-center justify-center">
           <div className="text-center">
-            <Loader2 className="w-12 h-12 animate-spin text-chart-1 mx-auto mb-4" />
-            <p className="text-muted-foreground">Loading solve session...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Payment guard: if competition requires payment and user hasn't started
-  if (competition && !myResult) {
-    const isPaidCompetition = !!competition.entryFee;
-    
-    return (
-      <RequireAuth message="You must be logged in to participate.">
-        <div className="container mx-auto px-4 py-12">
-          <div className="max-w-2xl mx-auto">
-            <Alert className="border-chart-1/20 bg-chart-1/5">
-              <AlertCircle className="h-5 w-5 text-chart-1" />
-              <AlertTitle className="text-lg font-semibold">
-                {isPaidCompetition ? 'Payment Required' : 'Competition Not Started'}
-              </AlertTitle>
-              <AlertDescription className="mt-2 space-y-4">
-                <p className="text-muted-foreground">
-                  {isPaidCompetition
-                    ? `This competition requires a payment of ₹${competition.entryFee} to access. Please complete payment before starting.`
-                    : 'You need to start this competition before you can solve. Please go back to the competition page and click "Start Competition".'}
-                </p>
-                <Button onClick={handleBackToCompetition} className="mt-4">
-                  {isPaidCompetition ? (
-                    <>
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Go to Payment
-                    </>
-                  ) : (
-                    'Back to Competition'
-                  )}
-                </Button>
-              </AlertDescription>
-            </Alert>
+            <p className="text-muted-foreground mb-4">
+              Your session has expired or was not found. Please return to the competition page and start again.
+            </p>
+            <button
+              onClick={() => navigate({ to: `/competitions/${competitionId}` })}
+              className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+            >
+              Return to Competition
+            </button>
           </div>
         </div>
       </RequireAuth>
     );
   }
 
-  if (!competition || !myResult) {
+  if (phase === 'completed') {
     return (
-      <RequireAuth message="You must start the competition first.">
-        <div />
+      <RequireAuth>
+        <SolveCompletionScreen
+          competitionId={BigInt(competitionId)}
+          event={event}
+        />
       </RequireAuth>
     );
   }
-
-  const eventScrambles = competition.scrambles.find(([_, event]) => event === selectedEvent)?.[0] || [];
-
-  if (eventScrambles.length === 0) {
-    return (
-      <div className="container mx-auto px-4 py-12">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-2">No Scrambles Available</h2>
-          <p className="text-muted-foreground">This event does not have scrambles configured.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const isAllComplete = currentAttemptIndex >= 5;
-
-  if (isAllComplete) {
-    return <SolveCompletionScreen competitionId={competitionId} event={selectedEvent} />;
-  }
-
-  const currentScramble = eventScrambles[currentAttemptIndex];
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold mb-2">{competition.name}</h1>
-          <p className="text-muted-foreground">
-            {EVENT_LABELS[selectedEvent]} - Attempt {currentAttemptIndex + 1} of 5
-          </p>
+    <RequireAuth>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-2xl">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold mb-2">{competition?.name}</h1>
+            <p className="text-muted-foreground">
+              Attempt {currentAttempt + 1} of 5
+            </p>
+          </div>
+
+          {phase === 'inspection' && (
+            <InspectionTimer
+              scramble={scramble || undefined}
+              onComplete={handleInspectionComplete}
+            />
+          )}
+
+          {phase === 'solving' && (
+            <SolveTimer
+              onComplete={handleSolveComplete}
+              isSubmitting={submitAttemptMutation.isPending}
+            />
+          )}
         </div>
-
-        {phase === 'inspection' && (
-          <InspectionTimer scramble={currentScramble} onComplete={handleInspectionComplete} />
-        )}
-
-        {phase === 'solving' && <SolveTimer onComplete={handleSolveComplete} />}
-
-        {phase === 'submitting' && (
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="text-center">
-              <Loader2 className="w-12 h-12 animate-spin text-chart-1 mx-auto mb-4" />
-              <p className="text-muted-foreground">Submitting your time...</p>
-            </div>
-          </div>
-        )}
-
-        {phase === 'next' && (
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="text-center">
-              <div className="w-20 h-20 bg-chart-1/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <span className="text-4xl">✓</span>
-              </div>
-              <h2 className="text-2xl font-bold mb-4">Attempt {currentAttemptIndex} Complete!</h2>
-              <p className="text-muted-foreground mb-8">
-                {currentAttemptIndex < 4
-                  ? `Ready for attempt ${currentAttemptIndex + 1}?`
-                  : 'All attempts completed!'}
-              </p>
-              <button
-                onClick={handleNextAttempt}
-                className="px-8 py-3 bg-chart-1 hover:bg-chart-1/90 text-white font-bold rounded-lg transition-colors"
-              >
-                {currentAttemptIndex < 4 ? 'Next Attempt' : 'View Results'}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
-    </div>
+    </RequireAuth>
   );
 }
