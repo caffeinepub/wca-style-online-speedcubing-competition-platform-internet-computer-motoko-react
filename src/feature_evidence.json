@@ -2,12 +2,10 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-fix-the-already-have-an-active-session-for-this-event-start-resume-behavior-so-that-when-a-user-starts-or-resumes-a-competition-event-they-can-successfully-access-the-scramble-and-proceed-to-the-solve-flow-without-getting-stuck-specifically-if-the-user-already-has-an-active-in-progress-session-for-competitionid-event-the-start-resume-path-must-return-or-otherwise-allow-the-frontend-to-obtain-a-valid-session-token-and-the-solve-flow-must-be-able-to-fetch-the-current-eligible-scramble-using-that-session-token",
-      "featureTitle": "Fix the “already have an active session for this event” start/resume behavior so that when a user starts (or resumes) a competition event, they can successfully access the scramble and proceed to the solve flow without getting stuck. Specifically: if the user already has an active in-progress session for (competitionId, event), the start/resume path must return (or otherwise allow the frontend to obtain) a valid session token and the solve flow must be able to fetch the current eligible scramble using that session token.",
+      "featureId": "feature-fix-the-inspection-time-penalty-calculation-so-that-inspection-timing-stops-exactly-when-the-solve-timer-starts-not-when-the-solve-ends-ensuring-wca-inspection-penalties-are-applied-based-only-on-the-duration-from-inspection-start-to-solve-start",
+      "featureTitle": "Fix the inspection-time penalty calculation so that inspection timing stops exactly when the solve timer starts (not when the solve ends), ensuring WCA inspection penalties are applied based only on the duration from inspection start to solve start.",
       "files": [
-        "frontend/src/api/errors.ts",
-        "frontend/src/hooks/useQueries.ts",
-        "frontend/src/pages/CompetitionDetailPage.tsx",
+        "frontend/src/components/solve/SolveTimer.tsx",
         "frontend/src/pages/SolveFlowPage.tsx"
       ],
       "components": [
@@ -20,7 +18,7 @@
         "http-outcalls@3.0.0"
       ],
       "testIds": [
-        "REQ-115"
+        "REQ-116"
       ],
       "confidence": "high"
     }

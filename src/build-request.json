@@ -1,73 +1,43 @@
 {
   "kind": "build_request",
-  "title": "Server-side WCA Ao5 validation + fix resume session scramble access",
+  "title": "Fix inspection penalty timing to stop at solve start (do not include solve time)",
   "priority": "normal",
   "requirements": [
     {
-      "id": "REQ-114",
-      "text": "Implement and enforce a WCA Average of 5 (Ao5) calculation/validation engine on the Motoko backend, so results and leaderboard scoring are server-side validated (not only computed in the frontend). The engine must: (1) compute Ao5 by dropping best and worst of 5, (2) include +2 penalties in time calculations, (3) handle DNF attempts, (4) return Ao5 as DNF if there are 2 or more DNFs, and (5) apply WCA inspection overage rules server-side for each solve: if the competitor does not start the solve within 15 seconds of inspection start, auto-apply +2 to that solve; if the competitor exceeds 17 seconds, auto-mark that solve as DNF. If these rules are already correctly implemented in current server logic, do not change them.",
-      "target": "backend",
+      "id": "REQ-116",
+      "text": "Fix the inspection-time penalty calculation so that inspection timing stops exactly when the solve timer starts (not when the solve ends), ensuring WCA inspection penalties are applied based only on the duration from inspection start to solve start.",
+      "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-user-latest"
+          "msg-1"
         ],
         "quotes": [
-          "WCA Average Calculation Engine\n\nInstead of simple average:\n\nDrop best and worst\n\nHandle +2\n\nHandle DNF logic\n\nAuto DNF if 2 DNFs\n\nIf user didn't start the timer  within 15 sec consider it as +2 as per wca rule and 17 after start considering as dnf. This will be auto applied to that solve .\n\nSkip if these done already \n\nThis must be server-side validated."
+          "Please try again. Also, ensure the instructions are accurate, which means the calculation of time inspection stops and timer starts . no other changes"
         ]
       },
       "acceptanceCriteria": [
-        "Backend enforces a single canonical Ao5 computation for any server-produced leaderboard/score output, using 5 attempts: drop best and worst, average remaining 3.",
-        "Backend treats +2 as an added time penalty (not a separate field only used by frontend).",
-        "Backend treats an attempt as DNF in a single consistent way, and Ao5 becomes DNF if there are 2 or more DNF attempts.",
-        "Backend applies inspection timing enforcement server-side: inspection overage in [15s,17s) results in +2 for that attempt; inspection overage >=17s results in DNF for that attempt.",
-        "Attempt submissions are validated/normalized on the backend so a client cannot bypass inspection penalty/DNF by submitting a different penalty value.",
-        "All traps/errors surfaced to users remain English-only."
-      ]
-    },
-    {
-      "id": "REQ-115",
-      "text": "Fix the “already have an active session for this event” start/resume behavior so that when a user starts (or resumes) a competition event, they can successfully access the scramble and proceed to the solve flow without getting stuck. Specifically: if the user already has an active in-progress session for (competitionId, event), the start/resume path must return (or otherwise allow the frontend to obtain) a valid session token and the solve flow must be able to fetch the current eligible scramble using that session token.",
-      "target": "both",
-      "source": {
-        "messageIds": [
-          "msg-user-latest"
-        ],
-        "quotes": [
-          "Also currently when we start a competition like used start to solve it says you already have an active session for this event but still not accessed the scramble. Fix this \n\nDon't make any other changes"
-        ]
-      },
-      "acceptanceCriteria": [
-        "Calling the backend start/resume API for an event with an existing in-progress session does not leave the user in a state where the solve route cannot fetch a scramble.",
-        "Frontend stores a valid session token in sessionStorage (tab-scoped) for both new sessions and resumed sessions, and uses it for scramble fetch and attempt submission calls.",
-        "If the solve route is accessed without a valid session token, the UI shows a clear English message instructing the user to return to the competition page and start/resume again (no silent failure).",
-        "Scramble retrieval succeeds after resuming an existing session and returns the current eligible scramble for the attempt index indicated by server session state.",
-        "No unrelated features (payments, admin, UI theme) are changed as part of this fix."
+        "When a user starts inspection (InspectionTimer onStart), the app records an inspectionStart timestamp.",
+        "When the user starts the solve timer (SolveTimer start action), the app records a solveStart timestamp and uses (solveStart - inspectionStart) as the inspection duration for penalty logic.",
+        "The inspection duration used for penalty logic MUST NOT include the time spent solving (i.e., it must not reference the time at solve completion).",
+        "If inspection duration is >= 15,000ms and < 17,000ms, apply +2 seconds to the attempt (same penalty semantics currently used).",
+        "If inspection duration is >= 17,000ms, mark the attempt as DNF (same DNF marker semantics currently used).",
+        "The existing user-facing messages/toasts for +2 and DNF remain in English and are triggered based on the corrected timing.",
+        "No other behavior changes to solve flow, session handling, scramble fetching, result submission, or navigation beyond what is necessary to correct the inspection timing measurement."
       ]
     }
   ],
   "constraints": [
-    "Do not make any changes unrelated to (1) server-side WCA Ao5/inspection validation and (2) fixing the active-session resume/scramble access bug.",
-    "Use English-only for any user-facing text.",
-    "Backend must remain a single Motoko actor in backend/main.mo (add backend/migration.mo only if a state upgrade is required by the change).",
-    "Do not edit frontend immutable paths listed in SYSTEM_CONTEXT."
+    "Make no functional changes other than correcting when inspection timing stops and when solve timing starts for penalty calculation.",
+    "Do not edit files under frontend immutablePaths.",
+    "Keep all user-facing text in English."
   ],
   "nonGoals": [
-    "Do not redesign the UI or change visual styling.",
-    "Do not change payment flows or admin features.",
-    "Do not introduce new external services, databases, or non-Motoko backend components."
+    "Changing backend Ao5 / penalty logic or any backend validation behavior.",
+    "Changing the inspection countdown UI/behavior (other than wiring accurate timestamps).",
+    "Fixing unrelated issues such as competition start/resume UX, admin flows, payment flows, or leaderboard behavior."
   ],
   "imageRequirements": {
     "required": [],
     "edits": []
-  },
-  "userProfileUpdate": {
-    "goalsToAdd": [],
-    "goalsToRemove": [],
-    "preferencesToAdd": [],
-    "preferencesToRemove": [],
-    "miscToAdd": [],
-    "miscToRemove": [],
-    "fieldsToSet": {},
-    "fieldsToDelete": []
   }
 }

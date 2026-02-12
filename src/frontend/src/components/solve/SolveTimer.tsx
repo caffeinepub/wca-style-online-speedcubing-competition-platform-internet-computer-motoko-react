@@ -3,10 +3,11 @@ import { Timer, Square, Loader2 } from 'lucide-react';
 
 interface SolveTimerProps {
   onComplete: (time: number, penalty: number) => void;
+  onStart?: () => void;
   isSubmitting?: boolean;
 }
 
-export default function SolveTimer({ onComplete, isSubmitting }: SolveTimerProps) {
+export default function SolveTimer({ onComplete, onStart, isSubmitting }: SolveTimerProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [time, setTime] = useState(0);
   const startTimeRef = useRef<number>(0);
@@ -16,6 +17,11 @@ export default function SolveTimer({ onComplete, isSubmitting }: SolveTimerProps
     if (isSubmitting) return;
     setIsRunning(true);
     startTimeRef.current = Date.now();
+    
+    // Notify parent that solve timer has started
+    if (onStart) {
+      onStart();
+    }
     
     intervalRef.current = window.setInterval(() => {
       setTime(Date.now() - startTimeRef.current);

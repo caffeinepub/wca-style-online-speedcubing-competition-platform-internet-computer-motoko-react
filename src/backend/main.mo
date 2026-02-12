@@ -10,9 +10,9 @@ import Runtime "mo:core/Runtime";
 import AccessControl "authorization/access-control";
 import Nat8 "mo:core/Nat8";
 import MixinAuthorization "authorization/MixinAuthorization";
-import Migration "migration";
 
-(with migration = Migration.run)
+
+
 actor {
   module NatPrincipalEvent {
     public func compare(x : (Nat, Principal, Event), y : (Nat, Principal, Event)) : Order.Order {

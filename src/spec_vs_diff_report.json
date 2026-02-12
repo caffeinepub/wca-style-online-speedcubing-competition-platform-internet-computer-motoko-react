@@ -1,76 +1,32 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-12T21:59:58.735Z",
-  "summary": "Diff adds an Ao5 field/migration and multiple frontend changes, but does not show a correct/complete server-side WCA Ao5 + inspection validation engine, and the active-session resume/scramble access fix appears incomplete (resume path may still lack a token; scramble fetch does not visibly use the token). Several changes appear unrelated to the two requested scopes (admin pages, generic error normalization, new/changed solve UI behavior).",
+  "generatedAt": "2026-02-12T22:25:55.320Z",
+  "summary": "REQ-116 is largely implemented by recording an inspectionStart timestamp on inspection start and calculating the inspection duration at solve start (SolveTimer onStart) to determine +2/DNF. However, the diff introduces new user-facing toast text for penalties, which conflicts with the requirement to keep existing messages/toasts unchanged.",
   "missing_requirements": [
     {
-      "id": "REQ-114",
-      "requirement": "Backend must implement a canonical WCA Ao5 engine (drop best & worst of 5 and average remaining 3), include +2 in time, handle DNF, and return Ao5 as DNF if >=2 DNFs, and use it for server-produced scoring/leaderboards.",
-      "reason": "The only visible Ao5 implementation is in migration.mo and it does not average 3 solves in some cases (e.g., with 1 DNF it will average only 2 times because it filters out DNFs before dropping best/worst). No evidence in the diff summary shows main backend logic enforcing Ao5 for leaderboard outputs.",
+      "id": "REQ-116",
+      "requirement": "The existing user-facing messages/toasts for +2 and DNF remain in English and are triggered based on the corrected timing.",
+      "reason": "The diff shows new toast message strings being introduced for the +2 and DNF inspection penalties, rather than preserving the existing user-facing messages/toasts.",
       "evidence": [
-        "backend/migration.mo",
-        "backend/main.mo (truncated; no Ao5 enforcement shown)"
-      ]
-    },
-    {
-      "id": "REQ-114",
-      "requirement": "Backend must apply WCA inspection overage rules server-side and validate/normalize submissions so clients cannot bypass penalties/DNF by submitting different penalty values.",
-      "reason": "No backend code shown applies inspection timing rules or normalizes/overrides client-submitted penalties based on inspection start/end; frontend implements inspection penalty client-side, which does not satisfy server-side enforcement.",
-      "evidence": [
-        "frontend/src/pages/SolveFlowPage.tsx",
-        "backend/main.mo (truncated; no inspection enforcement shown)"
-      ]
-    },
-    {
-      "id": "REQ-115",
-      "requirement": "If user already has an active in-progress session for (competitionId,event), the start/resume path must return/allow frontend to obtain a valid session token; scramble fetch must succeed using that token for the current eligible attempt index.",
-      "reason": "CompetitionDetailPage treats the 'already have an active session' case as an error message and navigates without storing any token in that path; also SolveFlowPage does not pass a session token to the scramble-fetch hook call, so it is unclear how scramble retrieval would work after resume.",
-      "evidence": [
-        "frontend/src/pages/CompetitionDetailPage.tsx",
         "frontend/src/pages/SolveFlowPage.tsx"
       ]
     }
   ],
   "hallucinated_features": [
     {
-      "description": "Frontend-only inspection penalty/DNF application based on elapsed inspection time (including special values like 999999 as DNF marker).",
-      "reason": "REQ-114 explicitly requires server-side inspection enforcement and submission normalization; implementing this logic client-side is not requested and risks contradicting the requirement.",
+      "description": "Introduced new inspection penalty toast copy (“Inspection time exceeded 15s: +2 penalty applied” and “Inspection time exceeded 17s: DNF applied”).",
+      "reason": "BuildRequest requires keeping existing user-facing messages/toasts (only wiring accurate timestamps). Adding/replacing toast copy is a user-facing change not explicitly requested.",
       "evidence": [
-        "frontend/src/pages/SolveFlowPage.tsx",
-        "frontend/src/components/solve/InspectionTimer.tsx"
-      ]
-    },
-    {
-      "description": "Broad changes to admin pages (competition edit, results management, users management) and related UI behavior.",
-      "reason": "BuildRequest constraints prohibit changes unrelated to (1) server-side WCA Ao5/inspection validation and (2) active-session resume/scramble bug fix; admin/UI feature work is outside scope.",
-      "evidence": [
-        "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
-        "frontend/src/pages/admin/AdminResultsPage.tsx",
-        "frontend/src/pages/admin/AdminUsersPage.tsx"
-      ]
-    },
-    {
-      "description": "Generic frontend error-normalization text changes for many unrelated domains (payments, profile, authorization, etc.).",
-      "reason": "Not requested by REQ-114/REQ-115 and violates the 'no unrelated changes' constraint.",
-      "evidence": [
-        "frontend/src/api/errors.ts"
+        "frontend/src/pages/SolveFlowPage.tsx"
       ]
     }
   ],
-  "confidence": 0.72,
+  "confidence": 0.67,
   "changed_files": [
-    "backend/main.mo",
-    "backend/migration.mo",
     "frontend-file-summaries.txt",
-    "frontend/src/api/errors.ts",
-    "frontend/src/components/solve/InspectionTimer.tsx",
-    "frontend/src/hooks/useQueries.ts",
-    "frontend/src/pages/CompetitionDetailPage.tsx",
+    "frontend/src/components/solve/SolveTimer.tsx",
     "frontend/src/pages/SolveFlowPage.tsx",
-    "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
-    "frontend/src/pages/admin/AdminResultsPage.tsx",
-    "frontend/src/pages/admin/AdminUsersPage.tsx",
     "project_state.json"
   ]
 }

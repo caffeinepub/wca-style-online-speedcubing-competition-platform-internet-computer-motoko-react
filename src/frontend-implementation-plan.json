@@ -1,48 +1,30 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Fix active-session resume to always obtain/store session token and enable scramble fetch in solve flow",
+  "title": "Stop inspection penalty timing at solve start (exclude solve time)",
   "requirements": [
     {
-      "id": "REQ-115",
-      "summary": "Ensure start/resume returns a usable session token, store it in sessionStorage, and use it to fetch the current scramble so resumed sessions can proceed into the solve flow without getting stuck.",
+      "id": "REQ-116",
+      "summary": "Measure inspection duration from inspection start to solve start (not solve end) and apply WCA +2/DNF penalties based on that duration only.",
       "acceptanceCriteria": [
-        "Calling the backend start/resume API for an event with an existing in-progress session does not leave the user in a state where the solve route cannot fetch a scramble.",
-        "Frontend stores a valid session token in sessionStorage (tab-scoped) for both new sessions and resumed sessions, and uses it for scramble fetch and attempt submission calls.",
-        "If the solve route is accessed without a valid session token, the UI shows a clear English message instructing the user to return to the competition page and start/resume again (no silent failure).",
-        "Scramble retrieval succeeds after resuming an existing session and returns the current eligible scramble for the attempt index indicated by server session state.",
-        "No unrelated features (payments, admin, UI theme) are changed as part of this fix."
+        "When a user starts inspection (InspectionTimer onStart), the app records an inspectionStart timestamp.",
+        "When the user starts the solve timer (SolveTimer start action), the app records a solveStart timestamp and uses (solveStart - inspectionStart) as the inspection duration for penalty logic.",
+        "The inspection duration used for penalty logic MUST NOT include the time spent solving (i.e., it must not reference the time at solve completion).",
+        "If inspection duration is >= 15,000ms and < 17,000ms, apply +2 seconds to the attempt (same penalty semantics currently used).",
+        "If inspection duration is >= 17,000ms, mark the attempt as DNF (same DNF marker semantics currently used).",
+        "The existing user-facing messages/toasts for +2 and DNF remain in English and are triggered based on the corrected timing.",
+        "No other behavior changes to solve flow, session handling, scramble fetching, result submission, or navigation beyond what is necessary to correct the inspection timing measurement."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/backend.d.ts",
+          "path": "frontend/src/components/solve/SolveTimer.tsx",
           "operation": "modify",
-          "description": "Align frontend backend typings with the backend start/resume and solve-flow capabilities used by the UI: ensure the actor method name used for session creation is `startOrResumeCompetitionSession`, and add/adjust the typed backend capabilities needed by the solve flow to (a) read current session state for (competitionId,event) using the session token, (b) fetch the eligible scramble for the current attempt using the session token, and (c) submit an attempt/result using the session token so the client cannot proceed without it."
-        },
-        {
-          "path": "frontend/src/hooks/useQueries.ts",
-          "operation": "modify",
-          "description": "Fix solve-session hooks and mutations to call the correct backend capabilities (no placeholder 'Backend method not available' behavior): update `useStartCompetition` to call `actor.startOrResumeCompetitionSession(...)` and return the token; implement `useGetSolveSessionState` and `useGetScrambleForAttempt` to query backend using the stored session token; implement `useSubmitAttempt` to submit attempt data with the session token, and invalidate relevant cached queries after successful submission."
-        },
-        {
-          "path": "frontend/src/api/queryKeys.ts",
-          "operation": "modify",
-          "description": "Update/extend solve-session React Query keys so they are scoped correctly for resumed sessions (include competitionId, event, attemptIndex, and where appropriate the session token identity) to avoid stale/incorrect scramble data when a session is resumed and a new token is issued."
-        },
-        {
-          "path": "frontend/src/pages/CompetitionDetailPage.tsx",
-          "operation": "modify",
-          "description": "On Start/Resume, always call the backend start/resume capability and always store the returned session token via `storeSolveSession(...)` before navigating to the solve route, so resumed sessions reliably refresh/repair the tab-scoped token and unblock scramble access."
+          "description": "Add an optional onStart callback prop (or equivalent) that is invoked exactly when the solve timer starts, passing/recording the solve start timestamp so the parent can stop inspection timing at this moment. Ensure existing solve timer start/stop behavior and UI remain unchanged besides emitting this start signal."
         },
         {
           "path": "frontend/src/pages/SolveFlowPage.tsx",
           "operation": "modify",
-          "description": "Use the stored session token for all solve-flow data access: ensure scramble fetch and attempt submission are gated on a valid session token; when a token is missing, keep the existing clear English error message and redirect behavior; adjust solve-flow loading/error handling so resume cases (server indicates in-progress) correctly restore `currentAttempt` and fetch the eligible scramble for that attempt."
-        },
-        {
-          "path": "frontend/src/api/errors.ts",
-          "operation": "modify",
-          "description": "Add or refine English-only error normalization for any new/updated backend trap messages related to session resume, invalid/expired session tokens, and scramble access so users see clear guidance (and no silent failures) when the session token is missing or invalid."
+          "description": "Update inspection penalty calculation to use (solveStartTime - inspectionStartTime) captured at the moment the solve starts (from SolveTimer start action), and store the resulting inspection penalty/DNF marker to apply on solve completion without referencing completion time. Keep existing +2/DNF toast messages in English and trigger them based on the corrected inspection duration. Ensure no other solve flow behaviors change (session handling, scrambles, submission, navigation)."
         }
       ]
     }

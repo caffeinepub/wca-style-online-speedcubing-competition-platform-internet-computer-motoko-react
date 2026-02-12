@@ -34,6 +34,7 @@ export default function SolveFlowPage() {
   const [attempts, setAttempts] = useState<AttemptData[]>([]);
   const [sessionToken, setSessionToken] = useState<Uint8Array | null>(null);
   const [inspectionStartTime, setInspectionStartTime] = useState<number | null>(null);
+  const [inspectionPenalty, setInspectionPenalty] = useState<number>(0);
 
   const { data: competition, isLoading: competitionLoading } = useGetCompetition(BigInt(competitionId));
   const { data: scramble, isLoading: scrambleLoading, error: scrambleError } = useGetScrambleForAttempt(
@@ -70,24 +71,33 @@ export default function SolveFlowPage() {
     setInspectionStartTime(Date.now());
   };
 
-  const handleSolveComplete = async (time: number, penalty: number) => {
-    // Calculate inspection time penalty if applicable
-    let finalPenalty = penalty;
+  const handleSolveStart = () => {
+    // Calculate inspection penalty when solve timer starts (not when it completes)
+    let penalty = 0;
     
     if (inspectionStartTime) {
-      const inspectionTime = Date.now() - inspectionStartTime;
+      const solveStartTime = Date.now();
+      const inspectionDuration = solveStartTime - inspectionStartTime;
       
       // WCA Rule: 15-17 seconds = +2 penalty
-      if (inspectionTime >= 15000 && inspectionTime < 17000) {
-        finalPenalty += 2000; // Add 2 seconds
+      if (inspectionDuration >= 15000 && inspectionDuration < 17000) {
+        penalty = 2000; // Add 2 seconds
         toast.info('Inspection time exceeded 15s: +2 penalty applied');
       }
       // WCA Rule: >= 17 seconds = DNF
-      else if (inspectionTime >= 17000) {
-        finalPenalty = 999999; // DNF marker
+      else if (inspectionDuration >= 17000) {
+        penalty = 999999; // DNF marker
         toast.error('Inspection time exceeded 17s: DNF applied');
       }
     }
+    
+    // Store the penalty to apply when solve completes
+    setInspectionPenalty(penalty);
+  };
+
+  const handleSolveComplete = async (time: number, penalty: number) => {
+    // Apply the inspection penalty that was calculated when solve started
+    const finalPenalty = penalty + inspectionPenalty;
 
     const newAttempts = [...attempts, { time, penalty: finalPenalty }];
     setAttempts(newAttempts);
@@ -114,6 +124,7 @@ export default function SolveFlowPage() {
       setCurrentAttempt(currentAttempt + 1);
       setPhase('inspection');
       setInspectionStartTime(null);
+      setInspectionPenalty(0);
     }
   };
 
@@ -217,7 +228,10 @@ export default function SolveFlowPage() {
               )}
 
               {phase === 'solving' && (
-                <SolveTimer onComplete={handleSolveComplete} />
+                <SolveTimer 
+                  onComplete={handleSolveComplete}
+                  onStart={handleSolveStart}
+                />
               )}
             </div>
           )}
