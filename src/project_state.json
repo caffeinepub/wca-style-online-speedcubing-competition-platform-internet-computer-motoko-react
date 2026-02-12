@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 45,
-  "summary": "Full-stack online speedcubing competition platform with multi-event, WCA-style 5-solve flow, paid entry via Razorpay, admin dashboard, strong integrity controls, post-completion UX enhancements (video evidence prompt + multi-event completion flow), leaderboard discoverability, and upcoming competition pricing enhancements to support event-based fee models (per-event fee, extra-event flat fee, and a flat fee for all events combined).",
+  "projectStateVersion": 51,
+  "summary": "Full-stack online speedcubing competition platform with multi-event, WCA-style 5-solve flow, paid entry via Razorpay, admin dashboard, strong integrity controls, post-completion UX enhancements (video evidence prompt + multi-event completion flow), leaderboard discoverability, upcoming competition pricing enhancements, and a new registration-start date feature that gates starting until a specified datetime and auto-transitions upcoming competitions to running at that time.",
   "architectural_notes": [
     "Tech stack: Next.js (App Router) + TypeScript + PostgreSQL + Prisma ORM + NextAuth; deploy on Vercel.",
     "Competition format mirrors WCA-style online comps: 5 scrambles/solves with inspection and penalties.",
@@ -26,7 +26,7 @@
     "Regression/data missing: competition scrambles are missing/not visible.",
     "Regression/data missing: previously submitted results are missing/not visible."
   ],
-  "isFixRequest": true,
+  "isFixRequest": false,
   "existing_features": [
     {
       "id": "feature-implement-user-authentication-using-internet-identity-ii-and-require-login-to-participate-in-competitions-store-a-user-profile-record-keyed-by-principal-with-a-user-editable-display-name-and-ensure-only-authenticated-users-can-create-results-or-submit-solves",
@@ -539,6 +539,70 @@
         "REQ-93"
       ],
       "version": 1
+    },
+    {
+      "id": "feature-fix-the-admin-users-screen-admin-users-so-it-loads-real-users-from-the-backend-instead-of-returning-an-empty-array-and-ensure-all-admin-user-actions-block-unblock-delete-reset-competition-status-view-solve-history-call-real-backend-canister-methods-no-stubs-disabled-flags",
+      "title": "Fix the Admin Users screen (/admin/users) so it loads real users from the backend instead of returning an empty array, and ensure all admin user actions (block/unblock, delete, reset competition status, view solve history) call real backend canister methods (no stubs/disabled flags).",
+      "reqIds": [
+        "REQ-94"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-admin-competition-management-edit-save-delete-so-it-does-not-show-this-feature-is-not-yet-available-the-backend-is-missing-required-functionality-implement-the-missing-backend-competition-management-apis-at-minimum-update-and-delete-plus-any-other-actions-already-present-in-the-admin-ui-such-as-lock-unlock-and-activate-deactivate-and-wire-the-frontend-admin-competition-mutations-to-these-backend-methods",
+      "title": "Fix Admin Competition management (edit/save/delete) so it does not show “This feature is not yet available. The backend is missing required functionality.” Implement the missing backend competition-management APIs (at minimum update and delete; plus any other actions already present in the admin UI such as lock/unlock and activate/deactivate) and wire the frontend admin competition mutations to these backend methods.",
+      "reqIds": [
+        "REQ-95"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-admin-results-visibility-toggling-so-admins-can-hide-unhide-results-without-the-backend-is-missing-required-functionality-error-by-implementing-the-required-backend-admin-results-apis-and-wiring-the-frontend-hooks-used-by-admin-results-including-a-reliable-per-result-ishidden-flag-in-the-admin-results-list",
+      "title": "Fix Admin Results visibility toggling so admins can hide/unhide results without the “backend is missing required functionality” error by implementing the required backend admin results APIs and wiring the frontend hooks used by /admin/results (including a reliable per-result isHidden flag in the admin results list).",
+      "reqIds": [
+        "REQ-96"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-remove-replace-frontend-react-query-stubs-that-currently-return-empty-arrays-null-or-throw-backend-method-not-available-for-the-admin-data-path-users-competition-management-mutations-admin-results-list-toggle-and-ensure-the-hooks-in-frontend-src-hooks-usequeries-ts-call-the-real-backend-actor-interface-methods",
+      "title": "Remove/replace frontend React Query stubs that currently return empty arrays/null or throw “Backend method not available” for the admin data path (users, competition management mutations, admin results list/toggle) and ensure the hooks in frontend/src/hooks/useQueries.ts call the real backend actor interface methods.",
+      "reqIds": [
+        "REQ-97"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-the-admin-results-page-admin-results-so-it-no-longer-throws-the-runtime-error-a-select-item-must-have-a-value-prop-that-is-not-an-empty-string-when-the-page-is-opened",
+      "title": "Fix the Admin Results page (/admin/results) so it no longer throws the runtime error \"A <Select.Item /> must have a value prop that is not an empty string\" when the page is opened.",
+      "reqIds": [
+        "REQ-100"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-the-admin-results-page-event-filter-state-value-mapping-so-the-select-component-never-renders-a-selectitem-with-an-empty-string-value-and-the-select-value-is-always-a-valid-non-empty-string-when-an-item-is-selected",
+      "title": "Update the Admin Results page event filter state/value mapping so the Select component never renders a SelectItem with an empty string value and the Select 'value' is always a valid non-empty string when an item is selected.",
+      "reqIds": [
+        "REQ-101"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-frontend-admin-update-the-admin-competition-create-and-edit-forms-to-support-setting-registrationstartdate-datetime-for-new-competitions-created-as-upcoming-the-admin-can-set-this-value-it-is-sent-to-the-backend-as-part-of-competition-creation-update",
+      "title": "Frontend (Admin): Update the admin competition create and edit forms to support setting `registrationStartDate` (datetime). For new competitions created as Upcoming, the admin can set this value; it is sent to the backend as part of competition creation/update.",
+      "reqIds": [
+        "REQ-105"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-frontend-public-competition-detail-when-a-competition-is-upcoming-and-the-current-time-is-before-registrationstartdate-keep-the-start-pay-button-disabled-idle-and-show-an-english-message-below-it-registration-opens-at-date-users-must-still-be-able-to-view-the-competition-detail-page-and-select-events-but-cannot-proceed-to-payment-or-start-until-registration-opens",
+      "title": "Frontend (Public competition detail): When a competition is Upcoming and the current time is before `registrationStartDate`, keep the Start/Pay button disabled (idle) and show an English message below it: “Registration opens at <date>”. Users must still be able to view the competition detail page and select events, but cannot proceed to payment or start until registration opens.",
+      "reqIds": [
+        "REQ-106"
+      ],
+      "version": 1
     }
   ],
   "new_feature_requests": [
@@ -983,8 +1047,55 @@
         "REQ-91"
       ],
       "status": "pending"
+    },
+    {
+      "id": "AR-80",
+      "summary": "Implement the missing backend canister methods required by the existing admin UI for: (1) listing all users with their profile summary/email/blocked status, (2) block/unblock user, (3) delete user, (4) reset a user’s competition status for a given competitionId+event, (5) list competition results for admin review including per-result hidden state, and (6) hide/unhide a result entry for leaderboard visibility control. Ensure all admin-only methods enforce the same allowlisted-admin rule used by isCallerAdmin().",
+      "reqIds": [
+        "REQ-98"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-81",
+      "summary": "Implement the missing backend canister methods required by the existing admin competition management UI for updating and deleting competitions (and any other competition actions present in the UI such as lock/unlock and activate/deactivate), including validation that each event has exactly 5 scrambles when saving/updating.",
+      "reqIds": [
+        "REQ-99"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-82",
+      "summary": "Add per-competition registrationStartDate (for newly created/listed competitions only): while status is Upcoming and current time is before registrationStartDate, users may view the competition page but cannot start/pay; keep the Start/Pay button idle/disabled and show text like “Registration opens at <date>”. When registrationStartDate is reached, automatically transition the competition status to Running so participation is allowed within the existing from/to competition dates.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-83",
+      "summary": "Backend: Add an optional `registrationStartDate` datetime field to competitions (stored per competition) that is used only for newly created/updated competitions. Existing competitions must behave exactly as before (i.e., treat missing/unset `registrationStartDate` as “no registration gating”).",
+      "reqIds": [
+        "REQ-102"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-84",
+      "summary": "Backend: Enforce registration gating for upcoming competitions: when `competition.status` is `#upcoming` and `registrationStartDate` is set and the current time is before `registrationStartDate`, the user must not be allowed to start a competition session or start any paid-entry flow for that competition/event.",
+      "reqIds": [
+        "REQ-103"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-85",
+      "summary": "Backend: Automatically transition competitions from `#upcoming` to `#running` when `registrationStartDate` is reached. This auto-transition must happen without requiring an admin action.",
+      "reqIds": [
+        "REQ-104"
+      ],
+      "status": "pending"
     }
   ],
+  "gameProjectType": "none",
   "projectName": "WCA-style online speedcubing competition platform (Internet Computer: Motoko + React)",
   "clarification_mode": "instant",
   "clarification_rounds": 0

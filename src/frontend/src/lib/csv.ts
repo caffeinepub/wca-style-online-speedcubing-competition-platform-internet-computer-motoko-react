@@ -55,3 +55,29 @@ function escapeCSV(value: string): string {
   }
   return value;
 }
+
+// Generic CSV generation function
+export function generateCSV(headers: string[], rows: string[][]): string {
+  const escapedRows = rows.map(row => row.map(cell => escapeCSV(cell)));
+  return [
+    headers.map(h => escapeCSV(h)).join(','),
+    ...escapedRows.map(row => row.join(',')),
+  ].join('\n');
+}
+
+// Generic CSV download function
+export function downloadCSV(csvContent: string, filename: string): void {
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+}

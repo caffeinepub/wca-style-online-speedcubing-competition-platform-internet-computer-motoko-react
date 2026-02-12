@@ -1,40 +1,54 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { Principal } from '@dfinity/principal';
 import AdminGuard from '../../components/auth/AdminGuard';
 import {
   useAdminGetAllUsers,
   useAdminBlockUser,
-  useAdminUnblockUser,
   useAdminDeleteUser,
   useAdminResetUserCompetitionStatus,
   useAdminGetUserSolveHistory,
+  useAdminGetAllCompetitions,
 } from '../../hooks/useQueries';
 import { normalizeError } from '../../api/errors';
 import { Loader2, Shield, ShieldOff, Trash2, RotateCcw, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { EVENT_LABELS } from '../../types/domain';
+import type { Event } from '../../backend';
 
 export default function AdminUsersPage() {
   const { data: users, isLoading } = useAdminGetAllUsers();
+  const { data: competitions = [] } = useAdminGetAllCompetitions();
   const blockUserMutation = useAdminBlockUser();
-  const unblockUserMutation = useAdminUnblockUser();
   const deleteUserMutation = useAdminDeleteUser();
   const resetStatusMutation = useAdminResetUserCompetitionStatus();
-  const { data: solveHistory = [], refetch: refetchSolveHistory } = useAdminGetUserSolveHistory();
 
   const [actioningUser, setActioningUser] = useState<string | null>(null);
   const [selectedUserForHistory, setSelectedUserForHistory] = useState<string | null>(null);
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resetUserPrincipal, setResetUserPrincipal] = useState<string | null>(null);
+  const [resetCompetitionId, setResetCompetitionId] = useState<string>('');
+  const [resetEvent, setResetEvent] = useState<Event | ''>('');
+
+  const { data: solveHistory = [] } = useAdminGetUserSolveHistory(
+    selectedUserForHistory ? Principal.fromText(selectedUserForHistory) : Principal.anonymous()
+  );
 
   const handleBlockUser = async (userPrincipal: string) => {
     if (!confirm('Are you sure you want to block this user?')) return;
 
     setActioningUser(userPrincipal);
     try {
-      await blockUserMutation.mutateAsync(userPrincipal);
+      await blockUserMutation.mutateAsync({
+        user: Principal.fromText(userPrincipal),
+        blocked: true,
+      });
       toast.success('User blocked successfully');
     } catch (error) {
       toast.error(normalizeError(error));
@@ -46,7 +60,10 @@ export default function AdminUsersPage() {
   const handleUnblockUser = async (userPrincipal: string) => {
     setActioningUser(userPrincipal);
     try {
-      await unblockUserMutation.mutateAsync(userPrincipal);
+      await blockUserMutation.mutateAsync({
+        user: Principal.fromText(userPrincipal),
+        blocked: false,
+      });
       toast.success('User unblocked successfully');
     } catch (error) {
       toast.error(normalizeError(error));
@@ -60,7 +77,7 @@ export default function AdminUsersPage() {
 
     setActioningUser(userPrincipal);
     try {
-      await deleteUserMutation.mutateAsync(userPrincipal);
+      await deleteUserMutation.mutateAsync(Principal.fromText(userPrincipal));
       toast.success('User deleted successfully');
     } catch (error) {
       toast.error(normalizeError(error));
@@ -69,16 +86,28 @@ export default function AdminUsersPage() {
     }
   };
 
-  const handleResetCompetitionStatus = async (userPrincipal: string, competitionId: bigint) => {
-    if (!confirm('Are you sure you want to reset this user\'s competition status?')) return;
+  const handleOpenResetDialog = (userPrincipal: string) => {
+    setResetUserPrincipal(userPrincipal);
+    setResetCompetitionId('');
+    setResetEvent('');
+    setShowResetDialog(true);
+  };
 
-    setActioningUser(userPrincipal);
+  const handleResetCompetitionStatus = async () => {
+    if (!resetUserPrincipal || !resetCompetitionId || !resetEvent) {
+      toast.error('Please select both competition and event');
+      return;
+    }
+
+    setActioningUser(resetUserPrincipal);
     try {
       await resetStatusMutation.mutateAsync({
-        principal: userPrincipal,
-        competitionId,
+        user: Principal.fromText(resetUserPrincipal),
+        competitionId: BigInt(resetCompetitionId),
+        event: resetEvent as Event,
       });
       toast.success('Competition status reset successfully');
+      setShowResetDialog(false);
     } catch (error) {
       toast.error(normalizeError(error));
     } finally {
@@ -86,11 +115,9 @@ export default function AdminUsersPage() {
     }
   };
 
-  const handleViewSolveHistory = async (userPrincipal: string) => {
+  const handleViewSolveHistory = (userPrincipal: string) => {
     setSelectedUserForHistory(userPrincipal);
     setShowHistoryDialog(true);
-    // Refetch solve history for this user
-    await refetchSolveHistory();
   };
 
   if (isLoading) {
@@ -175,6 +202,14 @@ export default function AdminUsersPage() {
                       <Button
                         size="sm"
                         variant="outline"
+                        onClick={() => handleOpenResetDialog(user.principal.toString())}
+                      >
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Reset Status
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
                         onClick={() => handleViewSolveHistory(user.principal.toString())}
                       >
                         <Eye className="h-4 w-4 mr-2" />
@@ -201,6 +236,60 @@ export default function AdminUsersPage() {
           )}
         </div>
 
+        <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reset Competition Status</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="competition">Competition</Label>
+                <Select value={resetCompetitionId} onValueChange={setResetCompetitionId}>
+                  <SelectTrigger id="competition">
+                    <SelectValue placeholder="Select competition" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {competitions.map((comp) => (
+                      <SelectItem key={comp.id.toString()} value={comp.id.toString()}>
+                        {comp.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="event">Event</Label>
+                <Select value={resetEvent} onValueChange={(val) => setResetEvent(val as Event)}>
+                  <SelectTrigger id="event">
+                    <SelectValue placeholder="Select event" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(EVENT_LABELS).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowResetDialog(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleResetCompetitionStatus}
+                disabled={!resetCompetitionId || !resetEvent || !!actioningUser}
+              >
+                {actioningUser ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
+                Reset Status
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
@@ -210,28 +299,32 @@ export default function AdminUsersPage() {
               {solveHistory.length === 0 ? (
                 <p className="text-muted-foreground text-center py-8">No solve history found</p>
               ) : (
-                solveHistory.map((result: any, index: number) => (
-                  <Card key={index}>
-                    <CardContent className="pt-6">
-                      <div className="space-y-2">
-                        <div>
-                          <p className="font-medium">{EVENT_LABELS[result.event]}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Status: {result.status}
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          {result.attempts.map((att: any, i: number) => (
-                            <p key={i} className="text-sm">
-                              Attempt {i + 1}: {Number(att.time) / 1000}s
-                              {att.penalty > 0 && ` (+${Number(att.penalty) / 1000}s penalty)`}
+                solveHistory.map(([competitionId, event, result], index) => {
+                  const competition = competitions.find(c => c.id === competitionId);
+                  return (
+                    <Card key={index}>
+                      <CardContent className="pt-6">
+                        <div className="space-y-2">
+                          <div>
+                            <p className="font-medium">{competition?.name || `Competition ${competitionId}`}</p>
+                            <p className="text-sm text-muted-foreground">{EVENT_LABELS[event]}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Status: {result.status}
                             </p>
-                          ))}
+                          </div>
+                          <div className="space-y-1">
+                            {result.attempts.map((att, i) => (
+                              <p key={i} className="text-sm">
+                                Attempt {i + 1}: {Number(att.time) / 1000}s
+                                {att.penalty > 0 && ` (+${Number(att.penalty) / 1000}s penalty)`}
+                              </p>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                      </CardContent>
+                    </Card>
+                  );
+                })
               )}
             </div>
           </DialogContent>

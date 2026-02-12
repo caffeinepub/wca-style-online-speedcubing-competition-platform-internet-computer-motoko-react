@@ -1,11 +1,13 @@
 # Specification
 
 ## Summary
-**Goal:** Deploy a new backend canister, update `frontend/public/env.json` with the new `BACKEND_CANISTER_ID`, and re-run the go-live deployment flow successfully.
+**Goal:** Add an optional registration start date for upcoming competitions that blocks start/payment until the date is reached, and automatically transitions the competition to Running when registration opens.
 
 **Planned changes:**
-- Deploy a new backend canister and capture the newly created canister ID.
-- Update `frontend/public/env.json` to set `BACKEND_CANISTER_ID` to the new backend canister ID (replacing the placeholder).
-- Re-run the go-live build + deploy flow and confirm it completes without errors and without the preflight failure about missing `BACKEND_CANISTER_ID`.
+- Backend: Add optional `registrationStartDate` to competition DTOs/inputs and store it per competition; ensure existing competitions behave unchanged when the field is missing/unset.
+- Backend: Enforce gating so that when status is Upcoming and `now < registrationStartDate`, starting a session and initiating any paid-entry flow are rejected with a clear error.
+- Backend: Auto-transition competitions from Upcoming to Running when `now >= registrationStartDate`, triggered during normal reads and/or participation-related calls (no scheduled jobs).
+- Frontend (Admin): Add/edit a `datetime-local` Registration Start Date field on admin create/edit competition pages and send it in competition create/update payloads.
+- Frontend (Public detail): On competition detail, when Upcoming and registration is not yet open, disable the Start/Pay CTA and show “Registration opens at <date>”, while still allowing viewing the page and selecting events.
 
-**User-visible outcome:** The Admin Go Live process completes end-to-end without being blocked by a missing `BACKEND_CANISTER_ID`, and deployment/preflight messaging remains English-only.
+**User-visible outcome:** Admins can set a registration start date for upcoming competitions; users can view those competition pages but cannot start or pay until registration opens, after which the competition automatically becomes Running and the CTA works as before (subject to existing rules).

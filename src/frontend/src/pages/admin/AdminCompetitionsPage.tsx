@@ -1,59 +1,69 @@
 import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { Link } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import AdminGuard from '../../components/auth/AdminGuard';
 import {
   useAdminGetAllCompetitions,
   useAdminDeleteCompetition,
   useAdminLockCompetition,
-  useAdminUnlockCompetition,
+  useAdminActivateCompetition,
 } from '../../hooks/useQueries';
 import { normalizeError } from '../../api/errors';
-import { formatDate } from '../../lib/dateUtils';
-import { Loader2, Plus, Edit, Trash2, Lock, Unlock } from 'lucide-react';
+import { Loader2, Plus, Edit, Trash2, Lock, Unlock, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import type { Competition } from '../../types/backend-extended';
+import { formatDate } from '../../lib/dateUtils';
 
 export default function AdminCompetitionsPage() {
-  const navigate = useNavigate();
   const { data: competitions, isLoading } = useAdminGetAllCompetitions();
   const deleteCompetitionMutation = useAdminDeleteCompetition();
   const lockCompetitionMutation = useAdminLockCompetition();
-  const unlockCompetitionMutation = useAdminUnlockCompetition();
+  const activateCompetitionMutation = useAdminActivateCompetition();
 
-  const [deletingId, setDeletingId] = useState<bigint | null>(null);
-  const [lockingId, setLockingId] = useState<bigint | null>(null);
+  const [actioningCompetition, setActioningCompetition] = useState<string | null>(null);
 
-  const handleDelete = async (id: bigint, name: string) => {
-    if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+  const handleDeleteCompetition = async (competitionId: bigint, name: string) => {
+    if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) return;
 
-    setDeletingId(id);
+    setActioningCompetition(competitionId.toString());
     try {
-      await deleteCompetitionMutation.mutateAsync(id);
+      await deleteCompetitionMutation.mutateAsync(competitionId);
       toast.success('Competition deleted successfully');
     } catch (error) {
       toast.error(normalizeError(error));
     } finally {
-      setDeletingId(null);
+      setActioningCompetition(null);
     }
   };
 
-  const handleToggleLock = async (competition: Competition) => {
-    setLockingId(competition.id);
+  const handleToggleLock = async (competitionId: bigint, currentlyLocked: boolean) => {
+    setActioningCompetition(competitionId.toString());
     try {
-      if (competition.isLocked) {
-        await unlockCompetitionMutation.mutateAsync(competition.id);
-        toast.success('Competition unlocked');
-      } else {
-        await lockCompetitionMutation.mutateAsync(competition.id);
-        toast.success('Competition locked');
-      }
+      await lockCompetitionMutation.mutateAsync({
+        competitionId,
+        locked: !currentlyLocked,
+      });
+      toast.success(currentlyLocked ? 'Competition unlocked' : 'Competition locked');
     } catch (error) {
       toast.error(normalizeError(error));
     } finally {
-      setLockingId(null);
+      setActioningCompetition(null);
+    }
+  };
+
+  const handleToggleActive = async (competitionId: bigint, currentlyActive: boolean) => {
+    setActioningCompetition(competitionId.toString());
+    try {
+      await activateCompetitionMutation.mutateAsync({
+        competitionId,
+        active: !currentlyActive,
+      });
+      toast.success(currentlyActive ? 'Competition deactivated' : 'Competition activated');
+    } catch (error) {
+      toast.error(normalizeError(error));
+    } finally {
+      setActioningCompetition(null);
     }
   };
 
@@ -73,92 +83,93 @@ export default function AdminCompetitionsPage() {
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-4xl font-bold">Manage Competitions</h1>
-            <Button onClick={() => navigate({ to: '/admin/competitions/create' })}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Competition
-            </Button>
+            <Link to="/admin/competitions/create">
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Competition
+              </Button>
+            </Link>
           </div>
 
           {!competitions || competitions.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-muted-foreground mb-4">No competitions yet</p>
-              <Button onClick={() => navigate({ to: '/admin/competitions/create' })}>
-                Create Your First Competition
-              </Button>
+              <p className="text-muted-foreground">No competitions found</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="grid gap-4">
               {competitions.map((competition) => (
                 <Card key={competition.id.toString()}>
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div>
-                        <CardTitle className="text-2xl">{competition.name}</CardTitle>
+                        <CardTitle className="text-lg">{competition.name}</CardTitle>
                         <p className="text-sm text-muted-foreground mt-1">
                           {formatDate(competition.startDate)} - {formatDate(competition.endDate)}
                         </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {competition.events.length} event{competition.events.length !== 1 ? 's' : ''}
+                        </p>
                       </div>
-                      <div className="flex gap-2">
-                        <Badge variant={competition.isActive ? 'default' : 'secondary'}>
-                          {competition.isActive ? 'Active' : 'Inactive'}
+                      <div className="flex gap-2 flex-wrap justify-end">
+                        <Badge variant={competition.status === 'running' ? 'default' : 'outline'}>
+                          {competition.status}
                         </Badge>
-                        <Badge variant={competition.isLocked ? 'destructive' : 'outline'}>
-                          {competition.isLocked ? 'Locked' : 'Open'}
-                        </Badge>
+                        {competition.isLocked && <Badge variant="destructive">Locked</Badge>}
+                        {!competition.isActive && <Badge variant="secondary">Hidden</Badge>}
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-muted-foreground">
-                        <p>{competition.events.length} events</p>
-                        {competition.participantLimit && (
-                          <p>Limit: {competition.participantLimit.toString()} participants</p>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            navigate({
-                              to: '/admin/competitions/$competitionId/edit',
-                              params: { competitionId: competition.id.toString() },
-                            })
-                          }
-                        >
-                          <Edit className="mr-2 h-4 w-4" />
+                    <div className="flex flex-wrap gap-2">
+                      <Link to="/admin/competitions/$competitionId/edit" params={{ competitionId: competition.id.toString() }}>
+                        <Button size="sm" variant="outline">
+                          <Edit className="h-4 w-4 mr-2" />
                           Edit
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleToggleLock(competition)}
-                          disabled={lockingId === competition.id}
-                        >
-                          {lockingId === competition.id ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : competition.isLocked ? (
-                            <Unlock className="mr-2 h-4 w-4" />
-                          ) : (
-                            <Lock className="mr-2 h-4 w-4" />
-                          )}
-                          {competition.isLocked ? 'Unlock' : 'Lock'}
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDelete(competition.id, competition.name)}
-                          disabled={deletingId === competition.id}
-                        >
-                          {deletingId === competition.id ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="mr-2 h-4 w-4" />
-                          )}
-                          Delete
-                        </Button>
-                      </div>
+                      </Link>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleToggleLock(competition.id, competition.isLocked)}
+                        disabled={actioningCompetition === competition.id.toString()}
+                      >
+                        {actioningCompetition === competition.id.toString() ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : competition.isLocked ? (
+                          <Unlock className="h-4 w-4 mr-2" />
+                        ) : (
+                          <Lock className="h-4 w-4 mr-2" />
+                        )}
+                        {competition.isLocked ? 'Unlock' : 'Lock'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleToggleActive(competition.id, competition.isActive)}
+                        disabled={actioningCompetition === competition.id.toString()}
+                      >
+                        {actioningCompetition === competition.id.toString() ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : competition.isActive ? (
+                          <EyeOff className="h-4 w-4 mr-2" />
+                        ) : (
+                          <Eye className="h-4 w-4 mr-2" />
+                        )}
+                        {competition.isActive ? 'Hide' : 'Show'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDeleteCompetition(competition.id, competition.name)}
+                        disabled={actioningCompetition === competition.id.toString()}
+                      >
+                        {actioningCompetition === competition.id.toString() ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <Trash2 className="h-4 w-4 mr-2" />
+                        )}
+                        Delete
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

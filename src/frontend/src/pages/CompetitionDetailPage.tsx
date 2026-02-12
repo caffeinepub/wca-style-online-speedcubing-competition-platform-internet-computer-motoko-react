@@ -14,6 +14,7 @@ import { storeSolveSession } from '../lib/solveSession';
 import { normalizeError } from '../api/errors';
 import { openRazorpayCheckout } from '../lib/razorpay';
 import { formatFeeSummary, isCompetitionPaid } from '../lib/competitionPricing';
+import { formatDateTime } from '../lib/dateUtils';
 import { EVENT_LABELS } from '../types/domain';
 import { ArrowLeft, Loader2, Play, Lock, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,11 @@ export default function CompetitionDetailPage() {
   const confirmPaymentMutation = useConfirmPayment();
 
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+  // Check if registration is gated
+  const isRegistrationGated = competition?.status === 'upcoming' && 
+    competition.registrationStartDate !== undefined &&
+    Date.now() * 1000000 < Number(competition.registrationStartDate);
 
   const handleStartCompetition = async () => {
     if (!selectedEvent) {
@@ -220,6 +226,7 @@ export default function CompetitionDetailPage() {
                     disabled={
                       !selectedEvent ||
                       isCompleted ||
+                      isRegistrationGated ||
                       startCompetitionMutation.isPending ||
                       isProcessingPayment
                     }
@@ -238,6 +245,12 @@ export default function CompetitionDetailPage() {
                       ? 'Pay & Start'
                       : 'Start Competition'}
                   </Button>
+
+                  {isRegistrationGated && competition.registrationStartDate && (
+                    <p className="text-sm text-center text-muted-foreground">
+                      Registration opens at {formatDateTime(competition.registrationStartDate)}
+                    </p>
+                  )}
 
                   <Button
                     variant="outline"

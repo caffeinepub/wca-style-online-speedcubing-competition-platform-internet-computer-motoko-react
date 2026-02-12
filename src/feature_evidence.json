@@ -2,10 +2,12 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-update-frontend-public-env-json-so-backend-canister-id-is-set-to-the-newly-deployed-backend-canister-id-replace-the-placeholder-value-your-backend-canister-id-here",
-      "featureTitle": "Update `frontend/public/env.json` so `BACKEND_CANISTER_ID` is set to the newly deployed backend canister ID (replace the placeholder value `\"YOUR_BACKEND_CANISTER_ID_HERE\"`).",
+      "featureId": "feature-frontend-admin-update-the-admin-competition-create-and-edit-forms-to-support-setting-registrationstartdate-datetime-for-new-competitions-created-as-upcoming-the-admin-can-set-this-value-it-is-sent-to-the-backend-as-part-of-competition-creation-update",
+      "featureTitle": "Frontend (Admin): Update the admin competition create and edit forms to support setting `registrationStartDate` (datetime). For new competitions created as Upcoming, the admin can set this value; it is sent to the backend as part of competition creation/update.",
       "files": [
-        "frontend/public/env.json"
+        "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
+        "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
+        "frontend/src/types/backend-extended.ts"
       ],
       "components": [
         "authorization@4.0.0",
@@ -17,15 +19,17 @@
         "http-outcalls@3.0.0"
       ],
       "testIds": [
-        "REQ-92"
+        "REQ-105"
       ],
       "confidence": "high"
     },
     {
-      "featureId": "feature-run-the-go-live-build-deploy-flow-again-after-updating-frontend-public-env-json-and-ensure-it-completes-successfully-without-deployment-errors",
-      "featureTitle": "Run the go-live build + deploy flow again after updating `frontend/public/env.json` and ensure it completes successfully without deployment errors.",
+      "featureId": "feature-frontend-public-competition-detail-when-a-competition-is-upcoming-and-the-current-time-is-before-registrationstartdate-keep-the-start-pay-button-disabled-idle-and-show-an-english-message-below-it-registration-opens-at-date-users-must-still-be-able-to-view-the-competition-detail-page-and-select-events-but-cannot-proceed-to-payment-or-start-until-registration-opens",
+      "featureTitle": "Frontend (Public competition detail): When a competition is Upcoming and the current time is before `registrationStartDate`, keep the Start/Pay button disabled (idle) and show an English message below it: “Registration opens at <date>”. Users must still be able to view the competition detail page and select events, but cannot proceed to payment or start until registration opens.",
       "files": [
-        "frontend/src/lib/goLivePreflight.ts"
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/lib/dateUtils.ts",
+        "frontend/src/pages/CompetitionDetailPage.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -37,7 +41,7 @@
         "http-outcalls@3.0.0"
       ],
       "testIds": [
-        "REQ-93"
+        "REQ-106"
       ],
       "confidence": "high"
     }

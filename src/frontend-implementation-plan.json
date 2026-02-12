@@ -1,36 +1,58 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Update frontend env.json BACKEND_CANISTER_ID for new backend canister deployment",
+  "title": "Registration start date gating UI for competitions (admin + public detail)",
   "requirements": [
     {
-      "id": "REQ-92",
-      "summary": "Update frontend env.json BACKEND_CANISTER_ID to the newly deployed backend canister ID",
+      "id": "REQ-105",
+      "summary": "Add Registration Start Date (datetime) to admin competition create/edit forms and include it in create/update payloads.",
       "acceptanceCriteria": [
-        "`frontend/public/env.json` contains a non-placeholder, non-empty `BACKEND_CANISTER_ID` value.",
-        "Running the existing preflight check (`runPreflightChecks` in `frontend/src/lib/goLivePreflight.ts`) no longer reports the failure: \"BACKEND_CANISTER_ID is not defined in env.json\"."
+        "`frontend/src/pages/admin/AdminCreateCompetitionPage.tsx` includes a `datetime-local` field for Registration Start Date and includes it in the `CompetitionInput` sent to `useCreateCompetition()`.",
+        "`frontend/src/pages/admin/AdminEditCompetitionPage.tsx` loads and displays the existing `registrationStartDate` (if set), allows editing it, and includes it in the `CompetitionInput` sent to `useAdminUpdateCompetition()`.",
+        "All user-facing validation/toast messages remain English-only and any caught exceptions continue to be routed through `normalizeError` where applicable."
       ],
       "file_operations": [
         {
-          "path": "frontend/public/env.json",
+          "path": "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
           "operation": "modify",
-          "description": "Replace the placeholder value \"YOUR_BACKEND_CANISTER_ID_HERE\" with the newly deployed backend canister ID for this deployment so preflight no longer flags BACKEND_CANISTER_ID as missing."
+          "description": "Add a new `registrationStartDate` local state and a `datetime-local` form field (Registration Start Date). On submit, convert it to the app's bigint time format (nanoseconds) and include it as optional `registrationStartDate` in the `CompetitionInput` passed to `useCreateCompetition()`. Keep existing English toasts and route exceptions through `normalizeError`."
+        },
+        {
+          "path": "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
+          "operation": "modify",
+          "description": "Load existing `competition.registrationStartDate` (if present) into a `datetime-local` input value, allow editing/clearing, and include optional `registrationStartDate` in the `CompetitionInput` passed to `useAdminUpdateCompetition()`. Prefer showing/enabling this field when status is `upcoming` to match the requirement; keep English toasts and use `normalizeError` on caught errors."
+        },
+        {
+          "path": "frontend/src/types/backend-extended.ts",
+          "operation": "modify",
+          "description": "Ensure the frontend `Competition` and `CompetitionPublic`/admin-facing competition types include optional `registrationStartDate?: bigint` (or the project’s `Time` alias) so admin edit/create payloads and fetched competition objects can carry the field without type casting workarounds."
         }
       ]
     },
     {
-      "id": "REQ-93",
-      "summary": "Ensure go-live preflight and deployment flow proceeds successfully after env.json is updated",
+      "id": "REQ-106",
+      "summary": "Disable Start/Pay CTA on public competition detail when upcoming and registrationStartDate is in the future; show “Registration opens at <date>”.",
       "acceptanceCriteria": [
-        "The go-live flow completes successfully end-to-end (no failed step in the deployment sequence).",
-        "Admin Go Live page no longer blocks deployment due to missing `BACKEND_CANISTER_ID`.",
-        "User-facing deployment/preflight messaging remains English-only."
+        "`frontend/src/pages/CompetitionDetailPage.tsx` computes whether registration is not yet open using `competition.registrationStartDate` (if present) and current time.",
+        "If registration is not yet open and competition status is upcoming, the main CTA button is disabled and does not trigger payment or start logic.",
+        "A clearly visible English text is shown below the disabled button: “Registration opens at <date>” (date formatted consistently with existing app date formatting).",
+        "When registrationStartDate is reached (and backend transitions the competition to running), the UI no longer shows the registration-closed message and the CTA behaves as it did previously (subject to existing payment/start rules)."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/lib/goLivePreflight.ts",
+          "path": "frontend/src/hooks/useQueries.ts",
           "operation": "modify",
-          "description": "Harden BACKEND_CANISTER_ID validation by normalizing the loaded env.json value (e.g., handle non-string and trim whitespace) before placeholder/empty checks, so a valid newly pasted canister ID is reliably accepted and English-only messaging remains unchanged."
+          "description": "When mapping backend `getCompetition()` results to the frontend `Competition` shape, include `registrationStartDate` so `CompetitionDetailPage` can compute registration gating correctly. Preserve existing behavior for competitions where the field is missing/undefined."
+        },
+        {
+          "path": "frontend/src/pages/CompetitionDetailPage.tsx",
+          "operation": "modify",
+          "description": "Compute `registrationClosed` when `competition.status` is `upcoming` and `competition.registrationStartDate` exists and `now < registrationStartDate`. Disable the main CTA button in this state, ensure click handlers do not trigger payment/start logic while closed, and render an English message below the disabled button: “Registration opens at <date>” using the app’s existing date formatting utilities."
+        },
+        {
+          "path": "frontend/src/lib/dateUtils.ts",
+          "operation": "modify",
+          "description": "Add or extend a date formatting helper (if needed) so the registration message date formatting is consistent with existing competition date formatting (e.g., reuse `formatDate` if sufficient, or add a `formatDateTime`-style helper if the UI needs time-of-day). Keep output English-only."
         }
       ]
     }

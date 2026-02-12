@@ -2,35 +2,39 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import AdminGuard from '../../components/auth/AdminGuard';
-import { useGetCompetition, useAdminUpdateCompetition } from '../../hooks/useQueries';
-import CompetitionPricingFields from '../../components/admin/CompetitionPricingFields';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { useAdminGetCompetition, useAdminUpdateCompetition } from '../../hooks/useQueries';
+import { normalizeError } from '../../api/errors';
+import { Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { normalizeError } from '../../api/errors';
-import { EVENT_LABELS, ALL_EVENTS } from '../../types/domain';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { EVENT_LABELS } from '../../types/domain';
+import CompetitionPricingFields from '../../components/admin/CompetitionPricingFields';
 import type { Event } from '../../backend';
-import type { CompetitionStatus, CompetitionInput, FeeMode } from '../../types/backend-extended';
+import type { Competition, CompetitionInput, FeeMode } from '../../types/backend-extended';
 
 export default function AdminEditCompetitionPage() {
   const navigate = useNavigate();
-  const { competitionId } = useParams({ strict: false }) as { competitionId: string };
-  const { data: competition, isLoading } = useGetCompetition(BigInt(competitionId));
+  const { competitionId } = useParams({ from: '/admin/competitions/$competitionId/edit' });
+  const compId = BigInt(competitionId);
+
+  const { data: competition, isLoading } = useAdminGetCompetition(compId);
   const updateCompetitionMutation = useAdminUpdateCompetition();
 
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [status, setStatus] = useState<CompetitionStatus>('upcoming' as CompetitionStatus);
+  const [registrationStartDate, setRegistrationStartDate] = useState('');
+  const [status, setStatus] = useState<'upcoming' | 'running' | 'completed'>('upcoming');
   const [participantLimit, setParticipantLimit] = useState('');
-  const [feeMode, setFeeMode] = useState<FeeMode | undefined>(undefined);
   const [selectedEvents, setSelectedEvents] = useState<Event[]>([]);
-  const [scramblesByEvent, setScramblesByEvent] = useState<Partial<Record<Event, string[]>>>({});
+  const [scrambles, setScrambles] = useState<Record<Event, string[]>>({} as Record<Event, string[]>);
+  const [feeMode, setFeeMode] = useState<FeeMode | undefined>(undefined);
 
   useEffect(() => {
     if (competition) {
@@ -38,88 +42,76 @@ export default function AdminEditCompetitionPage() {
       setSlug(competition.slug);
       setStartDate(new Date(Number(competition.startDate) / 1000000).toISOString().slice(0, 16));
       setEndDate(new Date(Number(competition.endDate) / 1000000).toISOString().slice(0, 16));
+      setRegistrationStartDate(
+        competition.registrationStartDate
+          ? new Date(Number(competition.registrationStartDate) / 1000000).toISOString().slice(0, 16)
+          : ''
+      );
       setStatus(competition.status);
       setParticipantLimit(competition.participantLimit ? competition.participantLimit.toString() : '');
-      setFeeMode(competition.feeMode);
       setSelectedEvents(competition.events);
+      setFeeMode(competition.feeMode);
 
-      // Load existing scrambles
-      const scrambles: Partial<Record<Event, string[]>> = {};
-      for (const [scrambleList, event] of competition.scrambles) {
-        scrambles[event] = scrambleList;
-      }
-      setScramblesByEvent(scrambles);
+      const scramblesMap: Record<Event, string[]> = {} as Record<Event, string[]>;
+      competition.scrambles.forEach(([scrambleList, event]) => {
+        scramblesMap[event] = scrambleList;
+      });
+      setScrambles(scramblesMap);
     }
   }, [competition]);
 
-  const handleEventToggle = (event: Event, checked: boolean) => {
-    if (checked) {
-      setSelectedEvents([...selectedEvents, event]);
-      if (!scramblesByEvent[event]) {
-        setScramblesByEvent({ ...scramblesByEvent, [event]: ['', '', '', '', ''] });
+  const handleEventToggle = (event: Event) => {
+    setSelectedEvents((prev) => {
+      if (prev.includes(event)) {
+        const newEvents = prev.filter((e) => e !== event);
+        const newScrambles = { ...scrambles };
+        delete newScrambles[event];
+        setScrambles(newScrambles);
+        return newEvents;
+      } else {
+        return [...prev, event];
       }
-    } else {
-      setSelectedEvents(selectedEvents.filter(e => e !== event));
-      const newScrambles = { ...scramblesByEvent };
-      delete newScrambles[event];
-      setScramblesByEvent(newScrambles);
-    }
+    });
   };
 
   const handleScrambleChange = (event: Event, index: number, value: string) => {
-    const eventScrambles = scramblesByEvent[event] || ['', '', '', '', ''];
-    const newScrambles = [...eventScrambles];
-    newScrambles[index] = value;
-    setScramblesByEvent({ ...scramblesByEvent, [event]: newScrambles });
+    setScrambles((prev) => {
+      const eventScrambles = prev[event] || ['', '', '', '', ''];
+      const newEventScrambles = [...eventScrambles];
+      newEventScrambles[index] = value;
+      return { ...prev, [event]: newEventScrambles };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (selectedEvents.length === 0) {
-      toast.error('Please select at least one event');
-      return;
-    }
-
     // Validate scrambles
     for (const event of selectedEvents) {
-      const eventScrambles = scramblesByEvent[event] || [];
-      if (eventScrambles.length !== 5) {
-        toast.error(`Event ${EVENT_LABELS[event]} must have exactly 5 scrambles`);
-        return;
-      }
-      if (eventScrambles.some(s => !s.trim())) {
-        toast.error(`All scrambles for ${EVENT_LABELS[event]} must be filled`);
+      const eventScrambles = scrambles[event] || [];
+      if (eventScrambles.length !== 5 || eventScrambles.some((s) => !s.trim())) {
+        toast.error(`Each event must have exactly 5 scrambles. Please check ${EVENT_LABELS[event]}.`);
         return;
       }
     }
 
-    // Validate pricing based on selected mode
+    // Validate fee mode
     if (feeMode) {
-      if (feeMode.perEvent !== undefined && feeMode.perEvent <= BigInt(0)) {
-        toast.error('Per event fee must be greater than 0');
+      if (feeMode.perEvent !== undefined && feeMode.perEvent <= 0) {
+        toast.error('Per-event fee must be greater than 0');
         return;
       }
       if (feeMode.basePlusAdditional) {
-        if (feeMode.basePlusAdditional.baseFee <= BigInt(0)) {
-          toast.error('Base fee must be greater than 0');
-          return;
-        }
-        if (feeMode.basePlusAdditional.additionalFee < BigInt(0)) {
-          toast.error('Additional fee cannot be negative');
+        if (feeMode.basePlusAdditional.baseFee <= 0 || feeMode.basePlusAdditional.additionalFee <= 0) {
+          toast.error('Base fee and additional fee must be greater than 0');
           return;
         }
       }
-      if (feeMode.allEventsFlat !== undefined && feeMode.allEventsFlat <= BigInt(0)) {
-        toast.error('All events flat fee must be greater than 0');
+      if (feeMode.allEventsFlat !== undefined && feeMode.allEventsFlat <= 0) {
+        toast.error('All-events flat fee must be greater than 0');
         return;
       }
     }
-
-    const scrambles: [string[], Event][] = selectedEvents.map(event => [
-      scramblesByEvent[event] || [],
-      event,
-    ]);
 
     const competitionInput: CompetitionInput = {
       name,
@@ -130,12 +122,13 @@ export default function AdminEditCompetitionPage() {
       participantLimit: participantLimit ? BigInt(participantLimit) : undefined,
       feeMode,
       events: selectedEvents,
-      scrambles,
+      scrambles: selectedEvents.map((event) => [scrambles[event] || [], event]),
+      registrationStartDate: registrationStartDate ? BigInt(new Date(registrationStartDate).getTime() * 1000000) : undefined,
     };
 
     try {
       await updateCompetitionMutation.mutateAsync({
-        id: BigInt(competitionId),
+        id: compId,
         competition: competitionInput,
       });
       toast.success('Competition updated successfully');
@@ -169,155 +162,157 @@ export default function AdminEditCompetitionPage() {
     <AdminGuard>
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-8 max-w-4xl">
-          <Button
-            variant="ghost"
-            onClick={() => navigate({ to: '/admin/competitions' })}
-            className="mb-4"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Competitions
-          </Button>
-
           <h1 className="text-4xl font-bold mb-8">Edit Competition</h1>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="bg-card rounded-lg border p-6 space-y-4">
-              <h2 className="text-xl font-semibold">Basic Information</h2>
-
-              <div className="space-y-2">
-                <Label htmlFor="name">Competition Name</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="slug">Slug (URL-friendly identifier)</Label>
-                <Input
-                  id="slug"
-                  value={slug}
-                  onChange={(e) => setSlug(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="startDate">Start Date & Time</Label>
+            <Card>
+              <CardHeader>
+                <CardTitle>Basic Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="name">Competition Name</Label>
                   <Input
-                    id="startDate"
-                    type="datetime-local"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     required
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="endDate">End Date & Time</Label>
+                <div>
+                  <Label htmlFor="slug">Slug</Label>
                   <Input
-                    id="endDate"
-                    type="datetime-local"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
+                    id="slug"
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value)}
                     required
                   />
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select value={status} onValueChange={(val) => setStatus(val as CompetitionStatus)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="upcoming">Upcoming</SelectItem>
-                    <SelectItem value="running">Running</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="participantLimit">Participant Limit (optional)</Label>
-                <Input
-                  id="participantLimit"
-                  type="number"
-                  value={participantLimit}
-                  onChange={(e) => setParticipantLimit(e.target.value)}
-                  placeholder="Leave empty for unlimited"
-                />
-              </div>
-            </div>
-
-            <div className="bg-card rounded-lg border p-6 space-y-4">
-              <h2 className="text-xl font-semibold">Pricing</h2>
-              <CompetitionPricingFields value={feeMode} onChange={setFeeMode} />
-            </div>
-
-            <div className="bg-card rounded-lg border p-6 space-y-4">
-              <h2 className="text-xl font-semibold">Events</h2>
-              <div className="space-y-2">
-                {ALL_EVENTS.map((event) => (
-                  <div key={event} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={event}
-                      checked={selectedEvents.includes(event)}
-                      onCheckedChange={(checked) => handleEventToggle(event, checked as boolean)}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="startDate">Start Date</Label>
+                    <Input
+                      id="startDate"
+                      type="datetime-local"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      required
                     />
-                    <Label htmlFor={event} className="cursor-pointer">
-                      {EVENT_LABELS[event]}
-                    </Label>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <div>
+                    <Label htmlFor="endDate">End Date</Label>
+                    <Input
+                      id="endDate"
+                      type="datetime-local"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="registrationStartDate">Registration Start Date (optional)</Label>
+                  <Input
+                    id="registrationStartDate"
+                    type="datetime-local"
+                    value={registrationStartDate}
+                    onChange={(e) => setRegistrationStartDate(e.target.value)}
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    If set, users can only register after this date. Competition will automatically move to running when this date is reached.
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={status} onValueChange={(val) => setStatus(val as any)}>
+                    <SelectTrigger id="status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="upcoming">Upcoming</SelectItem>
+                      <SelectItem value="running">Running</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="participantLimit">Participant Limit (optional)</Label>
+                  <Input
+                    id="participantLimit"
+                    type="number"
+                    value={participantLimit}
+                    onChange={(e) => setParticipantLimit(e.target.value)}
+                    placeholder="Leave empty for unlimited"
+                  />
+                </div>
+              </CardContent>
+            </Card>
 
-            {selectedEvents.length > 0 && (
-              <div className="bg-card rounded-lg border p-6 space-y-6">
-                <h2 className="text-xl font-semibold">Scrambles (5 per event)</h2>
-                {selectedEvents.map((event) => (
-                  <div key={event} className="space-y-3">
-                    <h3 className="font-medium">{EVENT_LABELS[event]}</h3>
-                    {[0, 1, 2, 3, 4].map((index) => (
-                      <div key={index} className="space-y-1">
-                        <Label htmlFor={`${event}-${index}`}>Scramble {index + 1}</Label>
-                        <Textarea
-                          id={`${event}-${index}`}
-                          value={scramblesByEvent[event]?.[index] || ''}
-                          onChange={(e) => handleScrambleChange(event, index, e.target.value)}
-                          placeholder={`Enter scramble ${index + 1}`}
-                          rows={2}
-                          required
+            <Card>
+              <CardHeader>
+                <CardTitle>Pricing Configuration</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CompetitionPricingFields value={feeMode} onChange={setFeeMode} />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Events & Scrambles</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Select Events</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(Object.keys(EVENT_LABELS) as Event[]).map((event) => (
+                      <div key={event} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={event}
+                          checked={selectedEvents.includes(event)}
+                          onCheckedChange={() => handleEventToggle(event)}
                         />
+                        <label htmlFor={event} className="text-sm cursor-pointer">
+                          {EVENT_LABELS[event]}
+                        </label>
                       </div>
                     ))}
                   </div>
+                </div>
+
+                {selectedEvents.map((event) => (
+                  <div key={event} className="space-y-2">
+                    <Label>{EVENT_LABELS[event]} - Scrambles (5 required)</Label>
+                    {[0, 1, 2, 3, 4].map((index) => (
+                      <Textarea
+                        key={index}
+                        placeholder={`Scramble ${index + 1}`}
+                        value={scrambles[event]?.[index] || ''}
+                        onChange={(e) => handleScrambleChange(event, index, e.target.value)}
+                        rows={2}
+                        required
+                      />
+                    ))}
+                  </div>
                 ))}
-              </div>
-            )}
+              </CardContent>
+            </Card>
 
             <div className="flex gap-4">
-              <Button
-                type="submit"
-                disabled={updateCompetitionMutation.isPending}
-                className="flex-1"
-              >
-                {updateCompetitionMutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                Update Competition
-              </Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => navigate({ to: '/admin/competitions' })}
               >
                 Cancel
+              </Button>
+              <Button type="submit" disabled={updateCompetitionMutation.isPending}>
+                {updateCompetitionMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Save Changes
               </Button>
             </div>
           </form>

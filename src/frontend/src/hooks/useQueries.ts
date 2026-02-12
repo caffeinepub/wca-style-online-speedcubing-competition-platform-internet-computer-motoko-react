@@ -2,11 +2,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
 import { QUERY_KEYS } from '../api/queryKeys';
 import { Principal } from '@dfinity/principal';
+import { CompetitionStatus } from '../backend';
 import type {
   Event,
   UserProfile,
   CompetitionResult,
   Attempt,
+  AdminResultEntry,
+  ResultInput,
 } from '../backend';
 import type {
   Competition,
@@ -99,6 +102,7 @@ export function useGetCompetition(id: bigint) {
           scrambles: comp.scrambles,
           isActive: comp.isActive,
           isLocked: comp.isLocked,
+          registrationStartDate: comp.registrationStartDate,
         } as Competition;
       } catch (error) {
         console.error('Error fetching competition:', error);
@@ -472,11 +476,15 @@ export function useAdminGetAllUsers() {
   const { actor, isFetching } = useActor();
 
   return useQuery<UserSummary[]>({
-    queryKey: ['adminUsers'],
+    queryKey: QUERY_KEYS.adminUsers,
     queryFn: async () => {
       if (!actor) return [];
-      // Backend doesn't have this method, return empty array
-      return [];
+      try {
+        return await actor.adminListUsers();
+      } catch (error) {
+        console.error('Error fetching admin users:', error);
+        return [];
+      }
     },
     enabled: !!actor && !isFetching,
   });
@@ -486,7 +494,7 @@ export function useAdminGetAllCompetitions() {
   const { actor, isFetching } = useActor();
 
   return useQuery<Competition[]>({
-    queryKey: ['adminCompetitions'],
+    queryKey: QUERY_KEYS.adminCompetitions,
     queryFn: async () => {
       if (!actor) return [];
       try {
@@ -514,6 +522,7 @@ export function useAdminGetAllCompetitions() {
                 scrambles: comp.scrambles,
                 isActive: comp.isActive,
                 isLocked: comp.isLocked,
+                registrationStartDate: comp.registrationStartDate,
               } as Competition;
             } catch (error) {
               console.error(`Error fetching competition ${pub.id}:`, error);
@@ -558,6 +567,7 @@ export function useAdminGetCompetition(id: bigint) {
           scrambles: comp.scrambles,
           isActive: comp.isActive,
           isLocked: comp.isLocked,
+          registrationStartDate: comp.registrationStartDate,
         } as Competition;
       } catch (error) {
         console.error('Error fetching admin competition:', error);
@@ -568,20 +578,29 @@ export function useAdminGetCompetition(id: bigint) {
   });
 }
 
-export function useAdminGetCompetitionResults(competitionId: bigint, event: Event) {
+export function useAdminGetAllResults() {
   const { actor, isFetching } = useActor();
 
-  return useQuery<AdminCompetitionResult[]>({
-    queryKey: ['adminResults', competitionId.toString(), event],
+  return useQuery<AdminResultEntry[]>({
+    queryKey: QUERY_KEYS.adminResults,
     queryFn: async () => {
       if (!actor) return [];
       try {
-        const results = await actor.getCompetitionResults(competitionId, event);
-        // Add isHidden flag (default to false since backend doesn't track this)
-        return results.map(result => ({
-          ...result,
-          isHidden: false,
-        }));
+        // Get all competitions first
+        const competitions = await actor.getAllCompetitions();
+        const allResults: AdminResultEntry[] = [];
+
+        // For each competition, get results
+        for (const comp of competitions) {
+          try {
+            const compResults = await actor.adminListCompetitionResults(comp.id);
+            allResults.push(...compResults);
+          } catch (error) {
+            console.error(`Error fetching results for competition ${comp.id}:`, error);
+          }
+        }
+
+        return allResults;
       } catch (error) {
         console.error('Error fetching admin results:', error);
         return [];
@@ -591,51 +610,90 @@ export function useAdminGetCompetitionResults(competitionId: bigint, event: Even
   });
 }
 
-// Alias for compatibility
-export const useAdminGetResultsForCompetition = useAdminGetCompetitionResults;
+export function useAdminGetCompetitionResults(competitionId: bigint) {
+  const { actor, isFetching } = useActor();
+
+  return useQuery<AdminResultEntry[]>({
+    queryKey: ['adminCompetitionResults', competitionId.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      try {
+        return await actor.adminListCompetitionResults(competitionId);
+      } catch (error) {
+        console.error('Error fetching admin competition results:', error);
+        return [];
+      }
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useAdminGetUserSolveHistory(user: Principal) {
+  const { actor, isFetching } = useActor();
+
+  return useQuery<Array<[bigint, Event, ResultInput]>>({
+    queryKey: ['adminUserSolveHistory', user.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      try {
+        return await actor.adminGetUserSolveHistory(user);
+      } catch (error) {
+        console.error('Error fetching user solve history:', error);
+        return [];
+      }
+    },
+    enabled: !!actor && !isFetching && !!user,
+  });
+}
 
 // ============================================================================
 // Admin Mutations
 // ============================================================================
 
-export function useAdminCreateCompetition() {
+export function useCreateCompetition() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (competition: CompetitionInput) => {
       if (!actor) throw new Error('Actor not available');
-      // Map CompetitionInput to backend Competition format
-      const backendComp = {
-        id: BigInt(0), // Will be assigned by backend
+      
+      // Convert frontend FeeMode to backend format
+      let backendFeeMode: any = undefined;
+      if (competition.feeMode) {
+        if (competition.feeMode.perEvent !== undefined) {
+          backendFeeMode = { perEvent: competition.feeMode.perEvent };
+        } else if (competition.feeMode.basePlusAdditional) {
+          backendFeeMode = { basePlusAdditional: competition.feeMode.basePlusAdditional };
+        } else if (competition.feeMode.allEventsFlat !== undefined) {
+          backendFeeMode = { allEventsFlat: competition.feeMode.allEventsFlat };
+        }
+      }
+
+      const backendComp: any = {
+        id: BigInt(0),
         name: competition.name,
         slug: competition.slug,
         startDate: competition.startDate,
         endDate: competition.endDate,
         status: competition.status,
         participantLimit: competition.participantLimit,
-        feeMode: competition.feeMode ? (
-          competition.feeMode.perEvent !== undefined ? { __kind__: 'perEvent' as const, perEvent: competition.feeMode.perEvent } :
-          competition.feeMode.basePlusAdditional !== undefined ? { __kind__: 'basePlusAdditional' as const, basePlusAdditional: competition.feeMode.basePlusAdditional } :
-          competition.feeMode.allEventsFlat !== undefined ? { __kind__: 'allEventsFlat' as const, allEventsFlat: competition.feeMode.allEventsFlat } :
-          undefined
-        ) : undefined,
+        feeMode: backendFeeMode,
         events: competition.events,
         scrambles: competition.scrambles,
         isActive: true,
         isLocked: false,
+        registrationStartDate: competition.registrationStartDate,
       };
-      return await actor.createCompetition(backendComp as any);
+
+      return actor.createCompetition(backendComp);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminCompetitions'] });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCompetitions });
     },
   });
 }
-
-// Alias for compatibility
-export const useCreateCompetition = useAdminCreateCompetition;
 
 export function useAdminUpdateCompetition() {
   const { actor } = useActor();
@@ -644,12 +702,37 @@ export function useAdminUpdateCompetition() {
   return useMutation({
     mutationFn: async ({ id, competition }: { id: bigint; competition: CompetitionInput }) => {
       if (!actor) throw new Error('Actor not available');
-      // Backend doesn't have update method
-      throw new Error('Backend method not available');
+
+      // Convert frontend FeeMode to backend format
+      let backendFeeMode: any = undefined;
+      if (competition.feeMode) {
+        if (competition.feeMode.perEvent !== undefined) {
+          backendFeeMode = { perEvent: competition.feeMode.perEvent };
+        } else if (competition.feeMode.basePlusAdditional) {
+          backendFeeMode = { basePlusAdditional: competition.feeMode.basePlusAdditional };
+        } else if (competition.feeMode.allEventsFlat !== undefined) {
+          backendFeeMode = { allEventsFlat: competition.feeMode.allEventsFlat };
+        }
+      }
+
+      const backendComp: any = {
+        name: competition.name,
+        slug: competition.slug,
+        startDate: competition.startDate,
+        endDate: competition.endDate,
+        status: competition.status,
+        participantLimit: competition.participantLimit,
+        feeMode: backendFeeMode,
+        events: competition.events,
+        scrambles: competition.scrambles,
+        registrationStartDate: competition.registrationStartDate,
+      };
+
+      return actor.updateCompetition(id, backendComp);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminCompetitions'] });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCompetitions });
     },
   });
 }
@@ -659,66 +742,60 @@ export function useAdminDeleteCompetition() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (id: bigint) => {
+    mutationFn: async (competitionId: bigint) => {
       if (!actor) throw new Error('Actor not available');
-      // Backend doesn't have delete method
-      throw new Error('Backend method not available');
+      return actor.deleteCompetition(competitionId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminCompetitions'] });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCompetitions });
     },
   });
 }
 
-export function useAdminToggleCompetitionLock() {
+export function useAdminLockCompetition() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (id: bigint) => {
+    mutationFn: async ({ competitionId, locked }: { competitionId: bigint; locked: boolean }) => {
       if (!actor) throw new Error('Actor not available');
-      // Backend doesn't have lock/unlock methods
-      throw new Error('Backend method not available');
+      return actor.lockCompetition(competitionId, locked);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminCompetitions'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCompetitions });
     },
   });
 }
 
-// Aliases for compatibility
-export const useAdminLockCompetition = useAdminToggleCompetitionLock;
-export const useAdminUnlockCompetition = useAdminToggleCompetitionLock;
+export function useAdminActivateCompetition() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ competitionId, active }: { competitionId: bigint; active: boolean }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.activateCompetition(competitionId, active);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCompetitions });
+    },
+  });
+}
 
 export function useAdminBlockUser() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (principal: string) => {
+    mutationFn: async ({ user, blocked }: { user: Principal; blocked: boolean }) => {
       if (!actor) throw new Error('Actor not available');
-      // Backend doesn't have this method
-      throw new Error('Backend method not available');
+      return actor.adminBlockUser(user, blocked);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
-    },
-  });
-}
-
-export function useAdminUnblockUser() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (principal: string) => {
-      if (!actor) throw new Error('Actor not available');
-      // Backend doesn't have this method
-      throw new Error('Backend method not available');
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminUsers });
     },
   });
 }
@@ -728,13 +805,12 @@ export function useAdminDeleteUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (principal: string) => {
+    mutationFn: async (user: Principal) => {
       if (!actor) throw new Error('Actor not available');
-      // Backend doesn't have this method
-      throw new Error('Backend method not available');
+      return actor.adminDeleteUser(user);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminUsers });
     },
   });
 }
@@ -744,28 +820,14 @@ export function useAdminResetUserCompetitionStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ principal, competitionId }: { principal: string; competitionId: bigint }) => {
+    mutationFn: async ({ user, competitionId, event }: { user: Principal; competitionId: bigint; event: Event }) => {
       if (!actor) throw new Error('Actor not available');
-      // Backend doesn't have this method
-      throw new Error('Backend method not available');
+      return actor.adminResetUserCompetitionStatus(user, competitionId, event);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminResults });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminUsers });
     },
-  });
-}
-
-export function useAdminGetUserSolveHistory() {
-  const { actor, isFetching } = useActor();
-
-  return useQuery<any[]>({
-    queryKey: ['adminUserSolveHistory'],
-    queryFn: async () => {
-      if (!actor) return [];
-      // Backend doesn't have this method
-      return [];
-    },
-    enabled: !!actor && !isFetching,
   });
 }
 
@@ -774,30 +836,13 @@ export function useAdminToggleResultVisibility() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ competitionId, event, user }: { competitionId: bigint; event: Event; user: Principal }) => {
+    mutationFn: async ({ user, competitionId, event, hidden }: { user: Principal; competitionId: bigint; event: Event; hidden: boolean }) => {
       if (!actor) throw new Error('Actor not available');
-      // Backend doesn't have this method
-      throw new Error('Backend method not available');
+      return actor.adminToggleResultVisibility(user, competitionId, event, hidden);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminResults'] });
-    },
-  });
-}
-
-export function useAdminRecalculateLeaderboard() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ competitionId, event }: { competitionId: bigint; event: Event }) => {
-      if (!actor) throw new Error('Actor not available');
-      // Backend doesn't have this method
-      throw new Error('Backend method not available');
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['adminResults'] });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.leaderboard(variables.competitionId, variables.event) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminResults });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
     },
   });
 }

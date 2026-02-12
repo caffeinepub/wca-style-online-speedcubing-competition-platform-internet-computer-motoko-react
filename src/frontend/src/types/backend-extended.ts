@@ -20,6 +20,7 @@ export interface Competition {
   scrambles: [string[], Event][];
   isActive: boolean;
   isLocked: boolean;
+  registrationStartDate?: bigint;
 }
 
 export interface CompetitionPublic {
@@ -32,6 +33,7 @@ export interface CompetitionPublic {
   participantLimit?: bigint;
   feeMode?: FeeMode;
   events: Event[];
+  registrationStartDate?: bigint;
 }
 
 export interface CompetitionInput {
@@ -44,6 +46,7 @@ export interface CompetitionInput {
   feeMode?: FeeMode;
   events: Event[];
   scrambles: [string[], Event][];
+  registrationStartDate?: bigint;
 }
 
 export interface FeeMode {

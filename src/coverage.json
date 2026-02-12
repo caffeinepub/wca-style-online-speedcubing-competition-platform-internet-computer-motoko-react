@@ -1,54 +1,86 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-12T14:26:36.467Z",
+  "generatedAt": "2026-02-12T15:31:51.810Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 3,
+    "total": 5,
     "implemented": 2,
     "items": [
       {
-        "id": "REQ-91",
-        "summary": "Deploy a NEW backend canister (as requested) and capture the newly created backend canister ID for this deployment.",
+        "id": "REQ-102",
+        "summary": "Backend: Add an optional `registrationStartDate` datetime field to competitions (stored per competition) that is used only for newly created/updated competitions. Existing competitions must behave exactly as before (i.e., treat missing/unset `registrationStartDate` as “no registration gating”).",
         "status": "unknown",
         "plannedFiles": [],
         "matchedFiles": []
       },
       {
-        "id": "REQ-92",
-        "summary": "Update `frontend/public/env.json` so `BACKEND_CANISTER_ID` is set to the newly deployed backend canister ID (replace the placeholder value `\"YOUR_BACKEND_CANISTER_ID_HERE\"`).",
+        "id": "REQ-103",
+        "summary": "Backend: Enforce registration gating for upcoming competitions: when `competition.status` is `#upcoming` and `registrationStartDate` is set and the current time is before `registrationStartDate`, the user must not be allowed to start a competition session or start any paid-entry flow for that competition/event.",
+        "status": "unknown",
+        "plannedFiles": [],
+        "matchedFiles": []
+      },
+      {
+        "id": "REQ-104",
+        "summary": "Backend: Automatically transition competitions from `#upcoming` to `#running` when `registrationStartDate` is reached. This auto-transition must happen without requiring an admin action.",
+        "status": "unknown",
+        "plannedFiles": [],
+        "matchedFiles": []
+      },
+      {
+        "id": "REQ-105",
+        "summary": "Frontend (Admin): Update the admin competition create and edit forms to support setting `registrationStartDate` (datetime). For new competitions created as Upcoming, the admin can set this value; it is sent to the backend as part of competition creation/update.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/public/env.json"
+          "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
+          "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
+          "frontend/src/types/backend-extended.ts"
         ],
         "matchedFiles": [
-          "frontend/public/env.json"
+          "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
+          "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
+          "frontend/src/types/backend-extended.ts"
         ]
       },
       {
-        "id": "REQ-93",
-        "summary": "Run the go-live build + deploy flow again after updating `frontend/public/env.json` and ensure it completes successfully without deployment errors.",
+        "id": "REQ-106",
+        "summary": "Frontend (Public competition detail): When a competition is Upcoming and the current time is before `registrationStartDate`, keep the Start/Pay button disabled (idle) and show an English message below it: “Registration opens at <date>”. Users must still be able to view the competition detail page and select events, but cannot proceed to payment or start until registration opens.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/lib/goLivePreflight.ts"
+          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/pages/CompetitionDetailPage.tsx",
+          "frontend/src/lib/dateUtils.ts"
         ],
         "matchedFiles": [
-          "frontend/src/lib/goLivePreflight.ts"
+          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/pages/CompetitionDetailPage.tsx",
+          "frontend/src/lib/dateUtils.ts"
         ]
       }
     ]
   },
   "changedFiles": [
     "backend/main.mo",
+    "backend/migration.mo",
     "build-request.json",
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
-    "frontend/public/env.json",
-    "frontend/src/lib/goLivePreflight.ts",
+    "frontend/src/backend.d.ts",
+    "frontend/src/backend.ts",
+    "frontend/src/declarations/backend.did.d.ts",
+    "frontend/src/declarations/backend.did.js",
+    "frontend/src/hooks/useQueries.ts",
+    "frontend/src/lib/dateUtils.ts",
+    "frontend/src/pages/CompetitionDetailPage.tsx",
+    "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
+    "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
+    "frontend/src/pages/admin/AdminUsersPage.tsx",
+    "frontend/src/types/backend-extended.ts",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

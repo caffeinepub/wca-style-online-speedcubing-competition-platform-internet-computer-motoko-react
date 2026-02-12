@@ -7,7 +7,30 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
+export interface ResultInput {
+    status: SolveStatus;
+    user: Principal;
+    attempts: Array<AttemptInput>;
+    event: Event;
+    competitionId: bigint;
+}
+export interface CompetitionInput {
+    status: CompetitionStatus;
+    endDate: Time;
+    scrambles: Array<[Array<string>, Event]>;
+    name: string;
+    slug: string;
+    feeMode?: FeeMode;
+    events: Array<Event>;
+    participantLimit?: bigint;
+    registrationStartDate?: Time;
+    startDate: Time;
+}
 export type Time = bigint;
+export interface RazorpayOrderRequest {
+    event: Event;
+    competitionId: bigint;
+}
 export type FeeMode = {
     __kind__: "perEvent";
     perEvent: bigint;
@@ -28,6 +51,50 @@ export interface CompetitionResult {
     event: Event;
     userProfile?: UserProfile;
 }
+export interface CompetitionPublic {
+    id: bigint;
+    status: CompetitionStatus;
+    endDate: Time;
+    name: string;
+    slug: string;
+    feeMode?: FeeMode;
+    events: Array<Event>;
+    participantLimit?: bigint;
+    registrationStartDate?: Time;
+    startDate: Time;
+}
+export interface AttemptInput {
+    penalty: bigint;
+    time: bigint;
+}
+export interface PaymentConfirmation {
+    razorpayPaymentId: string;
+    razorpaySignature: string;
+    event: Event;
+    razorpayOrderId: string;
+    competitionId: bigint;
+}
+export interface RazorpayOrderResponse {
+    orderId: string;
+    event: Event;
+    currency: string;
+    amount: bigint;
+    competitionName: string;
+}
+export interface AdminResultEntry {
+    status: SolveStatus;
+    user: Principal;
+    attempts: Array<Attempt>;
+    event: Event;
+    isHidden: boolean;
+    competitionId: bigint;
+}
+export interface UserSummary {
+    principal: Principal;
+    isBlocked: boolean;
+    email?: string;
+    profile?: UserProfile;
+}
 export interface Competition {
     id: bigint;
     status: CompetitionStatus;
@@ -40,17 +107,7 @@ export interface Competition {
     events: Array<Event>;
     isLocked: boolean;
     participantLimit?: bigint;
-    startDate: Time;
-}
-export interface CompetitionPublic {
-    id: bigint;
-    status: CompetitionStatus;
-    endDate: Time;
-    name: string;
-    slug: string;
-    feeMode?: FeeMode;
-    events: Array<Event>;
-    participantLimit?: bigint;
+    registrationStartDate?: Time;
     startDate: Time;
 }
 export interface Attempt {
@@ -90,8 +147,19 @@ export enum UserRole {
     guest = "guest"
 }
 export interface backendInterface {
+    activateCompetition(competitionId: bigint, active: boolean): Promise<void>;
+    adminBlockUser(user: Principal, blocked: boolean): Promise<void>;
+    adminDeleteUser(user: Principal): Promise<void>;
+    adminGetUserSolveHistory(user: Principal): Promise<Array<[bigint, Event, ResultInput]>>;
+    adminListCompetitionResults(competitionId: bigint): Promise<Array<AdminResultEntry>>;
+    adminListUsers(): Promise<Array<UserSummary>>;
+    adminResetUserCompetitionStatus(user: Principal, competitionId: bigint, event: Event): Promise<void>;
+    adminToggleResultVisibility(user: Principal, competitionId: bigint, event: Event, hidden: boolean): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    confirmPayment(confirmation: PaymentConfirmation): Promise<void>;
     createCompetition(comp: Competition): Promise<bigint>;
+    createRazorpayOrder(request: RazorpayOrderRequest): Promise<RazorpayOrderResponse>;
+    deleteCompetition(competitionId: bigint): Promise<void>;
     getAllCompetitions(): Promise<Array<CompetitionPublic>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
@@ -99,5 +167,8 @@ export interface backendInterface {
     getCompetitionResults(competitionId: bigint, event: Event): Promise<Array<CompetitionResult>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
+    lockCompetition(competitionId: bigint, locked: boolean): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    startCompetitionSession(competitionId: bigint, event: Event): Promise<Uint8Array>;
+    updateCompetition(competitionId: bigint, comp: CompetitionInput): Promise<void>;
 }

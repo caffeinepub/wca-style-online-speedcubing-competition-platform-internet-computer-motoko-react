@@ -1,75 +1,125 @@
 {
   "kind": "build_request",
-  "title": "Deploy with a new backend canister and update env.json BACKEND_CANISTER_ID",
-  "priority": "high",
+  "title": "Add registration start date gating for upcoming competitions with automatic transition to running",
+  "priority": "normal",
   "requirements": [
     {
-      "id": "REQ-91",
-      "text": "Deploy a NEW backend canister (as requested) and capture the newly created backend canister ID for this deployment.",
+      "id": "REQ-102",
+      "text": "Backend: Add an optional `registrationStartDate` datetime field to competitions (stored per competition) that is used only for newly created/updated competitions. Existing competitions must behave exactly as before (i.e., treat missing/unset `registrationStartDate` as “no registration gating”).",
       "target": "backend",
       "source": {
         "messageIds": [
-          "msg-1"
+          "msg-user-1"
         ],
         "quotes": [
-          "Continue with new canister",
-          "Start"
+          "Yes , only affect for new listed competitions"
         ]
       },
       "acceptanceCriteria": [
-        "A new backend canister is created/deployed (new canister ID).",
-        "The new backend canister ID is recorded for use by the frontend configuration."
+        "`backend/main.mo` Competition/CompetitionPublic/CompetitionInput (and any other competition DTOs used by the frontend) include an optional `registrationStartDate : ?Time.Time` field.",
+        "For competitions created/updated without `registrationStartDate`, backend logic treats it as unset and does not block start/payment based on registration gating.",
+        "Existing competitions already stored in canister state are readable after the change and behave as if `registrationStartDate` is unset (no new blocking). If an upgrade/migration step is required by the current upgrade policy, it sets `registrationStartDate = null` for existing stored competitions."
       ]
     },
     {
-      "id": "REQ-92",
-      "text": "Update `frontend/public/env.json` so `BACKEND_CANISTER_ID` is set to the newly deployed backend canister ID (replace the placeholder value `\"YOUR_BACKEND_CANISTER_ID_HERE\"`).",
+      "id": "REQ-103",
+      "text": "Backend: Enforce registration gating for upcoming competitions: when `competition.status` is `#upcoming` and `registrationStartDate` is set and the current time is before `registrationStartDate`, the user must not be allowed to start a competition session or start any paid-entry flow for that competition/event.",
+      "target": "backend",
+      "source": {
+        "messageIds": [
+          "msg-user-1"
+        ],
+        "quotes": [
+          "Please keep the button idel with text below: registration opens at this date.. yes they can view competition page but not accepted to start competition."
+        ]
+      },
+      "acceptanceCriteria": [
+        "Any backend method that initiates participation (e.g., start-competition/session creation) rejects with a clear error when now < registrationStartDate AND status is upcoming.",
+        "Any backend method that initiates paid entry (e.g., Razorpay order creation for the competition/event) rejects with a clear error when now < registrationStartDate AND status is upcoming.",
+        "The gating rule does not apply when `registrationStartDate` is unset/null."
+      ]
+    },
+    {
+      "id": "REQ-104",
+      "text": "Backend: Automatically transition competitions from `#upcoming` to `#running` when `registrationStartDate` is reached. This auto-transition must happen without requiring an admin action.",
+      "target": "backend",
+      "source": {
+        "messageIds": [
+          "msg-user-1"
+        ],
+        "quotes": [
+          "Yes should automatically move to running"
+        ]
+      },
+      "acceptanceCriteria": [
+        "When a competition has `status == #upcoming` AND `registrationStartDate` is set AND now >= registrationStartDate, backend updates the stored competition status to `#running`.",
+        "The auto-transition occurs during normal app usage (e.g., on competition reads and/or participation-related calls) without relying on scheduled jobs.",
+        "Once transitioned to `#running`, existing enforcement that users can only participate within `startDate`..`endDate` remains in effect (no relaxation of existing from/to date rules)."
+      ]
+    },
+    {
+      "id": "REQ-105",
+      "text": "Frontend (Admin): Update the admin competition create and edit forms to support setting `registrationStartDate` (datetime). For new competitions created as Upcoming, the admin can set this value; it is sent to the backend as part of competition creation/update.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-1"
+          "msg-user-1"
         ],
         "quotes": [
-          "BACKEND_CANISTER_ID is not defined in env.json",
-          "Start"
+          "So next we need to add a registration starting date where users can start register for the competition. Until then users can open the competition page but unable to proceed. We already had option to choose upcoming but if upcoming is choosen then can only registration after this date."
         ]
       },
       "acceptanceCriteria": [
-        "`frontend/public/env.json` contains a non-placeholder, non-empty `BACKEND_CANISTER_ID` value.",
-        "Running the existing preflight check (`runPreflightChecks` in `frontend/src/lib/goLivePreflight.ts`) no longer reports the failure: \"BACKEND_CANISTER_ID is not defined in env.json\"."
+        "`frontend/src/pages/admin/AdminCreateCompetitionPage.tsx` includes a `datetime-local` field for Registration Start Date and includes it in the `CompetitionInput` sent to `useCreateCompetition()`.",
+        "`frontend/src/pages/admin/AdminEditCompetitionPage.tsx` loads and displays the existing `registrationStartDate` (if set), allows editing it, and includes it in the `CompetitionInput` sent to `useAdminUpdateCompetition()`.",
+        "All user-facing validation/toast messages remain English-only and any caught exceptions continue to be routed through `normalizeError` where applicable."
       ]
     },
     {
-      "id": "REQ-93",
-      "text": "Run the go-live build + deploy flow again after updating `frontend/public/env.json` and ensure it completes successfully without deployment errors.",
-      "target": "both",
+      "id": "REQ-106",
+      "text": "Frontend (Public competition detail): When a competition is Upcoming and the current time is before `registrationStartDate`, keep the Start/Pay button disabled (idle) and show an English message below it: “Registration opens at <date>”. Users must still be able to view the competition detail page and select events, but cannot proceed to payment or start until registration opens.",
+      "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-1"
+          "msg-user-1"
         ],
         "quotes": [
-          "Yes",
-          "Start"
+          "Please keep the button idel with text below: registration opens at this date.. yes they can view competition page but not accepted to start competition."
         ]
       },
       "acceptanceCriteria": [
-        "The go-live flow completes successfully end-to-end (no failed step in the deployment sequence).",
-        "Admin Go Live page no longer blocks deployment due to missing `BACKEND_CANISTER_ID`.",
-        "User-facing deployment/preflight messaging remains English-only."
+        "`frontend/src/pages/CompetitionDetailPage.tsx` computes whether registration is not yet open using `competition.registrationStartDate` (if present) and current time.",
+        "If registration is not yet open and competition status is upcoming, the main CTA button is disabled and does not trigger payment or start logic.",
+        "A clearly visible English text is shown below the disabled button: “Registration opens at <date>” (date formatted consistently with existing app date formatting).",
+        "When registrationStartDate is reached (and backend transitions the competition to running), the UI no longer shows the registration-closed message and the CTA behaves as it did previously (subject to existing payment/start rules)."
       ]
     }
   ],
   "constraints": [
-    "Do not change anything else than necessary beyond deploying a new backend canister and updating `frontend/public/env.json` with the new canister ID.",
-    "Keep all user-facing text in English."
+    "Do not change behavior for existing (already listed) competitions; registration gating applies only when `registrationStartDate` is set for a competition.",
+    "Users must still be able to open/view the competition page before registration opens; only starting/payment must be blocked.",
+    "Keep all user-facing text in English.",
+    "No other feature changes beyond registrationStartDate gating + auto transition to running.",
+    "Respect the single-actor Motoko backend architecture (all logic in `backend/main.mo`; add `backend/migration.mo` only if required by the upgrade policy).",
+    "Do not modify any frontend files under `frontend/src/components/ui` or other immutable paths listed in SYSTEM_CONTEXT."
   ],
   "nonGoals": [
-    "Do not implement new product features unrelated to deployment/configuration.",
-    "Do not attempt to preserve or migrate data from any previous backend canister into the new canister as part of this request (new canister implies a fresh state unless a separate migration plan is requested).",
-    "Do not modify immutable frontend paths listed in SYSTEM_CONTEXT."
+    "Do not add a new registration workflow, signup list, or approval system beyond disabling Start/Pay and enforcing backend blocking.",
+    "Do not change existing competition start/end date enforcement rules except to additionally gate participation before registrationStartDate when configured.",
+    "Do not add new admin roles, permissions, or allowlist changes as part of this work."
   ],
   "imageRequirements": {
     "required": [],
     "edits": []
+  },
+  "userProfileUpdate": {
+    "goalsToAdd": [],
+    "goalsToRemove": [],
+    "preferencesToAdd": [],
+    "preferencesToRemove": [],
+    "miscToAdd": [],
+    "miscToRemove": [],
+    "fieldsToSet": {},
+    "fieldsToDelete": []
   }
 }

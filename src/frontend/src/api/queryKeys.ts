@@ -18,10 +18,9 @@ export const QUERY_KEYS = {
   // Admin keys
   adminUsers: ['admin', 'users'] as const,
   adminCompetitions: ['admin', 'competitions'] as const,
-  adminResults: (competitionId: bigint, event: string) =>
-    ['admin', 'results', competitionId.toString(), event] as const,
-  adminUserSolveHistory: (principal: string, competitionId: bigint, event: string) =>
-    ['admin', 'userSolveHistory', principal, competitionId.toString(), event] as const,
+  adminResults: ['admin', 'results'] as const,
+  adminUserSolveHistory: (principal: string) =>
+    ['admin', 'userSolveHistory', principal] as const,
   isCallerAdmin: ['isCallerAdmin'] as const,
   
   // Solve session keys
