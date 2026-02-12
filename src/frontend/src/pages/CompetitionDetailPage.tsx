@@ -13,6 +13,7 @@ import {
 import { storeSolveSession } from '../lib/solveSession';
 import { normalizeError } from '../api/errors';
 import { openRazorpayCheckout } from '../lib/razorpay';
+import { formatFeeSummary, isCompetitionPaid } from '../lib/competitionPricing';
 import { EVENT_LABELS } from '../types/domain';
 import { ArrowLeft, Loader2, Play, Lock, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -43,7 +44,9 @@ export default function CompetitionDetailPage() {
     }
 
     // Check if payment is required
-    if (competition?.entryFee && competition.entryFee > BigInt(0)) {
+    const requiresPayment = isCompetitionPaid(competition?.feeMode);
+    
+    if (requiresPayment) {
       // Check if already paid (myResult exists means payment was made)
       if (!myResult) {
         await handlePayment();
@@ -74,13 +77,13 @@ export default function CompetitionDetailPage() {
     setIsProcessingPayment(true);
 
     try {
-      // Create order
+      // Create order - backend determines the amount
       const orderResponse = await createOrderMutation.mutateAsync({
         competitionId: BigInt(competitionId),
         event: selectedEvent as Event,
       });
 
-      // Load Razorpay and process payment
+      // Load Razorpay and process payment with backend-provided amount
       const paymentResult = await openRazorpayCheckout({
         orderId: orderResponse.orderId,
         amount: Number(orderResponse.amount),
@@ -146,7 +149,7 @@ export default function CompetitionDetailPage() {
     );
   }
 
-  const requiresPayment = competition.entryFee && competition.entryFee > BigInt(0);
+  const requiresPayment = isCompetitionPaid(competition.feeMode);
   const hasPaid = myResult !== null;
   const canStart = !requiresPayment || hasPaid;
 
@@ -173,7 +176,7 @@ export default function CompetitionDetailPage() {
             {requiresPayment && (
               <div className="mb-6 p-4 bg-primary/10 rounded-lg">
                 <p className="text-sm font-medium">
-                  Entry Fee: ₹{competition.entryFee?.toString() || '0'} per event
+                  Entry Fee: {formatFeeSummary(competition.feeMode)}
                 </p>
               </div>
             )}
@@ -233,7 +236,7 @@ export default function CompetitionDetailPage() {
                       : isInProgress
                       ? 'Resume Competition'
                       : requiresPayment && !hasPaid
-                      ? `Pay ₹${competition.entryFee?.toString() || '0'} & Start`
+                      ? 'Pay & Start'
                       : 'Start Competition'}
                   </Button>
 

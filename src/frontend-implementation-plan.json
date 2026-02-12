@@ -1,33 +1,64 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Admin Results: true hide/unhide toggle backed by persisted hidden flag",
+  "title": "Frontend support for competition fee modes (admin setup + public pay/start UX)",
   "requirements": [
     {
-      "id": "REQ-72",
-      "summary": "Update Admin Results Management to use a backend-provided per-result hidden flag and provide a true hide/unhide toggle with correct per-row UI state and English-only strings.",
+      "id": "REQ-76",
+      "summary": "Update admin competition create/edit forms to configure one of three competition fee modes and validate required amounts in English.",
       "acceptanceCriteria": [
-        "In /admin/results, each result row shows a visibility action that clearly supports both states: when a result is visible, the action hides it; when a result is hidden, the action unhides it.",
-        "After hiding a result, reloading /admin/results (or re-selecting competition+event) still shows that row as hidden (state is persisted server-side), and the action available is to unhide.",
-        "After unhiding a result, reloading /admin/results still shows that row as visible, and the action available is to hide.",
-        "The backend results listing used by the admin UI includes an explicit boolean field indicating whether the result is currently hidden for (competitionId, event, user). The frontend uses this field (not `(result as any).isHidden`).",
-        "All user-facing strings introduced/changed for this fix remain English-only (e.g., tooltip and toast text for hide/unhide)."
+        "`/admin/competitions/create` and the admin edit competition form provide controls to choose among: per-event fee, base+additional-event fee, and all-events-flat fee.",
+        "Admin forms validate required fee inputs for the selected mode and prevent submission with missing/invalid amounts (English error messages).",
+        "When editing an existing competition, the form loads and displays the stored fee mode and amounts correctly.",
+        "No edits are made to immutable frontend paths listed in SYSTEM_CONTEXT."
       ],
       "file_operations": [
         {
           "path": "frontend/src/backend.d.ts",
           "operation": "modify",
-          "description": "Align generated frontend backend typings with the backend results listing used by /admin/results by adding an explicit boolean hidden flag to the admin results row type (e.g., extend CompetitionResult with `isHidden: boolean` or introduce a dedicated admin result type). This enables the UI to read persisted hidden state without casting to `any`."
+          "description": "Update frontend type declarations for Competition/CompetitionPublic/CompetitionInput to include the new pricing mode and relevant amount fields so admin forms can load/save the configured mode (keep all text English-only)."
         },
         {
-          "path": "frontend/src/hooks/useQueries.ts",
-          "operation": "modify",
-          "description": "Update the admin results query hook typing for `useAdminGetResultsForCompetition` to return the results type that includes the explicit `isHidden` boolean from the backend results listing, and ensure cache invalidation/refetch behavior remains correct after toggling visibility (keep changes minimal and scoped to admin results)."
+          "path": "frontend/src/components/admin/CompetitionPricingFields.tsx",
+          "operation": "create",
+          "description": "Create a reusable pricing configuration section for admin competition forms. Use shadcn-ui form inputs (Select/Input/Label) to select fee mode and enter required amounts, and expose a validated value back to the parent form. Verify the component's usage instructions before implementing."
         },
         {
-          "path": "frontend/src/pages/admin/AdminResultsPage.tsx",
+          "path": "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
           "operation": "modify",
-          "description": "Replace the current hidden-state guess `(result as any).isHidden` with the explicit backend-provided `result.isHidden` flag, and ensure the per-row action properly toggles both directions (hide when visible, unhide when hidden) with accurate icon/title/English-only toast text reflecting the current state. Keep all other UI/UX unchanged and do not modify any files under frontend/src/components/ui."
+          "description": "Replace the single `entryFee` input with the new pricing UI (using the CompetitionPricingFields component) and update submission validation to require the correct amounts based on the selected mode (English-only error messages). Ensure the created CompetitionInput includes the new pricing fields. Verify the component's usage instructions before implementing."
+        },
+        {
+          "path": "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
+          "operation": "modify",
+          "description": "Load existing competition pricing mode/amounts into form state and render the new pricing UI (using CompetitionPricingFields). Update the update payload to send the new pricing fields and validate required amounts per selected mode (English-only error messages). Verify the component's usage instructions before implementing."
+        }
+      ]
+    },
+    {
+      "id": "REQ-77",
+      "summary": "Update CompetitionDetailPage to show correct fee summary per fee mode and always charge the backend-returned amount when paying for an event, keeping the existing Razorpay-not-configured UX intact.",
+      "acceptanceCriteria": [
+        "CompetitionDetailPage shows an English fee summary that matches the configured fee mode (e.g., “₹X per event”, “₹A first event, then ₹B per additional event”, or “₹C for all events”).",
+        "When the user attempts to start a paid event, the flow uses backend order creation and charges the backend-returned amount for that event.",
+        "If Razorpay is not configured server-side, the page continues to show the existing clear English error state and does not attempt to open checkout.",
+        "No other unrelated UI/behavior changes are introduced."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/lib/competitionPricing.ts",
+          "operation": "create",
+          "description": "Add small frontend helpers to format an English fee summary string from the competition’s pricing mode/amounts and to determine whether the competition is paid (based on the new pricing fields) for display purposes."
+        },
+        {
+          "path": "frontend/src/pages/CompetitionDetailPage.tsx",
+          "operation": "modify",
+          "description": "Update the fee banner and Pay & Start button copy to reflect the configured pricing mode using the new helper(s). Adjust start/payment gating so the payable amount is always taken from `createRazorpayOrder` response (not computed on the client). Keep the existing behavior where Razorpay-not-configured results in the current English error state and no checkout attempt."
+        },
+        {
+          "path": "frontend/src/api/errors.ts",
+          "operation": "modify",
+          "description": "Extend error normalization (English-only) to gracefully map any new backend payment-related traps for the new pricing modes (e.g., payment required, already paid for this event, all-events already unlocked) while preserving the existing “Payments are temporarily unavailable…” messaging."
         }
       ]
     }

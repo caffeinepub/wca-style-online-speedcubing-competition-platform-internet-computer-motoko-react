@@ -1,115 +1,72 @@
 import Map "mo:core/Map";
+import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
 import Time "mo:core/Time";
 
 module {
-  public type Event = {
-    #twoByTwo;
-    #threeByThree;
-    #fourByFour;
-    #fiveByFive;
-    #skewb;
-    #megaminx;
-    #clock;
-    #threeByThreeOneHanded;
-    #pyraminx;
-  };
-
-  public type CompetitionStatus = {
-    #upcoming;
-    #running;
-    #completed;
-  };
-
-  public type SolveStatus = {
-    #not_started;
-    #in_progress;
-    #completed;
-  };
-
-  public type UserProfile = {
-    displayName : Text;
-    mcubesId : Text;
-    country : ?Text;
-    gender : ?Text;
-  };
-
-  public type Competition = {
+  type OldCompetition = {
     id : Nat;
     name : Text;
     slug : Text;
     startDate : Time.Time;
     endDate : Time.Time;
-    status : CompetitionStatus;
+    status : { #upcoming; #running; #completed };
     participantLimit : ?Nat;
     entryFee : ?Nat;
-    events : [Event];
-    scrambles : [([Text], Event)];
+    events : [{ #twoByTwo; #threeByThree; #fourByFour; #fiveByFive; #skewb; #megaminx; #clock; #threeByThreeOneHanded; #pyraminx }];
+    scrambles : [([Text], { #twoByTwo; #threeByThree; #fourByFour; #fiveByFive; #skewb; #megaminx; #clock; #threeByThreeOneHanded; #pyraminx })];
+    isActive : Bool;
+    isLocked : Bool;
   };
 
-  public type AttemptInput = {
-    time : Nat;
-    penalty : Nat;
+  type NewFeeMode = {
+    #perEvent : Nat;
+    #basePlusAdditional : { baseFee : Nat; additionalFee : Nat };
+    #allEventsFlat : Nat;
   };
 
-  public type ResultInput = {
-    user : Principal;
-    competitionId : Nat;
-    event : Event;
-    attempts : [AttemptInput];
-    status : SolveStatus;
-  };
-
-  public type PaymentConfirmation = {
-    competitionId : Nat;
-    event : Event;
-    razorpayOrderId : Text;
-    razorpayPaymentId : Text;
-    razorpaySignature : Text;
-  };
-
-  public type PaidEvent = {
+  type NewCompetition = {
     id : Nat;
-    competitionName : Text;
-    event : Event;
-    entryFee : Nat;
-    paymentDate : Time.Time;
-    razorpayOrderId : Text;
-    razorpayPaymentId : Text;
-    razorpaySignature : Text;
+    name : Text;
+    slug : Text;
+    startDate : Time.Time;
+    endDate : Time.Time;
+    status : { #upcoming; #running; #completed };
+    participantLimit : ?Nat;
+    feeMode : ?NewFeeMode;
+    events : [{ #twoByTwo; #threeByThree; #fourByFour; #fiveByFive; #skewb; #megaminx; #clock; #threeByThreeOneHanded; #pyraminx }];
+    scrambles : [([Text], { #twoByTwo; #threeByThree; #fourByFour; #fiveByFive; #skewb; #megaminx; #clock; #threeByThreeOneHanded; #pyraminx })];
+    isActive : Bool;
+    isLocked : Bool;
   };
 
-  public type OldActor = {
-    nextCompetitionId : Nat;
-    nextMcubesId : Nat;
-    competitions : Map.Map<Nat, Competition>;
-    userProfiles : Map.Map<Principal, UserProfile>;
-    results : Map.Map<(Nat, Principal, Event), ResultInput>;
-    payments : Map.Map<(Nat, Principal, Event), PaymentConfirmation>;
-    userEmails : Map.Map<Principal, Text>;
+  type OldActor = {
+    competitions : Map.Map<Nat, OldCompetition>;
   };
 
-  public type NewActor = {
-    nextCompetitionId : Nat;
-    nextMcubesId : Nat;
-    competitions : Map.Map<Nat, Competition>;
-    userProfiles : Map.Map<Principal, UserProfile>;
-    results : Map.Map<(Nat, Principal, Event), ResultInput>;
-    payments : Map.Map<(Nat, Principal, Event), PaymentConfirmation>;
-    userEmails : Map.Map<Principal, Text>;
-    userPayments : Map.Map<Principal, Map.Map<Nat, PaidEvent>>;
+  type NewActor = {
+    competitions : Map.Map<Nat, NewCompetition>;
   };
 
   public func run(old : OldActor) : NewActor {
-    {
-      nextCompetitionId = old.nextCompetitionId;
-      nextMcubesId = old.nextMcubesId;
-      competitions = old.competitions;
-      userProfiles = old.userProfiles;
-      results = old.results;
-      payments = old.payments;
-      userEmails = old.userEmails;
-      userPayments = Map.empty<Principal, Map.Map<Nat, PaidEvent>>();
-    };
+    let newCompetitions = old.competitions.map<Nat, OldCompetition, NewCompetition>(
+      func(_id, oldComp) {
+        {
+          id = oldComp.id;
+          name = oldComp.name;
+          slug = oldComp.slug;
+          startDate = oldComp.startDate;
+          endDate = oldComp.endDate;
+          status = oldComp.status;
+          participantLimit = oldComp.participantLimit;
+          feeMode = oldComp.entryFee.map(func(fee) { #perEvent(fee) });
+          events = oldComp.events;
+          scrambles = oldComp.scrambles;
+          isActive = oldComp.isActive;
+          isLocked = oldComp.isLocked;
+        };
+      }
+    );
+    { competitions = newCompetitions };
   };
 };

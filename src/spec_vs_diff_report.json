@@ -1,42 +1,70 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-12T11:42:27.468Z",
-  "summary": "Diff shows frontend work toward a hide/unhide toggle (computing `shouldHide: !isCurrentlyHidden`, English toast text, and a local `AdminCompetitionResult` type with `isHidden`). However, there is no evidence in the provided diff summary of the required Motoko backend changes to persist and return a reliable per-result hidden flag for admin listings, and the Admin Results table rendering is truncated so the UI’s per-row state reflection cannot be confirmed. There are also modifications in AdminUsersPage/project metadata that appear unrelated to the requested change.",
+  "generatedAt": "2026-02-12T12:22:02.028Z",
+  "summary": "Diff adds a new backend feeMode type (plus a migration mapping old entryFee -> perEvent) and frontend UI helpers/components to select/display pricing modes. However, there is insufficient evidence that backend payment enforcement and Razorpay order amount computation were updated to use the new fee modes, and the diff also introduces several unrelated frontend features/changes (leaderboards hub, admin UX changes, query hook fallbacks).",
   "missing_requirements": [
     {
-      "id": "REQ-72",
-      "requirement": "Backend admin results listing includes an explicit boolean field indicating whether the result is currently hidden (persisted server-side) and the frontend uses that field to render per-row state and allow both hide and unhide after reload.",
-      "reason": "The diff summary contains no backend (Motoko) changes (e.g., backend/main.mo) showing persistence of hidden state or inclusion of an explicit hidden boolean in the admin results listing response. The AdminResultsPage table rendering is truncated, so it cannot be verified that the UI uses a backend-provided `isHidden` flag per row (and not a frontend guess) to display Hide vs Unhide after reload.",
+      "id": "REQ-74",
+      "requirement": "Update backend paid-access enforcement and order creation to compute payable amount based on the competition’s selected fee mode and the caller’s existing purchases (including all-events-flat unlock behavior and base+additional logic, preventing repurchase).",
+      "reason": "The diff summary shows new FeeMode types but does not show any concrete changes to `createRazorpayOrder`, payment verification, or start-event gating logic that would compute amounts per fee mode and per user purchase state.",
       "evidence": [
-        "frontend/src/hooks/useQueries.ts",
-        "frontend/src/pages/admin/AdminResultsPage.tsx"
+        "backend/main.mo (truncated)"
+      ]
+    },
+    {
+      "id": "REQ-73",
+      "requirement": "Competition creation and update APIs accept the new pricing fields and persist them.",
+      "reason": "Although the backend types were extended with `feeMode`, the diff summary does not show the implementation changes in the admin create/update backend methods to accept, validate, and store these new fields.",
+      "evidence": [
+        "backend/main.mo (truncated)"
       ]
     }
   ],
   "hallucinated_features": [
     {
-      "description": "Changes to Admin Users page behavior/UI (e.g., new imports/actions around solve history/reset dialog) not directly related to adding unhide capability in Admin Results Management.",
-      "reason": "BuildRequest constrains changes to adding the missing unhide capability in Admin Results Management and avoiding unrelated UI/feature changes; AdminUsersPage modifications are outside /admin/results functionality.",
+      "description": "Frontend query hooks returning empty arrays/null because 'Backend method doesn't exist' (e.g., competitions list/detail/user result).",
+      "reason": "BuildRequest focuses on pricing model changes and related UI/payment UX, not replacing data fetching with placeholder fallbacks that effectively disable reading competitions/results.",
       "evidence": [
-        "frontend/src/pages/admin/AdminUsersPage.tsx"
+        "frontend/src/hooks/useQueries.ts"
       ]
     },
     {
-      "description": "Project-wide summary/metadata updates unrelated to the hide/unhide toggle.",
-      "reason": "BuildRequest asks to avoid unrelated feature/UI changes beyond the missing unhide capability; updating project_state summary does not appear required for implementing REQ-72.",
+      "description": "Added/modified Leaderboards hub page and related navigation/UX changes.",
+      "reason": "Not requested by REQ-73..REQ-77 and explicitly constrained to avoid unrelated UI/behavior changes.",
       "evidence": [
-        "project_state.json",
-        "frontend-file-summaries.txt"
+        "frontend/src/pages/LeaderboardsHubPage.tsx",
+        "frontend-file-summaries.txt (mentions new \"Leaderboards\" link in AppShell)"
+      ]
+    },
+    {
+      "description": "Broader admin pages/UX changes unrelated to competition pricing (users page, results management enhancements, etc.).",
+      "reason": "Non-goals/constraints ask not to add new admin sections/routes or change unrelated behavior; these appear outside the pricing UI scope.",
+      "evidence": [
+        "frontend/src/pages/admin/AdminUsersPage.tsx",
+        "frontend/src/pages/admin/AdminResultsPage.tsx",
+        "frontend/src/pages/admin/AdminCompetitionsPage.tsx"
       ]
     }
   ],
-  "confidence": 0.62,
+  "confidence": 0.63,
   "changed_files": [
+    "backend/main.mo",
+    "backend/migration.mo",
     "frontend-file-summaries.txt",
+    "frontend/src/api/errors.ts",
+    "frontend/src/components/admin/CompetitionPricingFields.tsx",
+    "frontend/src/components/competition/CompetitionCard.tsx",
     "frontend/src/hooks/useQueries.ts",
+    "frontend/src/lib/competitionPricing.ts",
+    "frontend/src/pages/CompetitionDetailPage.tsx",
+    "frontend/src/pages/LeaderboardsHubPage.tsx",
+    "frontend/src/pages/admin/AdminCompetitionsPage.tsx",
+    "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
+    "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
     "frontend/src/pages/admin/AdminResultsPage.tsx",
     "frontend/src/pages/admin/AdminUsersPage.tsx",
+    "frontend/src/types/backend-extended.ts",
     "project_state.json"
   ]
 }

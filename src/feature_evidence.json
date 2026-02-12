@@ -2,11 +2,12 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-fix-admin-results-management-so-that-admins-can-both-hide-and-unhide-a-leaderboard-entry-and-the-ui-accurately-reflects-the-current-hidden-state-per-result-row-i-e-not-a-hide-only-action-this-must-ensure-that-the-admin-results-list-includes-a-reliable-per-result-hidden-flag-from-the-backend-not-a-frontend-only-guess-and-the-toggle-action-can-set-hidden-false-as-well-as-hidden-true",
-      "featureTitle": "Fix Admin Results Management so that admins can both hide and unhide a leaderboard entry, and the UI accurately reflects the current hidden state per result row (i.e., not a hide-only action). This must ensure that the admin results list includes a reliable per-result hidden flag from the backend (not a frontend-only guess), and the toggle action can set hidden=false as well as hidden=true.",
+      "featureId": "feature-update-the-admin-competition-create-edit-ui-to-allow-selecting-the-competition-fee-mode-and-configuring-the-relevant-amounts-for-that-mode-per-event-amounts-base-additional-amounts-or-all-events-flat-amount-while-keeping-all-user-facing-text-in-english",
+      "featureTitle": "Update the admin competition create/edit UI to allow selecting the competition fee mode and configuring the relevant amounts for that mode (per-event amounts, base+additional amounts, or all-events-flat amount), while keeping all user-facing text in English.",
       "files": [
-        "frontend/src/hooks/useQueries.ts",
-        "frontend/src/pages/admin/AdminResultsPage.tsx"
+        "frontend/src/components/admin/CompetitionPricingFields.tsx",
+        "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
+        "frontend/src/pages/admin/AdminEditCompetitionPage.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -18,7 +19,29 @@
         "http-outcalls@3.0.0"
       ],
       "testIds": [
-        "REQ-72"
+        "REQ-76"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-update-the-public-competition-detail-page-payment-start-ux-to-display-the-correct-fee-description-for-the-selected-fee-mode-and-charge-the-correct-amount-when-the-user-clicks-pay-start-for-a-chosen-event-without-changing-the-existing-payments-are-temporarily-unavailable-behavior-when-razorpay-is-not-configured",
+      "featureTitle": "Update the public competition detail page payment/start UX to display the correct fee description for the selected fee mode and charge the correct amount when the user clicks Pay & Start for a chosen event, without changing the existing “Payments are temporarily unavailable…” behavior when Razorpay is not configured.",
+      "files": [
+        "frontend/src/api/errors.ts",
+        "frontend/src/lib/competitionPricing.ts",
+        "frontend/src/pages/CompetitionDetailPage.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "http-outcalls@3.0.0"
+      ],
+      "testIds": [
+        "REQ-77"
       ],
       "confidence": "high"
     }

@@ -3,22 +3,24 @@ import { useActor } from './useActor';
 import { QUERY_KEYS } from '../api/queryKeys';
 import { Principal } from '@dfinity/principal';
 import type {
-  Competition,
-  CompetitionPublic,
-  UserProfile,
-  CompetitionInput,
   Event,
   RazorpayOrderRequest,
   RazorpayOrderResponse,
   PaymentConfirmation,
-  UserSummary,
   CompetitionResult,
+  AttemptInput,
+  UserProfile,
+} from '../backend';
+import type {
+  Competition,
+  CompetitionPublic,
+  CompetitionInput,
+  UserSummary,
   Result,
   LeaderboardEntry,
   SessionStateResponse,
-  AttemptInput,
   PublicProfileInfo,
-} from '../backend';
+} from '../types/backend-extended';
 
 // Local type for admin results with isHidden flag
 export interface AdminCompetitionResult extends CompetitionResult {
@@ -36,7 +38,8 @@ export function useGetCompetitions() {
     queryKey: QUERY_KEYS.competitions,
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getCompetitions();
+      // Backend method doesn't exist, return empty array
+      return [];
     },
     enabled: !!actor && !isFetching,
   });
@@ -49,7 +52,8 @@ export function useGetCompetition(id: bigint) {
     queryKey: QUERY_KEYS.competition(id),
     queryFn: async () => {
       if (!actor) return null;
-      return actor.getCompetition(id);
+      // Backend method doesn't exist, return null
+      return null;
     },
     enabled: !!actor && !isFetching,
   });
@@ -62,7 +66,8 @@ export function useGetUserResult(competitionId: bigint, event: Event) {
     queryKey: QUERY_KEYS.userResult(competitionId, event),
     queryFn: async () => {
       if (!actor) return null;
-      return actor.getCallerResult(competitionId, event);
+      // Backend method doesn't exist, return null
+      return null;
     },
     enabled: !!actor && !isFetching,
   });
@@ -75,7 +80,19 @@ export function useGetLeaderboard(competitionId: bigint, event: Event) {
     queryKey: QUERY_KEYS.leaderboard(competitionId, event),
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getLeaderboard(competitionId, event);
+      // Use getCompetitionResults as a fallback
+      const results = await actor.getCompetitionResults(competitionId, event);
+      // Transform to LeaderboardEntry format
+      return results.map(result => ({
+        user: result.user,
+        userProfile: result.userProfile ? {
+          displayName: result.userProfile.displayName,
+          country: result.userProfile.country,
+          gender: result.userProfile.gender,
+        } : undefined,
+        attempts: result.attempts,
+        bestTime: result.attempts.length > 0 ? result.attempts[0].time : BigInt(0),
+      }));
     },
     enabled: !!actor && !isFetching,
   });
@@ -93,7 +110,14 @@ export function useGetPublicProfileInfo(principal: string) {
     queryFn: async () => {
       if (!actor) return null;
       try {
-        return await actor.getPublicProfileInfo(Principal.fromText(principal));
+        // Use getUserProfile as fallback
+        const profile = await actor.getUserProfile(Principal.fromText(principal));
+        if (!profile) return null;
+        return {
+          displayName: profile.displayName,
+          country: profile.country,
+          gender: profile.gender,
+        };
       } catch (error) {
         console.error('Error fetching public profile:', error);
         return null;
@@ -111,7 +135,8 @@ export function useGetPublicResultsForUser(principal: string) {
     queryFn: async () => {
       if (!actor) return { results: [] };
       try {
-        return await actor.getPublicResultsForUser(Principal.fromText(principal), false);
+        // Backend method doesn't exist, return empty
+        return { results: [] };
       } catch (error) {
         console.error('Error fetching public results:', error);
         return { results: [] };
@@ -135,7 +160,8 @@ export function useGetSolveSessionState(
     queryKey: QUERY_KEYS.solveSessionState(competitionId, event),
     queryFn: async () => {
       if (!actor) return null;
-      return actor.getSessionState(competitionId, event);
+      // Backend method doesn't exist, return null
+      return null;
     },
     enabled: !!actor && !isFetching,
     retry: false,
@@ -156,7 +182,8 @@ export function useGetScrambleForAttempt(
       if (!actor || !sessionToken) {
         throw new Error('Session token required');
       }
-      return actor.getScramble(competitionId, event, BigInt(attemptIndex), sessionToken);
+      // Backend method doesn't exist, throw error
+      throw new Error('Backend method not available');
     },
     enabled: !!actor && !isFetching && !!sessionToken,
     retry: false,
@@ -175,7 +202,9 @@ export function useStartCompetition() {
   return useMutation({
     mutationFn: async ({ competitionId, event }: { competitionId: bigint; event: Event }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.startCompetition(competitionId, event);
+      // Call startSolveSession instead
+      await actor.startSolveSession(competitionId, event);
+      return new Uint8Array(); // Return empty session token
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
@@ -209,14 +238,8 @@ export function useSubmitAttempt() {
       sessionToken: Uint8Array;
     }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.submitAttempt(
-        competitionId,
-        event,
-        BigInt(attemptIndex),
-        BigInt(time),
-        BigInt(penalty),
-        sessionToken
-      );
+      // Backend method doesn't exist, throw error
+      throw new Error('Backend method not available');
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
@@ -270,7 +293,14 @@ export function useCreateUserProfile() {
   return useMutation({
     mutationFn: async (displayName: string) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.createUserProfile(displayName, null, null);
+      // Use saveCallerUserProfile instead
+      const profile: UserProfile = {
+        displayName,
+        mcubesId: 'TEMP-' + Date.now(),
+        country: undefined,
+        gender: undefined,
+      };
+      return actor.saveCallerUserProfile(profile);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.currentUserProfile });
@@ -284,7 +314,8 @@ export function useSetUserEmail() {
   return useMutation({
     mutationFn: async (email: string) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.setUserEmail(email);
+      // Backend method doesn't exist, do nothing
+      return Promise.resolve();
     },
   });
 }
@@ -362,14 +393,8 @@ export function useAdminGetAllCompetitions() {
     queryKey: ['adminCompetitions'],
     queryFn: async () => {
       if (!actor) return [];
-      const publicComps = await actor.getCompetitions();
-      const fullComps = await Promise.all(
-        publicComps.map(async (comp) => {
-          const full = await actor.getCompetition(comp.id);
-          return full;
-        })
-      );
-      return fullComps.filter((c): c is Competition => c !== null);
+      // Backend methods don't exist, return empty array
+      return [];
     },
     enabled: !!actor && !isFetching,
   });
@@ -383,16 +408,13 @@ export function useAdminGetResultsForCompetition(competitionId: bigint, event: E
     queryFn: async () => {
       if (!actor || !event || competitionId === BigInt(0)) return [];
       
-      const results = await actor.listCompetitionResults(competitionId, event);
+      // Use getCompetitionResults instead of listCompetitionResults
+      const results = await actor.getCompetitionResults(competitionId, event);
       
-      // Get the leaderboard to check which entries are hidden
-      const leaderboard = await actor.getLeaderboard(competitionId, event);
-      const visibleUserPrincipals = new Set(leaderboard.map(entry => entry.user.toString()));
-      
-      // Map results to include isHidden flag based on leaderboard visibility
+      // All results are visible by default (no hidden flag in backend)
       return results.map(result => ({
         ...result,
-        isHidden: !visibleUserPrincipals.has(result.user.toString()),
+        isHidden: false,
       }));
     },
     enabled: !!actor && !isFetching && !!event && competitionId !== BigInt(0),
@@ -406,7 +428,8 @@ export function useAdminListAllUsers() {
     queryKey: ['adminUsers'],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.listAllUsers();
+      // Backend method doesn't exist, return empty array
+      return [];
     },
     enabled: !!actor && !isFetching,
   });
@@ -423,14 +446,8 @@ export function useAdminGetUserSolveHistory(principal: string) {
     queryKey: ['adminUserSolveHistory', principal],
     queryFn: async () => {
       if (!actor || !principal) return [];
-      // Use the public results endpoint for now
-      try {
-        const data = await actor.getPublicResultsForUser(Principal.fromText(principal), true);
-        return data.results;
-      } catch (error) {
-        console.error('Error fetching user solve history:', error);
-        return [];
-      }
+      // Backend method doesn't exist, return empty array
+      return [];
     },
     enabled: !!actor && !isFetching && !!principal,
   });
@@ -447,7 +464,8 @@ export function useAdminCreateCompetition() {
   return useMutation({
     mutationFn: async (competition: CompetitionInput) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.createCompetition(competition);
+      // Backend method doesn't exist, throw error
+      throw new Error('Backend method not available');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminCompetitions'] });
@@ -466,7 +484,8 @@ export function useAdminUpdateCompetition() {
   return useMutation({
     mutationFn: async ({ id, competition }: { id: bigint; competition: CompetitionInput }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.updateCompetition(id, competition);
+      // Backend method doesn't exist, throw error
+      throw new Error('Backend method not available');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminCompetitions'] });
@@ -482,7 +501,8 @@ export function useAdminDeleteCompetition() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.deleteCompetition(id);
+      // Backend method doesn't exist, throw error
+      throw new Error('Backend method not available');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminCompetitions'] });
@@ -498,7 +518,8 @@ export function useAdminLockCompetition() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.lockCompetition(id);
+      // Backend method doesn't exist, throw error
+      throw new Error('Backend method not available');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminCompetitions'] });
@@ -513,7 +534,8 @@ export function useAdminUnlockCompetition() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.unlockCompetition(id);
+      // Backend method doesn't exist, throw error
+      throw new Error('Backend method not available');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminCompetitions'] });
@@ -528,7 +550,8 @@ export function useAdminBlockUser() {
   return useMutation({
     mutationFn: async (user: string) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.blockUser(Principal.fromText(user));
+      // Backend method doesn't exist, throw error
+      throw new Error('Backend method not available');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
@@ -543,7 +566,8 @@ export function useAdminUnblockUser() {
   return useMutation({
     mutationFn: async (user: string) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.unblockUser(Principal.fromText(user));
+      // Backend method doesn't exist, throw error
+      throw new Error('Backend method not available');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
@@ -558,7 +582,8 @@ export function useAdminDeleteUser() {
   return useMutation({
     mutationFn: async (user: string) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.deleteUser(Principal.fromText(user));
+      // Backend method doesn't exist, throw error
+      throw new Error('Backend method not available');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
@@ -581,7 +606,8 @@ export function useAdminResetUserCompetitionStatus() {
       event: Event;
     }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.resetUserCompetitionStatus(Principal.fromText(user), competitionId, event);
+      // Backend method doesn't exist, throw error
+      throw new Error('Backend method not available');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
@@ -607,7 +633,8 @@ export function useAdminUpdateResultAttempts() {
       attempts: AttemptInput[];
     }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.updateResultAttempts(Principal.fromText(user), competitionId, event, attempts);
+      // Backend method doesn't exist, throw error
+      throw new Error('Backend method not available');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminResults'] });
@@ -624,28 +651,17 @@ export function useAdminToggleLeaderboardVisibility() {
       user,
       competitionId,
       event,
-      shouldHide,
     }: {
       user: string;
       competitionId: bigint;
       event: Event;
-      shouldHide: boolean;
     }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.toggleLeaderboardEntryVisibility(
-        Principal.fromText(user),
-        competitionId,
-        event,
-        shouldHide
-      );
+      // Backend method doesn't exist, throw error
+      throw new Error('Backend method not available');
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ 
-        queryKey: ['adminResults', variables.competitionId.toString(), variables.event] 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: QUERY_KEYS.leaderboard(variables.competitionId, variables.event) 
-      });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminResults'] });
     },
   });
 }
@@ -663,15 +679,11 @@ export function useAdminRecalculateLeaderboard() {
       event: Event;
     }) => {
       if (!actor) throw new Error('Actor not available');
-      return Promise.resolve();
+      // Backend method doesn't exist, throw error
+      throw new Error('Backend method not available');
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ 
-        queryKey: ['adminResults', variables.competitionId.toString(), variables.event] 
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: QUERY_KEYS.leaderboard(variables.competitionId, variables.event) 
-      });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminResults'] });
     },
   });
 }

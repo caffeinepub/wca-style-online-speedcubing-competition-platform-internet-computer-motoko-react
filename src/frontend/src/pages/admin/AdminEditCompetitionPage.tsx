@@ -3,6 +3,7 @@ import { useNavigate, useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import AdminGuard from '../../components/auth/AdminGuard';
 import { useGetCompetition, useAdminUpdateCompetition } from '../../hooks/useQueries';
+import CompetitionPricingFields from '../../components/admin/CompetitionPricingFields';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { normalizeError } from '../../api/errors';
 import { EVENT_LABELS, ALL_EVENTS } from '../../types/domain';
-import type { Event, CompetitionStatus, CompetitionInput } from '../../backend';
+import type { Event } from '../../backend';
+import type { CompetitionStatus, CompetitionInput, FeeMode } from '../../types/backend-extended';
 
 export default function AdminEditCompetitionPage() {
   const navigate = useNavigate();
@@ -26,7 +28,7 @@ export default function AdminEditCompetitionPage() {
   const [endDate, setEndDate] = useState('');
   const [status, setStatus] = useState<CompetitionStatus>('upcoming' as CompetitionStatus);
   const [participantLimit, setParticipantLimit] = useState('');
-  const [entryFee, setEntryFee] = useState('');
+  const [feeMode, setFeeMode] = useState<FeeMode | undefined>(undefined);
   const [selectedEvents, setSelectedEvents] = useState<Event[]>([]);
   const [scramblesByEvent, setScramblesByEvent] = useState<Partial<Record<Event, string[]>>>({});
 
@@ -38,7 +40,7 @@ export default function AdminEditCompetitionPage() {
       setEndDate(new Date(Number(competition.endDate) / 1000000).toISOString().slice(0, 16));
       setStatus(competition.status);
       setParticipantLimit(competition.participantLimit ? competition.participantLimit.toString() : '');
-      setEntryFee(competition.entryFee ? competition.entryFee.toString() : '');
+      setFeeMode(competition.feeMode);
       setSelectedEvents(competition.events);
 
       // Load existing scrambles
@@ -92,6 +94,28 @@ export default function AdminEditCompetitionPage() {
       }
     }
 
+    // Validate pricing based on selected mode
+    if (feeMode) {
+      if (feeMode.perEvent !== undefined && feeMode.perEvent <= BigInt(0)) {
+        toast.error('Per event fee must be greater than 0');
+        return;
+      }
+      if (feeMode.basePlusAdditional) {
+        if (feeMode.basePlusAdditional.baseFee <= BigInt(0)) {
+          toast.error('Base fee must be greater than 0');
+          return;
+        }
+        if (feeMode.basePlusAdditional.additionalFee < BigInt(0)) {
+          toast.error('Additional fee cannot be negative');
+          return;
+        }
+      }
+      if (feeMode.allEventsFlat !== undefined && feeMode.allEventsFlat <= BigInt(0)) {
+        toast.error('All events flat fee must be greater than 0');
+        return;
+      }
+    }
+
     const scrambles: [string[], Event][] = selectedEvents.map(event => [
       scramblesByEvent[event] || [],
       event,
@@ -104,7 +128,7 @@ export default function AdminEditCompetitionPage() {
       endDate: BigInt(new Date(endDate).getTime() * 1000000),
       status,
       participantLimit: participantLimit ? BigInt(participantLimit) : undefined,
-      entryFee: entryFee ? BigInt(entryFee) : undefined,
+      feeMode,
       events: selectedEvents,
       scrambles,
     };
@@ -218,29 +242,21 @@ export default function AdminEditCompetitionPage() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="participantLimit">Participant Limit (optional)</Label>
-                  <Input
-                    id="participantLimit"
-                    type="number"
-                    value={participantLimit}
-                    onChange={(e) => setParticipantLimit(e.target.value)}
-                    placeholder="Leave empty for unlimited"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="entryFee">Entry Fee in INR (optional)</Label>
-                  <Input
-                    id="entryFee"
-                    type="number"
-                    value={entryFee}
-                    onChange={(e) => setEntryFee(e.target.value)}
-                    placeholder="Leave empty for free"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="participantLimit">Participant Limit (optional)</Label>
+                <Input
+                  id="participantLimit"
+                  type="number"
+                  value={participantLimit}
+                  onChange={(e) => setParticipantLimit(e.target.value)}
+                  placeholder="Leave empty for unlimited"
+                />
               </div>
+            </div>
+
+            <div className="bg-card rounded-lg border p-6 space-y-4">
+              <h2 className="text-xl font-semibold">Pricing</h2>
+              <CompetitionPricingFields value={feeMode} onChange={setFeeMode} />
             </div>
 
             <div className="bg-card rounded-lg border p-6 space-y-4">

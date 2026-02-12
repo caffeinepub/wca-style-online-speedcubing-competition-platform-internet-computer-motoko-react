@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 35,
-  "summary": "Full-stack online speedcubing competition platform with multi-event, WCA-style 5-solve flow, paid entry via Razorpay, admin dashboard, strong integrity controls, and now post-completion UX enhancements including a user-visible video evidence submission option after finishing an event plus explicit multi-event completion flow (choose another event or end competition), and ensuring leaderboards are visible from both the main page and each competition page.",
+  "projectStateVersion": 37,
+  "summary": "Full-stack online speedcubing competition platform with multi-event, WCA-style 5-solve flow, paid entry via Razorpay, admin dashboard, strong integrity controls, post-completion UX enhancements (video evidence prompt + multi-event completion flow), leaderboard discoverability, and upcoming competition pricing enhancements to support event-based fee models (per-event fee, extra-event flat fee, and a flat fee for all events combined).",
   "architectural_notes": [
     "Tech stack: Next.js (App Router) + TypeScript + PostgreSQL + Prisma ORM + NextAuth; deploy on Vercel.",
     "Competition format mirrors WCA-style online comps: 5 scrambles/solves with inspection and penalties.",
@@ -427,6 +427,22 @@
         "REQ-72"
       ],
       "version": 1
+    },
+    {
+      "id": "feature-update-the-admin-competition-create-edit-ui-to-allow-selecting-the-competition-fee-mode-and-configuring-the-relevant-amounts-for-that-mode-per-event-amounts-base-additional-amounts-or-all-events-flat-amount-while-keeping-all-user-facing-text-in-english",
+      "title": "Update the admin competition create/edit UI to allow selecting the competition fee mode and configuring the relevant amounts for that mode (per-event amounts, base+additional amounts, or all-events-flat amount), while keeping all user-facing text in English.",
+      "reqIds": [
+        "REQ-76"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-the-public-competition-detail-page-payment-start-ux-to-display-the-correct-fee-description-for-the-selected-fee-mode-and-charge-the-correct-amount-when-the-user-clicks-pay-start-for-a-chosen-event-without-changing-the-existing-payments-are-temporarily-unavailable-behavior-when-razorpay-is-not-configured",
+      "title": "Update the public competition detail page payment/start UX to display the correct fee description for the selected fee mode and charge the correct amount when the user clicks Pay & Start for a chosen event, without changing the existing “Payments are temporarily unavailable…” behavior when Razorpay is not configured.",
+      "reqIds": [
+        "REQ-77"
+      ],
+      "version": 1
     }
   ],
   "new_feature_requests": [
@@ -802,6 +818,42 @@
       "id": "AR-66",
       "summary": "Public user profile page: clicking a competitor name opens a public profile showing their visible results (and related profile info) to other users.",
       "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-67",
+      "summary": "Competition pricing: support per-event entry fee (each event has its own fee) instead of a single base competition fee.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-68",
+      "summary": "Competition pricing: add fee model options for (a) base fee for first event + flat fee for each additional event, and (b) a single flat fee covering all events combined; expose these options in competition creation/edit and enforce consistently in payment gating.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-69",
+      "summary": "Extend the backend Competition pricing model beyond the current single `entryFee` field so competitions can support three paid fee modes: (1) per-event fee, (2) base fee for the first event plus a flat fee for each additional event, and (3) a single flat fee that covers all events combined.",
+      "reqIds": [
+        "REQ-73"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-70",
+      "summary": "Update backend paid-access enforcement and order creation to compute the payable amount based on the competition’s selected fee mode and the caller’s existing purchases for that competition (e.g., additional-event fee only applies after the first paid event; all-events-flat unlocks every event after one payment).",
+      "reqIds": [
+        "REQ-74"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-71",
+      "summary": "Add any required upgrade/migration handling so existing competitions that currently use `entryFee` continue to behave as “per-event fee” competitions after upgrade, without breaking reads of existing competitions.",
+      "reqIds": [
+        "REQ-75"
+      ],
       "status": "pending"
     }
   ],

@@ -1,41 +1,125 @@
 {
   "kind": "build_request",
-  "title": "Add unhide option to Admin Results visibility toggle",
+  "title": "Add new competition pricing models (first+extra event fee and all-events flat fee)",
   "priority": "normal",
   "requirements": [
     {
-      "id": "REQ-72",
-      "text": "Fix Admin Results Management so that admins can both hide and unhide a leaderboard entry, and the UI accurately reflects the current hidden state per result row (i.e., not a hide-only action). This must ensure that the admin results list includes a reliable per-result hidden flag from the backend (not a frontend-only guess), and the toggle action can set hidden=false as well as hidden=true.",
-      "target": "both",
+      "id": "REQ-73",
+      "text": "Extend the backend Competition pricing model beyond the current single `entryFee` field so competitions can support three paid fee modes: (1) per-event fee, (2) base fee for the first event plus a flat fee for each additional event, and (3) a single flat fee that covers all events combined.",
+      "target": "backend",
       "source": {
         "messageIds": [
-          "recent-messages-user-1"
+          "msg-6"
         ],
         "quotes": [
-          "View profile is now added, but the hide result from result management in admin works but no option to unhide the action. No other changes"
+          "Event feel now per event as implemented instead base fee for first even then extra a flat fee for each extra event and should have a flat fee for all events combined both features to be added"
         ]
       },
       "acceptanceCriteria": [
-        "In /admin/results, each result row shows a visibility action that clearly supports both states: when a result is visible, the action hides it; when a result is hidden, the action unhides it.",
-        "After hiding a result, reloading /admin/results (or re-selecting competition+event) still shows that row as hidden (state is persisted server-side), and the action available is to unhide.",
-        "After unhiding a result, reloading /admin/results still shows that row as visible, and the action available is to hide.",
-        "The backend results listing used by the admin UI includes an explicit boolean field indicating whether the result is currently hidden for (competitionId, event, user). The frontend uses this field (not `(result as any).isHidden`).",
-        "All user-facing strings introduced/changed for this fix remain English-only (e.g., tooltip and toast text for hide/unhide)."
+        "Backend exposes Competition/CompetitionPublic fields sufficient to represent the selected fee mode and its amounts (including per-event amounts where applicable).",
+        "Competition creation and update APIs accept the new pricing fields and persist them.",
+        "Existing scrambles/events logic and the “exactly 5 scrambles per event” validation continue to work unchanged.",
+        "All backend traps/errors remain English-only."
+      ]
+    },
+    {
+      "id": "REQ-74",
+      "text": "Update backend paid-access enforcement and order creation to compute the payable amount based on the competition’s selected fee mode and the caller’s existing purchases for that competition (e.g., additional-event fee only applies after the first paid event; all-events-flat unlocks every event after one payment).",
+      "target": "backend",
+      "source": {
+        "messageIds": [
+          "msg-6"
+        ],
+        "quotes": [
+          "base fee for first even then extra a flat fee for each extra event and should have a flat fee for all events combined"
+        ]
+      },
+      "acceptanceCriteria": [
+        "`createRazorpayOrder` returns `amount` that matches the configured fee mode for the requested event and the user’s current purchase state.",
+        "Users are blocked from starting paid events until the required payment condition for that fee mode is satisfied.",
+        "For the all-events-flat mode, after a successful payment the user can start any event in that competition without paying again.",
+        "For the base+extra mode, the first paid event uses the base fee and subsequent distinct events use the additional-event fee, and already-paid events cannot be repurchased."
+      ]
+    },
+    {
+      "id": "REQ-75",
+      "text": "Add any required upgrade/migration handling so existing competitions that currently use `entryFee` continue to behave as “per-event fee” competitions after upgrade, without breaking reads of existing competitions.",
+      "target": "backend",
+      "source": {
+        "messageIds": [
+          "msg-6"
+        ],
+        "quotes": [
+          "Try again no other changes"
+        ]
+      },
+      "acceptanceCriteria": [
+        "After an upgrade, pre-existing competitions remain readable and functionally paid/free as before.",
+        "Existing competitions with `entryFee != null` are treated as per-event-fee by default unless explicitly edited by an admin.",
+        "Migration logic is only added if needed to preserve/transform stable state safely."
+      ]
+    },
+    {
+      "id": "REQ-76",
+      "text": "Update the admin competition create/edit UI to allow selecting the competition fee mode and configuring the relevant amounts for that mode (per-event amounts, base+additional amounts, or all-events-flat amount), while keeping all user-facing text in English.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-6"
+        ],
+        "quotes": [
+          "both features to be added"
+        ]
+      },
+      "acceptanceCriteria": [
+        "`/admin/competitions/create` and the admin edit competition form provide controls to choose among: per-event fee, base+additional-event fee, and all-events-flat fee.",
+        "Admin forms validate required fee inputs for the selected mode and prevent submission with missing/invalid amounts (English error messages).",
+        "When editing an existing competition, the form loads and displays the stored fee mode and amounts correctly.",
+        "No edits are made to immutable frontend paths listed in SYSTEM_CONTEXT."
+      ]
+    },
+    {
+      "id": "REQ-77",
+      "text": "Update the public competition detail page payment/start UX to display the correct fee description for the selected fee mode and charge the correct amount when the user clicks Pay & Start for a chosen event, without changing the existing “Payments are temporarily unavailable…” behavior when Razorpay is not configured.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-6"
+        ],
+        "quotes": [
+          "For paid competition razorpay is not ready yet, error code: when click pay now: Payments are temporarily unavailable. The payment system has not been configured yet. Please contact support or try again later"
+        ]
+      },
+      "acceptanceCriteria": [
+        "CompetitionDetailPage shows an English fee summary that matches the configured fee mode (e.g., “₹X per event”, “₹A first event, then ₹B per additional event”, or “₹C for all events”).",
+        "When the user attempts to start a paid event, the flow uses backend order creation and charges the backend-returned amount for that event.",
+        "If Razorpay is not configured server-side, the page continues to show the existing clear English error state and does not attempt to open checkout.",
+        "No other unrelated UI/behavior changes are introduced."
       ]
     }
   ],
   "constraints": [
-    "Do not make unrelated UI/UX or feature changes beyond adding the missing unhide capability in Admin Results Management.",
-    "Respect the existing single-actor Motoko backend architecture (all logic in backend/main.mo).",
-    "Do not edit files under frontend/src/components/ui (immutable Shadcn sources)."
+    "Backend must remain a single Motoko actor with all logic in `backend/main.mo` (add `backend/migration.mo` only if needed for upgrade safety).",
+    "Do not edit any frontend files under immutable paths: `frontend/src/hooks/useInternetIdentity.ts`, `frontend/src/hooks/useInternetIdentity.tsx`, `frontend/src/hooks/useActor.ts`, `frontend/src/main.tsx`, `frontend/src/components/ui`.",
+    "All user-facing text must be English-only."
   ],
   "nonGoals": [
-    "Do not change the newly added View Profile / public profile functionality.",
-    "Do not add new admin sections or new result-editing features beyond the hide/unhide toggle.",
-    "Do not implement any new payment, competition, or leaderboard computation changes."
+    "Do not implement or modify Razorpay configuration/credential setup beyond what is required for fee computation; keep the existing “payments not configured” UX intact.",
+    "Do not add new admin sections/routes or change unrelated competition/solve/leaderboard behavior.",
+    "Do not change authentication or admin allowlist behavior."
   ],
   "imageRequirements": {
     "required": [],
     "edits": []
+  },
+  "userProfileUpdate": {
+    "goalsToAdd": [],
+    "goalsToRemove": [],
+    "preferencesToAdd": [],
+    "preferencesToRemove": [],
+    "miscToAdd": [],
+    "miscToRemove": [],
+    "fieldsToSet": {},
+    "fieldsToDelete": []
   }
 }

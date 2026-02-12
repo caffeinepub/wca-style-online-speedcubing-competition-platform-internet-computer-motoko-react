@@ -1,7 +1,9 @@
 import { useNavigate } from '@tanstack/react-router';
-import { CompetitionPublic } from '../../backend';
-import { Calendar, Users, Trophy } from 'lucide-react';
+import type { CompetitionPublic } from '../../types/backend-extended';
 import { formatDate } from '../../lib/dateUtils';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Calendar, Users } from 'lucide-react';
 
 interface CompetitionCardProps {
   competition: CompetitionPublic;
@@ -10,57 +12,69 @@ interface CompetitionCardProps {
 export default function CompetitionCard({ competition }: CompetitionCardProps) {
   const navigate = useNavigate();
 
-  const statusColors = {
-    upcoming: 'bg-chart-2/10 text-chart-2 border-chart-2/20',
-    running: 'bg-chart-1/10 text-chart-1 border-chart-1/20',
-    completed: 'bg-muted text-muted-foreground border-border',
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'running':
+        return 'bg-green-500';
+      case 'upcoming':
+        return 'bg-blue-500';
+      case 'completed':
+        return 'bg-gray-500';
+      default:
+        return 'bg-gray-500';
+    }
   };
 
-  const statusLabels = {
-    upcoming: 'Upcoming',
-    running: 'Live',
-    completed: 'Completed',
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'running':
+        return 'Running';
+      case 'upcoming':
+        return 'Upcoming';
+      case 'completed':
+        return 'Completed';
+      default:
+        return status;
+    }
   };
 
   return (
-    <button
-      onClick={() => navigate({ to: '/competitions/$competitionId', params: { competitionId: competition.id.toString() } })}
-      className="w-full bg-card border border-border rounded-xl p-6 hover:border-chart-1/50 hover:shadow-lg hover:shadow-chart-1/5 transition-all text-left group"
+    <Card
+      className="cursor-pointer hover:shadow-lg transition-shadow"
+      onClick={() =>
+        navigate({
+          to: '/competitions/$competitionId',
+          params: { competitionId: competition.id.toString() },
+        })
+      }
     >
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex-1">
-          <h3 className="text-xl font-bold mb-1 group-hover:text-chart-1 transition-colors">
-            {competition.name}
-          </h3>
-          <p className="text-sm text-muted-foreground">Event: 3x3x3 Cube</p>
+      <CardHeader>
+        <div className="flex items-start justify-between">
+          <CardTitle className="text-xl">{competition.name}</CardTitle>
+          <Badge className={getStatusColor(competition.status)}>
+            {getStatusLabel(competition.status)}
+          </Badge>
         </div>
-        <span
-          className={`px-3 py-1 rounded-full text-xs font-medium border ${
-            statusColors[competition.status]
-          }`}
-        >
-          {statusLabels[competition.status]}
-        </span>
-      </div>
-
-      <div className="space-y-2 text-sm">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Calendar className="w-4 h-4" />
-          <span>
-            {formatDate(competition.startDate)} - {formatDate(competition.endDate)}
-          </span>
-        </div>
-        {competition.participantLimit && (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Users className="w-4 h-4" />
-            <span>Limit: {competition.participantLimit.toString()} participants</span>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            <span>
+              {formatDate(competition.startDate)} - {formatDate(competition.endDate)}
+            </span>
           </div>
-        )}
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Trophy className="w-4 h-4" />
-          <span>5 solves • Ao5 format</span>
+          {competition.participantLimit && (
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              <span>Limit: {competition.participantLimit.toString()} participants</span>
+            </div>
+          )}
+          <div className="mt-2">
+            <span className="font-medium">{competition.events.length} events</span>
+          </div>
         </div>
-      </div>
-    </button>
+      </CardContent>
+    </Card>
   );
 }

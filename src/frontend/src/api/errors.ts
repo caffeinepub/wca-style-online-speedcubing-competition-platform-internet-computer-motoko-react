@@ -44,7 +44,7 @@ export function normalizeError(error: unknown): string {
     }
 
     if (message.includes('Already paid')) {
-      return 'You have already paid for this event.';
+      return 'You have already paid for this event or competition.';
     }
 
     if (message.includes('Invalid order ID') || message.includes('Order does not belong')) {
@@ -53,6 +53,14 @@ export function normalizeError(error: unknown): string {
 
     if (message.includes('Invalid payment signature')) {
       return 'Payment verification failed due to invalid signature. Please contact support.';
+    }
+
+    if (message.includes('Payment required')) {
+      return 'Payment is required to access this event. Please complete payment first.';
+    }
+
+    if (message.includes('all-events already unlocked') || message.includes('all events')) {
+      return 'You have already paid for all events in this competition.';
     }
 
     // Authorization errors

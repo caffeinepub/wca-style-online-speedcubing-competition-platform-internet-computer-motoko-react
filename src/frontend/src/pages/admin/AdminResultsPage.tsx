@@ -73,7 +73,6 @@ export default function AdminResultsPage() {
         user: userPrincipal,
         competitionId: BigInt(selectedCompetitionId),
         event: selectedEvent as Event,
-        shouldHide: !isCurrentlyHidden,
       });
       toast.success(isCurrentlyHidden ? 'Result unhidden from leaderboard' : 'Result hidden from leaderboard');
       refetch();

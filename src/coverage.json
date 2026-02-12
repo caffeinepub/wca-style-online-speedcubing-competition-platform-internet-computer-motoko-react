@@ -1,39 +1,94 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-12T11:42:27.473Z",
+  "generatedAt": "2026-02-12T12:22:02.034Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 1,
-    "implemented": 1,
+    "total": 5,
+    "implemented": 2,
     "items": [
       {
-        "id": "REQ-72",
-        "summary": "Fix Admin Results Management so that admins can both hide and unhide a leaderboard entry, and the UI accurately reflects the current hidden state per result row (i.e., not a hide-only action). This must ensure that the admin results list includes a reliable per-result hidden flag from the backend (not a frontend-only guess), and the toggle action can set hidden=false as well as hidden=true.",
+        "id": "REQ-73",
+        "summary": "Extend the backend Competition pricing model beyond the current single `entryFee` field so competitions can support three paid fee modes: (1) per-event fee, (2) base fee for the first event plus a flat fee for each additional event, and (3) a single flat fee that covers all events combined.",
+        "status": "unknown",
+        "plannedFiles": [],
+        "matchedFiles": []
+      },
+      {
+        "id": "REQ-74",
+        "summary": "Update backend paid-access enforcement and order creation to compute the payable amount based on the competition’s selected fee mode and the caller’s existing purchases for that competition (e.g., additional-event fee only applies after the first paid event; all-events-flat unlocks every event after one payment).",
+        "status": "unknown",
+        "plannedFiles": [],
+        "matchedFiles": []
+      },
+      {
+        "id": "REQ-75",
+        "summary": "Add any required upgrade/migration handling so existing competitions that currently use `entryFee` continue to behave as “per-event fee” competitions after upgrade, without breaking reads of existing competitions.",
+        "status": "unknown",
+        "plannedFiles": [],
+        "matchedFiles": []
+      },
+      {
+        "id": "REQ-76",
+        "summary": "Update the admin competition create/edit UI to allow selecting the competition fee mode and configuring the relevant amounts for that mode (per-event amounts, base+additional amounts, or all-events-flat amount), while keeping all user-facing text in English.",
         "status": "implemented",
         "plannedFiles": [
           "frontend/src/backend.d.ts",
-          "frontend/src/hooks/useQueries.ts",
-          "frontend/src/pages/admin/AdminResultsPage.tsx"
+          "frontend/src/components/admin/CompetitionPricingFields.tsx",
+          "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
+          "frontend/src/pages/admin/AdminEditCompetitionPage.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/hooks/useQueries.ts",
-          "frontend/src/pages/admin/AdminResultsPage.tsx"
+          "frontend/src/backend.d.ts",
+          "frontend/src/components/admin/CompetitionPricingFields.tsx",
+          "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
+          "frontend/src/pages/admin/AdminEditCompetitionPage.tsx"
+        ]
+      },
+      {
+        "id": "REQ-77",
+        "summary": "Update the public competition detail page payment/start UX to display the correct fee description for the selected fee mode and charge the correct amount when the user clicks Pay & Start for a chosen event, without changing the existing “Payments are temporarily unavailable…” behavior when Razorpay is not configured.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/lib/competitionPricing.ts",
+          "frontend/src/pages/CompetitionDetailPage.tsx",
+          "frontend/src/api/errors.ts"
+        ],
+        "matchedFiles": [
+          "frontend/src/lib/competitionPricing.ts",
+          "frontend/src/pages/CompetitionDetailPage.tsx",
+          "frontend/src/api/errors.ts"
         ]
       }
     ]
   },
   "changedFiles": [
+    "backend/main.mo",
+    "backend/migration.mo",
     "build-request.json",
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
+    "frontend/src/api/errors.ts",
+    "frontend/src/backend.d.ts",
+    "frontend/src/backend.ts",
+    "frontend/src/components/admin/CompetitionPricingFields.tsx",
+    "frontend/src/components/competition/CompetitionCard.tsx",
+    "frontend/src/declarations/backend.did.d.ts",
+    "frontend/src/declarations/backend.did.js",
     "frontend/src/hooks/useQueries.ts",
+    "frontend/src/lib/competitionPricing.ts",
+    "frontend/src/pages/CompetitionDetailPage.tsx",
+    "frontend/src/pages/LeaderboardsHubPage.tsx",
+    "frontend/src/pages/admin/AdminCompetitionsPage.tsx",
+    "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
+    "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
     "frontend/src/pages/admin/AdminResultsPage.tsx",
     "frontend/src/pages/admin/AdminUsersPage.tsx",
+    "frontend/src/types/backend-extended.ts",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",
