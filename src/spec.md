@@ -1,11 +1,13 @@
 # Specification
 
 ## Summary
-**Goal:** Ensure SolveFlow refresh recovery resumes on the correct next attempt after an auto-DNF, and prevent re-solving attempts already marked DNF or already submitted.
+**Goal:** Fix admin and public pages that are stuck loading or crashing, ensuring competition edit, admin users/results management, and the public leaderboard reliably load real data and show stable English error states when failures occur.
 
 **Planned changes:**
-- Update backend refresh recovery so a refresh during attempt N persists attempt N as DNF, advances the session to the next eligible attempt (N+1), and rejects any duplicate/overwrite submissions for attempts that already have a stored time or DNF marker.
-- Update SolveFlowPage attempt header and refresh messaging to always reflect the server-reported next eligible attempt (1-based), with English-only text (e.g., “Attempt N was marked DNF because the page was refreshed. Continuing with attempt N+1.”).
-- Ensure the post-refresh UI loads the scramble and timing flow only for the next eligible attempt and surfaces clear English errors via existing error normalization when applicable.
+- Update `/admin/competitions/$competitionId/edit` to fetch a full competition record by `competitionId` before building any scrambles/event mappings, so the form never crashes on missing fields and always loads existing competition data (events, feeMode, registrationStartDate, per-event scrambles).
+- Add validation and a clear English error state on the competition edit page when scrambles are missing/invalid, and block saving until required data is valid (instead of crashing).
+- Replace/remove any admin Users/Results React Query stubs/disabled hooks that cause perpetual loading, wiring the pages to real backend admin actor methods and ensuring loading resolves to either real data or a stable English error state.
+- Ensure required backend admin actor methods exist/are restored to support existing admin users actions (block/unblock, delete, view solve history, reset competition status) and admin results actions (list by competition+event, toggle hidden/visible, export CSV).
+- Fix the public leaderboard query/backend integration so it uses the intended leaderboard/results API, filters to completed + non-hidden results, and resolves from loading to results, “no results” messaging, or a stable English error state (no infinite spinner).
 
-**User-visible outcome:** After refreshing mid-attempt, the app clearly tells the user which attempt was marked DNF and correctly continues at the next attempt (e.g., shows “Attempt 3 of 5”), without allowing the user to re-run or re-submit an already-DNF’d (or already-submitted) attempt.
+**User-visible outcome:** Admins can open competition edit without crashes and see the correct existing data; admin Users and Results pages load and actions work end-to-end; the public leaderboard reliably loads and shows completed, non-hidden results (or a clear English message/error instead of spinning forever).

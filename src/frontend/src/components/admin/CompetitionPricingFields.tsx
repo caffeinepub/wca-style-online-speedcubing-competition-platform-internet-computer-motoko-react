@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { FeeMode } from '../../types/backend-extended';
+import type { FeeMode } from '../../backend';
 
 type PricingMode = 'free' | 'perEvent' | 'basePlusAdditional' | 'allEventsFlat';
 
@@ -25,16 +25,18 @@ export default function CompetitionPricingFields({ value, onChange }: Competitio
       return;
     }
 
-    if (value.perEvent !== undefined) {
-      setMode('perEvent');
-      setPerEventFee(value.perEvent.toString());
-    } else if (value.basePlusAdditional !== undefined) {
-      setMode('basePlusAdditional');
-      setBaseFee(value.basePlusAdditional.baseFee.toString());
-      setAdditionalFee(value.basePlusAdditional.additionalFee.toString());
-    } else if (value.allEventsFlat !== undefined) {
-      setMode('allEventsFlat');
-      setAllEventsFlat(value.allEventsFlat.toString());
+    if ('__kind__' in value) {
+      if (value.__kind__ === 'perEvent') {
+        setMode('perEvent');
+        setPerEventFee(value.perEvent.toString());
+      } else if (value.__kind__ === 'basePlusAdditional') {
+        setMode('basePlusAdditional');
+        setBaseFee(value.basePlusAdditional.baseFee.toString());
+        setAdditionalFee(value.basePlusAdditional.additionalFee.toString());
+      } else if (value.__kind__ === 'allEventsFlat') {
+        setMode('allEventsFlat');
+        setAllEventsFlat(value.allEventsFlat.toString());
+      }
     }
   }, [value]);
 
@@ -48,12 +50,13 @@ export default function CompetitionPricingFields({ value, onChange }: Competitio
         break;
       case 'perEvent':
         if (perEventFee && Number(perEventFee) > 0) {
-          newFeeMode = { perEvent: BigInt(perEventFee) };
+          newFeeMode = { __kind__: 'perEvent', perEvent: BigInt(perEventFee) };
         }
         break;
       case 'basePlusAdditional':
         if (baseFee && additionalFee && Number(baseFee) > 0) {
           newFeeMode = {
+            __kind__: 'basePlusAdditional',
             basePlusAdditional: {
               baseFee: BigInt(baseFee),
               additionalFee: BigInt(additionalFee),
@@ -63,7 +66,7 @@ export default function CompetitionPricingFields({ value, onChange }: Competitio
         break;
       case 'allEventsFlat':
         if (allEventsFlat && Number(allEventsFlat) > 0) {
-          newFeeMode = { allEventsFlat: BigInt(allEventsFlat) };
+          newFeeMode = { __kind__: 'allEventsFlat', allEventsFlat: BigInt(allEventsFlat) };
         }
         break;
     }

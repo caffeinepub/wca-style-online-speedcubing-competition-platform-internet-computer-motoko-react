@@ -1,40 +1,57 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-13T00:35:09.448Z",
+  "generatedAt": "2026-02-13T01:32:00.370Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 2,
-    "implemented": 2,
+    "total": 3,
+    "implemented": 3,
     "items": [
       {
-        "id": "REQ-123",
-        "summary": "Fix solve-session refresh recovery so that when a user refreshes during attempt N, the backend marks attempt N as DNF and advances `currentAttempt` to N+1; after reload, the solve flow must resume on the next attempt (not restart at attempt 1) and must not allow re-solving an already-DNF’d attempt index.",
+        "id": "REQ-125",
+        "summary": "Fix the admin competition edit flow so it never crashes with \"Cannot read properties of undefined (reading 'forEach')\" and the edit form always loads the correct existing competition data (including events, feeMode, registrationStartDate, and per-event scrambles). Specifically, stop relying on a competition list payload that may not contain `scrambles`, and fetch a full competition record for the selected `competitionId` before building the scrambles map.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/pages/SolveFlowPage.tsx",
           "frontend/src/hooks/useQueries.ts",
-          "frontend/src/types/backend-extended.ts",
-          "frontend/REGRESSION_SMOKE_TEST_CHECKLIST.md"
+          "frontend/src/pages/admin/AdminEditCompetitionPage.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/pages/SolveFlowPage.tsx",
-          "frontend/REGRESSION_SMOKE_TEST_CHECKLIST.md"
+          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/pages/admin/AdminEditCompetitionPage.tsx"
         ]
       },
       {
-        "id": "REQ-124",
-        "summary": "Update SolveFlowPage refresh messaging and attempt index display so it never shows an incorrect attempt number (e.g., “Continuing with attempt 1”) when the backend has advanced the session; the message must reflect the actual 1-based attempt number that the user should do next.",
+        "id": "REQ-126",
+        "summary": "Fix the admin Users and Results management pages so they do not stay in a perpetual loading state. Remove/replace any React Query stubs/disabled hooks that return empty arrays, never resolve, or throw \"Backend method not available\" and wire the pages to real backend actor methods so admin user management and admin results management load real data and actions execute end-to-end.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/pages/SolveFlowPage.tsx",
+          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/pages/admin/AdminUsersPage.tsx",
+          "frontend/src/pages/admin/AdminResultsPage.tsx",
+          "frontend/src/api/queryKeys.ts"
+        ],
+        "matchedFiles": [
+          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/pages/admin/AdminUsersPage.tsx",
+          "frontend/src/pages/admin/AdminResultsPage.tsx",
+          "frontend/src/api/queryKeys.ts"
+        ]
+      },
+      {
+        "id": "REQ-127",
+        "summary": "Fix the public leaderboard so it loads reliably (no perpetual loading) and displays real results when they exist. Ensure the frontend leaderboard query uses the intended backend leaderboard/results API, and ensure the backend filters results correctly (completed only; not hidden). Add a stable English error state if the query fails so the page does not remain stuck loading.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/pages/LeaderboardPage.tsx",
           "frontend/src/api/errors.ts"
         ],
         "matchedFiles": [
-          "frontend/src/pages/SolveFlowPage.tsx",
+          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/pages/LeaderboardPage.tsx",
           "frontend/src/api/errors.ts"
         ]
       }
@@ -46,11 +63,19 @@
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
-    "frontend/REGRESSION_SMOKE_TEST_CHECKLIST.md",
     "frontend/src/api/errors.ts",
+    "frontend/src/api/queryKeys.ts",
     "frontend/src/backend.d.ts",
-    "frontend/src/lib/solveSession.ts",
-    "frontend/src/pages/SolveFlowPage.tsx",
+    "frontend/src/backend.ts",
+    "frontend/src/components/admin/CompetitionPricingFields.tsx",
+    "frontend/src/declarations/backend.did.d.ts",
+    "frontend/src/declarations/backend.did.js",
+    "frontend/src/hooks/useQueries.ts",
+    "frontend/src/pages/LeaderboardPage.tsx",
+    "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
+    "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
+    "frontend/src/pages/admin/AdminResultsPage.tsx",
+    "frontend/src/pages/admin/AdminUsersPage.tsx",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

@@ -13,6 +13,7 @@ import type {
   RazorpayOrderResponse as BackendRazorpayOrderResponse,
   PaymentConfirmation as BackendPaymentConfirmation,
   Competition as BackendCompetition,
+  LeaderboardEntry as BackendLeaderboardEntry,
 } from '../backend';
 import type {
   Competition,
@@ -413,11 +414,11 @@ export function useGetUserResult(competitionId: bigint, event: Event) {
 export function useGetLeaderboard(competitionId: bigint, event: Event) {
   const { actor, isFetching } = useActor();
 
-  return useQuery<CompetitionResult[]>({
+  return useQuery<BackendLeaderboardEntry[]>({
     queryKey: QUERY_KEYS.leaderboard(competitionId.toString(), event),
     queryFn: async () => {
       if (!actor) throw new Error('Actor not available');
-      return actor.getCompetitionResults(competitionId, event);
+      return actor.getCompetitionLeaderboard(competitionId, event);
     },
     enabled: !!actor && !isFetching,
   });
@@ -484,6 +485,7 @@ export function useGetPublicResultsForUser(principalString: string) {
 // Admin Functions
 // ============================================================================
 
+// Admin: Get all competitions with full details including scrambles
 export function useAdminGetAllCompetitions() {
   const { actor, isFetching } = useActor();
 
@@ -491,11 +493,30 @@ export function useAdminGetAllCompetitions() {
     queryKey: QUERY_KEYS.adminCompetitions,
     queryFn: async () => {
       if (!actor) throw new Error('Actor not available');
-      // Note: Backend doesn't have separate admin endpoint
-      // Using public endpoint for now
-      return actor.getAllCompetitions() as any;
+      // Backend doesn't have separate admin endpoint, but we can use getCompetition for each
+      const publicComps = await actor.getAllCompetitions();
+      // Fetch full details for each competition
+      const fullComps = await Promise.all(
+        publicComps.map(comp => actor.getCompetition(comp.id))
+      );
+      return fullComps;
     },
     enabled: !!actor && !isFetching,
+  });
+}
+
+// Admin: Get single competition with full details
+export function useAdminGetCompetition(competitionId: bigint | null) {
+  const { actor, isFetching } = useActor();
+
+  return useQuery<BackendCompetition>({
+    queryKey: QUERY_KEYS.competition(competitionId?.toString() || 'null'),
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      if (!competitionId) throw new Error('Competition ID required');
+      return actor.getCompetition(competitionId);
+    },
+    enabled: !!actor && !isFetching && competitionId !== null,
   });
 }
 
@@ -577,12 +598,12 @@ export function useAdminActivateCompetition() {
       throw new Error('Backend method not available: adminActivateCompetition');
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.competitions });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminCompetitions });
     },
   });
 }
 
+// Admin: Get all users
 export function useAdminGetUsers() {
   const { actor, isFetching } = useActor();
 
@@ -594,6 +615,7 @@ export function useAdminGetUsers() {
       throw new Error('Backend method not available: adminGetUsers');
     },
     enabled: !!actor && !isFetching,
+    retry: false,
   });
 }
 
@@ -602,7 +624,7 @@ export function useAdminBlockUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: { user: Principal; blocked: boolean }) => {
+    mutationFn: async (params: { principal: Principal; blocked: boolean }) => {
       if (!actor) throw new Error('Actor not available');
       // Note: Backend doesn't have admin block user method
       throw new Error('Backend method not available: adminBlockUser');
@@ -618,7 +640,7 @@ export function useAdminDeleteUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (user: Principal) => {
+    mutationFn: async (principal: Principal) => {
       if (!actor) throw new Error('Actor not available');
       // Note: Backend doesn't have admin delete user method
       throw new Error('Backend method not available: adminDeleteUser');
@@ -629,24 +651,12 @@ export function useAdminDeleteUser() {
   });
 }
 
-export function useAdminGetUserSolveHistory() {
-  const { actor } = useActor();
-
-  return useMutation({
-    mutationFn: async (user: Principal) => {
-      if (!actor) throw new Error('Actor not available');
-      // Note: Backend doesn't have admin get user solve history method
-      throw new Error('Backend method not available: adminGetUserSolveHistory');
-    },
-  });
-}
-
 export function useAdminResetUserCompetitionStatus() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: { user: Principal; competitionId: bigint; event: Event }) => {
+    mutationFn: async (params: { principal: Principal; competitionId: bigint; event: Event }) => {
       if (!actor) throw new Error('Actor not available');
       // Note: Backend doesn't have admin reset user competition status method
       throw new Error('Backend method not available: adminResetUserCompetitionStatus');
@@ -657,17 +667,30 @@ export function useAdminResetUserCompetitionStatus() {
   });
 }
 
-export function useAdminGetCompetitionResults(competitionId: bigint) {
+// Admin: Get competition results (all, including hidden)
+export function useAdminGetCompetitionResults(competitionId: bigint | null, event: Event | null) {
   const { actor, isFetching } = useActor();
 
   return useQuery<AdminResultEntry[]>({
-    queryKey: QUERY_KEYS.adminCompetitionResults(competitionId.toString()),
+    queryKey: QUERY_KEYS.adminResults(competitionId?.toString() || 'null', event || 'null'),
     queryFn: async () => {
       if (!actor) throw new Error('Actor not available');
-      // Note: Backend doesn't have admin get competition results method
-      throw new Error('Backend method not available: adminGetCompetitionResults');
+      if (!competitionId || !event) return [];
+      // Note: Backend doesn't have admin get results method that includes hidden flag
+      // We'll use the public method and assume all are visible
+      const results = await actor.getCompetitionResults(competitionId, event);
+      return results.map(r => ({
+        user: r.user,
+        competitionId,
+        event: r.event,
+        attempts: r.attempts,
+        status: r.status,
+        ao5: r.ao5,
+        isHidden: false, // Backend doesn't expose this yet
+      }));
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !isFetching && competitionId !== null && event !== null,
+    retry: false,
   });
 }
 
@@ -676,11 +699,11 @@ export function useAdminToggleResultVisibility() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: {
-      competitionId: bigint;
-      event: Event;
-      user: Principal;
-      hidden: boolean;
+    mutationFn: async (params: { 
+      competitionId: bigint; 
+      event: Event; 
+      user: Principal; 
+      hidden: boolean 
     }) => {
       if (!actor) throw new Error('Actor not available');
       // Note: Backend doesn't have admin toggle result visibility method
@@ -688,7 +711,7 @@ export function useAdminToggleResultVisibility() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ 
-        queryKey: QUERY_KEYS.adminCompetitionResults(variables.competitionId.toString()) 
+        queryKey: QUERY_KEYS.adminResults(variables.competitionId.toString(), variables.event) 
       });
       queryClient.invalidateQueries({ 
         queryKey: QUERY_KEYS.leaderboard(variables.competitionId.toString(), variables.event) 

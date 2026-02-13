@@ -11,7 +11,19 @@ export interface RazorpayCredentials {
     keyId: string;
     keySecret: string;
 }
+export interface LeaderboardEntry {
+    ao5?: bigint;
+    bestTime: bigint;
+    user: Principal;
+    attempts: Array<Attempt>;
+    userProfile?: PublicProfileInfo;
+}
 export type Time = bigint;
+export interface PublicProfileInfo {
+    country?: string;
+    displayName: string;
+    gender?: string;
+}
 export interface RazorpayOrderRequest {
     event: Event;
     competitionId: bigint;
@@ -126,6 +138,7 @@ export interface backendInterface {
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getCompetition(competitionId: bigint): Promise<Competition>;
+    getCompetitionLeaderboard(competitionId: bigint, event: Event): Promise<Array<LeaderboardEntry>>;
     getCompetitionResults(competitionId: bigint, event: Event): Promise<Array<CompetitionResult>>;
     getCompetitorResults(competitor: Principal): Promise<CompetitorResults>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;

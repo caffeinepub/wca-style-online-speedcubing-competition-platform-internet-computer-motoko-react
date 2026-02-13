@@ -2,11 +2,11 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-fix-solve-session-refresh-recovery-so-that-when-a-user-refreshes-during-attempt-n-the-backend-marks-attempt-n-as-dnf-and-advances-currentattempt-to-n-1-after-reload-the-solve-flow-must-resume-on-the-next-attempt-not-restart-at-attempt-1-and-must-not-allow-re-solving-an-already-dnf-d-attempt-index",
-      "featureTitle": "Fix solve-session refresh recovery so that when a user refreshes during attempt N, the backend marks attempt N as DNF and advances `currentAttempt` to N+1; after reload, the solve flow must resume on the next attempt (not restart at attempt 1) and must not allow re-solving an already-DNF’d attempt index.",
+      "featureId": "feature-fix-the-admin-competition-edit-flow-so-it-never-crashes-with-cannot-read-properties-of-undefined-reading-foreach-and-the-edit-form-always-loads-the-correct-existing-competition-data-including-events-feemode-registrationstartdate-and-per-event-scrambles-specifically-stop-relying-on-a-competition-list-payload-that-may-not-contain-scrambles-and-fetch-a-full-competition-record-for-the-selected-competitionid-before-building-the-scrambles-map",
+      "featureTitle": "Fix the admin competition edit flow so it never crashes with \"Cannot read properties of undefined (reading 'forEach')\" and the edit form always loads the correct existing competition data (including events, feeMode, registrationStartDate, and per-event scrambles). Specifically, stop relying on a competition list payload that may not contain `scrambles`, and fetch a full competition record for the selected `competitionId` before building the scrambles map.",
       "files": [
-        "frontend/REGRESSION_SMOKE_TEST_CHECKLIST.md",
-        "frontend/src/pages/SolveFlowPage.tsx"
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/pages/admin/AdminEditCompetitionPage.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -18,16 +18,18 @@
         "http-outcalls@3.0.0"
       ],
       "testIds": [
-        "REQ-123"
+        "REQ-125"
       ],
       "confidence": "high"
     },
     {
-      "featureId": "feature-update-solveflowpage-refresh-messaging-and-attempt-index-display-so-it-never-shows-an-incorrect-attempt-number-e-g-continuing-with-attempt-1-when-the-backend-has-advanced-the-session-the-message-must-reflect-the-actual-1-based-attempt-number-that-the-user-should-do-next",
-      "featureTitle": "Update SolveFlowPage refresh messaging and attempt index display so it never shows an incorrect attempt number (e.g., “Continuing with attempt 1”) when the backend has advanced the session; the message must reflect the actual 1-based attempt number that the user should do next.",
+      "featureId": "feature-fix-the-admin-users-and-results-management-pages-so-they-do-not-stay-in-a-perpetual-loading-state-remove-replace-any-react-query-stubs-disabled-hooks-that-return-empty-arrays-never-resolve-or-throw-backend-method-not-available-and-wire-the-pages-to-real-backend-actor-methods-so-admin-user-management-and-admin-results-management-load-real-data-and-actions-execute-end-to-end",
+      "featureTitle": "Fix the admin Users and Results management pages so they do not stay in a perpetual loading state. Remove/replace any React Query stubs/disabled hooks that return empty arrays, never resolve, or throw \"Backend method not available\" and wire the pages to real backend actor methods so admin user management and admin results management load real data and actions execute end-to-end.",
       "files": [
-        "frontend/src/api/errors.ts",
-        "frontend/src/pages/SolveFlowPage.tsx"
+        "frontend/src/api/queryKeys.ts",
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/pages/admin/AdminResultsPage.tsx",
+        "frontend/src/pages/admin/AdminUsersPage.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -39,7 +41,29 @@
         "http-outcalls@3.0.0"
       ],
       "testIds": [
-        "REQ-124"
+        "REQ-126"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-fix-the-public-leaderboard-so-it-loads-reliably-no-perpetual-loading-and-displays-real-results-when-they-exist-ensure-the-frontend-leaderboard-query-uses-the-intended-backend-leaderboard-results-api-and-ensure-the-backend-filters-results-correctly-completed-only-not-hidden-add-a-stable-english-error-state-if-the-query-fails-so-the-page-does-not-remain-stuck-loading",
+      "featureTitle": "Fix the public leaderboard so it loads reliably (no perpetual loading) and displays real results when they exist. Ensure the frontend leaderboard query uses the intended backend leaderboard/results API, and ensure the backend filters results correctly (completed only; not hidden). Add a stable English error state if the query fails so the page does not remain stuck loading.",
+      "files": [
+        "frontend/src/api/errors.ts",
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/pages/LeaderboardPage.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "http-outcalls@3.0.0"
+      ],
+      "testIds": [
+        "REQ-127"
       ],
       "confidence": "high"
     }

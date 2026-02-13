@@ -13,8 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { EVENT_LABELS } from '../../types/domain';
 import CompetitionPricingFields from '../../components/admin/CompetitionPricingFields';
-import type { Event } from '../../backend';
-import type { CompetitionInput, FeeMode } from '../../types/backend-extended';
+import type { Event, FeeMode } from '../../backend';
+import type { CompetitionInput } from '../../types/backend-extended';
 
 export default function AdminCreateCompetitionPage() {
   const navigate = useNavigate();
@@ -72,19 +72,21 @@ export default function AdminCreateCompetitionPage() {
 
     // Validate fee mode
     if (feeMode) {
-      if (feeMode.perEvent !== undefined && feeMode.perEvent <= 0) {
-        toast.error('Per-event fee must be greater than 0');
-        return;
-      }
-      if (feeMode.basePlusAdditional) {
-        if (feeMode.basePlusAdditional.baseFee <= 0 || feeMode.basePlusAdditional.additionalFee <= 0) {
-          toast.error('Base fee and additional fee must be greater than 0');
+      if ('__kind__' in feeMode) {
+        if (feeMode.__kind__ === 'perEvent' && feeMode.perEvent <= 0) {
+          toast.error('Per-event fee must be greater than 0');
           return;
         }
-      }
-      if (feeMode.allEventsFlat !== undefined && feeMode.allEventsFlat <= 0) {
-        toast.error('All-events flat fee must be greater than 0');
-        return;
+        if (feeMode.__kind__ === 'basePlusAdditional') {
+          if (feeMode.basePlusAdditional.baseFee <= 0 || feeMode.basePlusAdditional.additionalFee <= 0) {
+            toast.error('Base fee and additional fee must be greater than 0');
+            return;
+          }
+        }
+        if (feeMode.__kind__ === 'allEventsFlat' && feeMode.allEventsFlat <= 0) {
+          toast.error('All-events flat fee must be greater than 0');
+          return;
+        }
       }
     }
 
@@ -95,7 +97,7 @@ export default function AdminCreateCompetitionPage() {
       endDate: BigInt(new Date(endDate).getTime() * 1000000),
       status: 'upcoming',
       participantLimit: participantLimit ? BigInt(participantLimit) : undefined,
-      feeMode,
+      feeMode: feeMode as any, // Cast to any to handle type mismatch between backend and extended types
       events: selectedEvents,
       scrambles: selectedEvents.map((event) => [scrambles[event] || [], event]),
       registrationStartDate: registrationStartDate ? BigInt(new Date(registrationStartDate).getTime() * 1000000) : undefined,

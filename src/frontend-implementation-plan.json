@@ -1,61 +1,87 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "SolveFlow refresh recovery: resume at correct next attempt after auto-DNF advancement",
+  "title": "Fix admin edit crash + stabilize admin/public loading and leaderboard data fetching",
   "requirements": [
     {
-      "id": "REQ-123",
-      "summary": "Ensure SolveFlow resumes from the backend-reported next eligible attempt after refresh auto-DNF advancement and prevents re-solving an already-finished attempt index.",
+      "id": "REQ-125",
+      "summary": "Stop admin competition edit from crashing by fetching a full competition record before building scrambles and by adding non-crashing validation/error states.",
       "acceptanceCriteria": [
-        "Given attempt 1 is completed, if the user refreshes during attempt 2, the backend persists attempt 2 as DNF and sets the next eligible attempt to attempt 3.",
-        "After the refresh, the SolveFlow UI shows “Attempt 3 of 5” (not “Attempt 1 of 5”).",
-        "After the refresh, the user is shown the scramble for the next eligible attempt (e.g., attempt 3) and cannot re-run attempt 2 timing or submit another solve for attempt 2.",
-        "The backend prevents duplicate/overwrite submissions for any attempt index that already has a stored non-zero time or a stored DNF marker, including the auto-DNF case.",
-        "If the user refreshes during attempt 1 before any successful submission, attempt 1 is marked DNF and the UI resumes at attempt 2.",
-        "All user-facing messaging for this scenario is English-only and clearly indicates which attempt was marked DNF and which attempt the user will continue with."
+        "Navigating to `/admin/competitions/$competitionId/edit` no longer throws any runtime error, including the reported `forEach` undefined error.",
+        "The edit page loads and displays: name, slug, status, start/end dates, optional registrationStartDate, participantLimit, feeMode, selected events, and 5 scrambles per selected event (when present in backend data).",
+        "If scrambles are missing/invalid for any event, the page shows a clear English error state explaining what is missing (instead of crashing) and does not allow saving until validation passes.",
+        "No changes are made to immutable frontend paths listed in SYSTEM_CONTEXT."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/pages/SolveFlowPage.tsx",
-          "operation": "modify",
-          "description": "Make SolveFlow state fully server-driven on load and after each submission: set currentAttempt from server-reported session state (not local increments), and guard the timer/submit flow so the UI cannot start or submit for an attempt index that the backend indicates is already finalized (including auto-DNF). Add English-only recovery behavior after refresh: if the session state indicates an auto-DNF advancement, resume at the next eligible attempt and present clear messaging indicating which attempt was marked DNF and which attempt the user continues with."
-        },
-        {
           "path": "frontend/src/hooks/useQueries.ts",
           "operation": "modify",
-          "description": "Update solve-session React Query hooks used by SolveFlow to fetch the authoritative session state and submit an attempt in a way that supports refresh recovery: ensure the hooks return the server-reported current attempt index after refresh/submission so SolveFlow can resume at the next eligible attempt and avoid duplicate/overwrite submissions from the UI."
+          "description": "Add/adjust an admin edit-specific query hook that fetches a full competition record by competitionId (using the existing actor competition fetch capability) instead of relying on the competitions list payload that may omit scrambles; ensure the hook exposes stable loading/error states so the page can render an English error instead of crashing."
         },
         {
-          "path": "frontend/src/types/backend-extended.ts",
+          "path": "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
           "operation": "modify",
-          "description": "Extend SessionStateResponse typing to support refresh recovery messaging and strict attempt progression (e.g., optional fields to identify whether auto-DNF occurred and which attempt index was marked), while remaining backward-compatible so the UI can compute the marked/next attempt numbers when only currentAttempt is available."
-        },
-        {
-          "path": "frontend/REGRESSION_SMOKE_TEST_CHECKLIST.md",
-          "operation": "modify",
-          "description": "Add/adjust manual regression checklist steps for SolveFlow refresh recovery: refresh during attempt 1 and attempt N>1, verify the UI resumes at the backend-reported next attempt, shows the correct scramble, and blocks re-solving a DNF’d attempt index."
+          "description": "Replace list-derived edit initialization with a full competition fetch for the selected competitionId before building the scrambles map; guard against missing/invalid scrambles (no `forEach` on undefined), render a clear English error/validation block when scrambles are missing/invalid, and disable saving until validation passes. Continue using the existing pricing fields component for feeMode."
         }
       ]
     },
     {
-      "id": "REQ-124",
-      "summary": "Correct SolveFlow refresh messaging and attempt header display to always reflect the backend-advanced next attempt number.",
+      "id": "REQ-126",
+      "summary": "Remove admin data-loading stubs that cause perpetual loading and ensure admin Users/Results pages resolve to data or a stable English error state (no infinite spinner).",
       "acceptanceCriteria": [
-        "When the backend indicates an auto-DNF advancement occurred, the UI shows an English message in the form: “Attempt <N> was marked DNF because the page was refreshed. Continuing with attempt <N+1>.”",
-        "The attempt number shown in the page header (e.g., “Attempt X of 5”) matches the server-reported next attempt index + 1.",
-        "No toast/banner/message claims the app is continuing with attempt 1 unless the next eligible attempt is actually attempt 1.",
-        "The UI does not silently fail; the user always sees either the correct resumed attempt screen or a clear English error state routed via existing error normalization (`normalizeError`) where applicable."
+        "`/admin/users` transitions from loading to either (a) a populated users table or (b) a stable English error state; it must not spin indefinitely when the backend returns an error.",
+        "`/admin/results` transitions from loading to either (a) populated filter controls and results table (after selecting a competition) or (b) a stable English error state; it must not spin indefinitely when the backend returns an error.",
+        "Admin actions in Users work without placeholders: block/unblock, delete, view solve history, reset competition status (with errors shown in English via existing normalization where applicable).",
+        "Admin actions in Results work without placeholders: list results for selected competition+event, toggle hidden/visible state, and export CSV (with errors shown in English via existing normalization where applicable).",
+        "Backend implements (or restores) the specific admin actor methods required by the existing frontend hooks/pages so the UI is not forced to rely on stubs."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/pages/SolveFlowPage.tsx",
+          "path": "frontend/src/hooks/useQueries.ts",
           "operation": "modify",
-          "description": "Update refresh-recovery UI messaging to be derived from backend session state: when auto-DNF advancement is indicated, show an English message exactly in the form “Attempt <N> was marked DNF because the page was refreshed. Continuing with attempt <N+1>.” Ensure the page header attempt display always uses the server-reported next attempt index + 1 and never falls back to attempt 1 unless the server indicates attempt 0 (1-based attempt 1) is next."
+          "description": "Remove/replace admin-related React Query stubs that return empty arrays or throw 'Backend method not available' in a way that can lead to UI uncertainty; ensure each admin hook used by `/admin/users` and `/admin/results` either calls an available backend capability or fails fast with a real error (so React Query transitions to an error state)."
+        },
+        {
+          "path": "frontend/src/pages/admin/AdminUsersPage.tsx",
+          "operation": "modify",
+          "description": "Update the admin users page to handle React Query error states explicitly (using existing `normalizeError`) so it never spins indefinitely; ensure action buttons show in-flight states and surface backend errors in English. Ensure the page remains protected by the existing admin access control (authorization component via existing AdminGuard); verify the component's usage instructions before implementing."
+        },
+        {
+          "path": "frontend/src/pages/admin/AdminResultsPage.tsx",
+          "operation": "modify",
+          "description": "Update the admin results page to avoid indefinite loading by handling `isError`/error states and guarding queries until a competition is selected; ensure results listing/export resolve to data or a stable English error state and that action failures render normalized English errors. Keep admin protection via existing AdminGuard (authorization component); verify the component's usage instructions before implementing."
+        },
+        {
+          "path": "frontend/src/api/queryKeys.ts",
+          "operation": "modify",
+          "description": "Adjust/admin-extend React Query keys if needed to distinguish admin competition-list vs full competition fetch and to ensure invalidation/refetch works consistently for admin screens without causing stale loading loops."
+        }
+      ]
+    },
+    {
+      "id": "REQ-127",
+      "summary": "Fix public leaderboard data fetching to use the intended leaderboard capability and ensure the UI never gets stuck loading by adding stable English error states.",
+      "acceptanceCriteria": [
+        "Leaderboard pages/routes render a loading indicator only while the underlying request is in-flight, and then render either results or a stable English error state (no infinite spinner).",
+        "When completed, non-hidden results exist for a competition+event, the leaderboard shows them; when none exist, the page clearly communicates that no results are available.",
+        "Backend leaderboard/results response used by the leaderboard excludes hidden results and excludes non-completed results.",
+        "Competitor display name rendering behavior remains English-only and consistent with existing logic (display name when available; fallback to \"Anonymous\" only when no display name exists)."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/hooks/useQueries.ts",
+          "operation": "modify",
+          "description": "Update the leaderboard query hook to call the backend leaderboard capability (not the generic results fetch) and to surface errors (no silent/never-resolving behavior); keep React Query enabled/disabled logic correct so the hook only loads when dependencies are available."
+        },
+        {
+          "path": "frontend/src/pages/LeaderboardPage.tsx",
+          "operation": "modify",
+          "description": "Prevent state updates during render when setting the default event (move to an effect), add a stable English error UI when the leaderboard query fails (instead of spinning), and keep competitor display-name fallback logic English-only and consistent (use displayName when present; otherwise 'Anonymous')."
         },
         {
           "path": "frontend/src/api/errors.ts",
           "operation": "modify",
-          "description": "Adjust normalizeError handling for refresh auto-DNF and attempt-submission conflicts so user-facing text remains English-only and does not mask critical attempt numbers. Preserve detailed backend messages when they contain attempt indices for auto-DNF advancement, and ensure any failure still surfaces a clear normalized English error rather than silently failing."
+          "description": "If needed, extend `normalizeError` mappings for common leaderboard/admin query failures so newly surfaced error states read clearly in English (without changing unrelated normalization behavior)."
         }
       ]
     }

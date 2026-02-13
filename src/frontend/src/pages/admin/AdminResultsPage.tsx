@@ -1,201 +1,232 @@
-import { useState } from 'react';
-import { toast } from 'sonner';
-import AdminGuard from '../../components/auth/AdminGuard';
+import React, { useState } from 'react';
 import {
   useAdminGetAllCompetitions,
   useAdminGetCompetitionResults,
   useAdminToggleResultVisibility,
 } from '../../hooks/useQueries';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
+import { Badge } from '../../components/ui/badge';
 import { normalizeError } from '../../api/errors';
-import { exportResultsToCSV } from '../../lib/csv';
+import { Alert, AlertDescription } from '../../components/ui/alert';
+import { AlertCircle, Loader2, Download } from 'lucide-react';
+import { Event } from '../../backend';
 import { EVENT_LABELS } from '../../types/domain';
-import { Loader2, Download, Eye, EyeOff } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { Event } from '../../backend';
+import { generateCSV, downloadCSV } from '../../lib/csv';
+import AdminGuard from '../../components/auth/AdminGuard';
 
 export default function AdminResultsPage() {
-  const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>('');
-  const [selectedEvent, setSelectedEvent] = useState<Event | '__ALL__'>('__ALL__');
+  const [selectedCompetitionId, setSelectedCompetitionId] = useState<bigint | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
-  const { data: competitions = [], isLoading: loadingCompetitions } = useAdminGetAllCompetitions();
-  const { data: results = [], isLoading: loadingResults } = useAdminGetCompetitionResults(
-    selectedCompetitionId ? BigInt(selectedCompetitionId) : BigInt(0)
-  );
+  const { data: competitions, isLoading: competitionsLoading } = useAdminGetAllCompetitions();
+  const {
+    data: results,
+    isLoading: resultsLoading,
+    isError: resultsError,
+    error: resultsErrorObj,
+  } = useAdminGetCompetitionResults(selectedCompetitionId, selectedEvent);
   const toggleVisibilityMutation = useAdminToggleResultVisibility();
 
-  const selectedCompetition = competitions.find((c) => c.id === BigInt(selectedCompetitionId || 0));
+  const selectedCompetition = competitions?.find((c) => c.id === selectedCompetitionId);
+  const availableEvents = selectedCompetition?.events || [];
 
-  const filteredResults = selectedEvent === '__ALL__'
-    ? results
-    : results.filter((r) => r.event === selectedEvent);
+  const handleCompetitionChange = (competitionId: string) => {
+    setSelectedCompetitionId(BigInt(competitionId));
+    setSelectedEvent(null);
+  };
 
-  const handleToggleVisibility = async (userId: string, event: Event, currentlyHidden: boolean) => {
-    if (!selectedCompetitionId) return;
+  const handleEventChange = (event: string) => {
+    if (event === 'all') {
+      setSelectedEvent(null);
+    } else {
+      setSelectedEvent(event as Event);
+    }
+  };
 
+  const handleToggleVisibility = async (user: any, competitionId: bigint, event: Event, currentlyHidden: boolean) => {
     try {
       await toggleVisibilityMutation.mutateAsync({
-        user: { toText: () => userId } as any,
-        competitionId: BigInt(selectedCompetitionId),
+        competitionId,
         event,
+        user,
         hidden: !currentlyHidden,
       });
-      toast.success(currentlyHidden ? 'Result shown' : 'Result hidden');
-    } catch (error) {
-      toast.error(normalizeError(error));
+    } catch (err) {
+      console.error('Failed to toggle visibility:', err);
     }
   };
 
   const handleExportCSV = () => {
-    if (!selectedCompetition || filteredResults.length === 0) {
-      toast.error('No results to export');
-      return;
-    }
+    if (!results || !selectedCompetition || !selectedEvent) return;
 
-    exportResultsToCSV(filteredResults, `${selectedCompetition.name}-results.csv`);
-    toast.success('CSV exported successfully');
+    const headers = ['User', 'Event', 'Ao5', 'Attempt 1', 'Attempt 2', 'Attempt 3', 'Attempt 4', 'Attempt 5', 'Status', 'Hidden'];
+    const rows = results.map((r) => [
+      r.user.toString(),
+      EVENT_LABELS[r.event],
+      r.ao5 ? `${(Number(r.ao5) / 1000).toFixed(2)}` : 'N/A',
+      `${(Number(r.attempts[0]?.time || 0) / 1000).toFixed(2)}`,
+      `${(Number(r.attempts[1]?.time || 0) / 1000).toFixed(2)}`,
+      `${(Number(r.attempts[2]?.time || 0) / 1000).toFixed(2)}`,
+      `${(Number(r.attempts[3]?.time || 0) / 1000).toFixed(2)}`,
+      `${(Number(r.attempts[4]?.time || 0) / 1000).toFixed(2)}`,
+      r.status,
+      r.isHidden ? 'Yes' : 'No',
+    ]);
+
+    const csv = generateCSV(headers, rows);
+    downloadCSV(csv, `${selectedCompetition.name}_${EVENT_LABELS[selectedEvent]}_results.csv`);
   };
 
   return (
     <AdminGuard>
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-8">
-          <h1 className="text-4xl font-bold mb-8">Results Management</h1>
+      <div className="container mx-auto px-4 py-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Results Management</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Competition</label>
+                {competitionsLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <Select
+                    value={selectedCompetitionId?.toString() || ''}
+                    onValueChange={handleCompetitionChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a competition" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {competitions?.map((comp) => (
+                        <SelectItem key={comp.id.toString()} value={comp.id.toString()}>
+                          {comp.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
 
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Filter Results</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Competition</label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Event</label>
                 <Select
-                  value={selectedCompetitionId}
-                  onValueChange={setSelectedCompetitionId}
+                  value={selectedEvent || 'all'}
+                  onValueChange={handleEventChange}
+                  disabled={!selectedCompetitionId || availableEvents.length === 0}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a competition" />
+                    <SelectValue placeholder="Select an event" />
                   </SelectTrigger>
                   <SelectContent>
-                    {competitions.map((comp) => (
-                      <SelectItem key={comp.id.toString()} value={comp.id.toString()}>
-                        {comp.name}
+                    {availableEvents.map((event) => (
+                      <SelectItem key={event} value={event}>
+                        {EVENT_LABELS[event]}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
-              {selectedCompetition && (
-                <div>
-                  <label className="block text-sm font-medium mb-2">Event</label>
-                  <Select
-                    value={selectedEvent}
-                    onValueChange={(val) => setSelectedEvent(val as Event | '__ALL__')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__ALL__">All Events</SelectItem>
-                      {selectedCompetition.events.map((event) => (
-                        <SelectItem key={event} value={event}>
-                          {EVENT_LABELS[event]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {selectedCompetitionId && (
-                <Button onClick={handleExportCSV} variant="outline" className="w-full">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export to CSV
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-
-          {loadingCompetitions || loadingResults ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : selectedCompetitionId ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Results</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {filteredResults.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    No results found for the selected filters
-                  </p>
-                ) : (
+
+            {resultsLoading && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            )}
+
+            {resultsError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {normalizeError(resultsErrorObj)}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {!resultsLoading && !resultsError && selectedCompetitionId && selectedEvent && results && results.length === 0 && (
+              <div className="text-center py-12 text-muted-foreground">
+                No results found for this competition and event
+              </div>
+            )}
+
+            {!resultsLoading && !resultsError && results && results.length > 0 && (
+              <>
+                <div className="flex justify-end">
+                  <Button onClick={handleExportCSV} variant="outline">
+                    <Download className="mr-2 h-4 w-4" />
+                    Export CSV
+                  </Button>
+                </div>
+
+                <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>User</TableHead>
                         <TableHead>Event</TableHead>
-                        <TableHead>Status</TableHead>
                         <TableHead>Ao5</TableHead>
+                        <TableHead>Attempts</TableHead>
+                        <TableHead>Status</TableHead>
                         <TableHead>Visibility</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredResults.map((result, index) => (
-                        <TableRow key={index}>
+                      {results.map((result) => (
+                        <TableRow key={`${result.user.toString()}-${result.event}`}>
                           <TableCell className="font-mono text-xs">
-                            {result.user.toString().slice(0, 8)}...
+                            {result.user.toString().slice(0, 20)}...
                           </TableCell>
                           <TableCell>{EVENT_LABELS[result.event]}</TableCell>
                           <TableCell>
-                            <span
-                              className={`px-2 py-1 rounded text-xs ${
-                                result.status === 'completed'
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                                  : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                              }`}
-                            >
-                              {result.status}
-                            </span>
+                            {result.ao5 ? `${(Number(result.ao5) / 1000).toFixed(2)}s` : 'N/A'}
                           </TableCell>
                           <TableCell>
-                            {result.ao5 ? `${(Number(result.ao5) / 1000).toFixed(2)}s` : 'DNF'}
+                            {result.attempts.map((a, i) => (
+                              <span key={i} className="mr-2">
+                                {(Number(a.time) / 1000).toFixed(2)}s
+                              </span>
+                            ))}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={result.status === 'completed' ? 'default' : 'secondary'}>
+                              {result.status}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             {result.isHidden ? (
-                              <span className="text-muted-foreground">Hidden</span>
+                              <Badge variant="destructive">Hidden</Badge>
                             ) : (
-                              <span className="text-green-600">Visible</span>
+                              <Badge variant="default">Visible</Badge>
                             )}
                           </TableCell>
                           <TableCell>
                             <Button
-                              variant="ghost"
                               size="sm"
+                              variant="outline"
                               onClick={() =>
                                 handleToggleVisibility(
-                                  result.user.toString(),
+                                  result.user,
+                                  result.competitionId,
                                   result.event,
                                   result.isHidden
                                 )
                               }
                               disabled={toggleVisibilityMutation.isPending}
                             >
-                              {result.isHidden ? (
-                                <>
-                                  <Eye className="h-4 w-4 mr-2" />
-                                  Show
-                                </>
+                              {toggleVisibilityMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : result.isHidden ? (
+                                'Show'
                               ) : (
-                                <>
-                                  <EyeOff className="h-4 w-4 mr-2" />
-                                  Hide
-                                </>
+                                'Hide'
                               )}
                             </Button>
                           </TableCell>
@@ -203,19 +234,20 @@ export default function AdminResultsPage() {
                       ))}
                     </TableBody>
                   </Table>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="py-12">
-                <p className="text-center text-muted-foreground">
-                  Select a competition to view results
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+                </div>
+              </>
+            )}
+
+            {toggleVisibilityMutation.isError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {normalizeError(toggleVisibilityMutation.error)}
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </AdminGuard>
   );

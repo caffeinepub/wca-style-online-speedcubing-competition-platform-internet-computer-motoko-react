@@ -8,7 +8,7 @@ export function normalizeError(error: unknown): string {
 
     // Backend method not available errors
     if (message.includes('Backend method not available') || message.includes('Backend method doesn\'t exist')) {
-      return 'This feature is not yet available. The backend is missing required functionality.';
+      return 'This feature is not yet available. Please contact the administrator.';
     }
 
     // Actor not available
@@ -130,7 +130,7 @@ export function normalizeError(error: unknown): string {
     }
 
     // Scramble errors
-    if (message.includes('No scrambles found')) {
+    if (message.includes('No scrambles found') || message.includes('No scramble available')) {
       return 'No scrambles available for this event.';
     }
 

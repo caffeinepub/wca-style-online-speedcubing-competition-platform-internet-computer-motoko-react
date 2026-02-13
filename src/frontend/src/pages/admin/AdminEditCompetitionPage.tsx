@@ -1,277 +1,393 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
-import { toast } from 'sonner';
-import AdminGuard from '../../components/auth/AdminGuard';
-import { useAdminGetAllCompetitions, useAdminUpdateCompetition } from '../../hooks/useQueries';
+import { useAdminGetCompetition, useAdminUpdateCompetition } from '../../hooks/useQueries';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Checkbox } from '../../components/ui/checkbox';
 import { normalizeError } from '../../api/errors';
-import { Loader2, Save } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Event, CompetitionStatus as BackendCompetitionStatus } from '../../backend';
 import { EVENT_LABELS } from '../../types/domain';
 import CompetitionPricingFields from '../../components/admin/CompetitionPricingFields';
-import type { Event } from '../../backend';
-import type { CompetitionInput, FeeMode, CompetitionStatus } from '../../types/backend-extended';
+import { Alert, AlertDescription } from '../../components/ui/alert';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import type { FeeMode } from '../../backend';
 
 export default function AdminEditCompetitionPage() {
   const navigate = useNavigate();
-  const { competitionId } = useParams({ strict: false }) as { competitionId: string };
-  const { data: competitions, isLoading: loadingCompetitions } = useAdminGetAllCompetitions();
-  const updateCompetitionMutation = useAdminUpdateCompetition();
+  const { competitionId: competitionIdParam } = useParams({ from: '/admin/competitions/$competitionId/edit' });
+  const competitionId = competitionIdParam ? BigInt(competitionIdParam) : null;
+
+  const { data: competition, isLoading, isError, error } = useAdminGetCompetition(competitionId);
+  const updateMutation = useAdminUpdateCompetition();
 
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
+  const [status, setStatus] = useState<string>('upcoming');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [registrationStartDate, setRegistrationStartDate] = useState('');
-  const [status, setStatus] = useState<CompetitionStatus>('upcoming');
   const [participantLimit, setParticipantLimit] = useState('');
   const [selectedEvents, setSelectedEvents] = useState<Event[]>([]);
-  const [scrambles, setScrambles] = useState<Record<Event, string[]>>({} as Record<Event, string[]>);
   const [feeMode, setFeeMode] = useState<FeeMode | undefined>(undefined);
+  const [scrambles, setScrambles] = useState<Map<Event, string[]>>(new Map());
+  const [validationError, setValidationError] = useState<string | null>(null);
 
+  // Load competition data when available
   useEffect(() => {
-    if (competitions) {
-      const competition = competitions.find((c) => c.id === BigInt(competitionId));
-      if (competition) {
-        setName(competition.name);
-        setSlug(competition.slug);
-        setStartDate(new Date(Number(competition.startDate) / 1000000).toISOString().slice(0, 16));
-        setEndDate(new Date(Number(competition.endDate) / 1000000).toISOString().slice(0, 16));
-        if (competition.registrationStartDate) {
-          setRegistrationStartDate(new Date(Number(competition.registrationStartDate) / 1000000).toISOString().slice(0, 16));
-        }
-        setStatus(competition.status);
-        setParticipantLimit(competition.participantLimit ? competition.participantLimit.toString() : '');
-        setSelectedEvents(competition.events);
-        setFeeMode(competition.feeMode);
-        
-        const scrambleMap: Record<Event, string[]> = {} as Record<Event, string[]>;
-        competition.scrambles.forEach(([scrambleList, event]) => {
-          scrambleMap[event] = scrambleList;
-        });
-        setScrambles(scrambleMap);
+    if (competition) {
+      setName(competition.name);
+      setSlug(competition.slug);
+      setStatus(competition.status.toString());
+      setStartDate(new Date(Number(competition.startDate) / 1_000_000).toISOString().slice(0, 16));
+      setEndDate(new Date(Number(competition.endDate) / 1_000_000).toISOString().slice(0, 16));
+      
+      if (competition.registrationStartDate) {
+        setRegistrationStartDate(
+          new Date(Number(competition.registrationStartDate) / 1_000_000).toISOString().slice(0, 16)
+        );
       }
-    }
-  }, [competitions, competitionId]);
+      
+      if (competition.participantLimit) {
+        setParticipantLimit(competition.participantLimit.toString());
+      }
+      
+      setSelectedEvents(competition.events);
+      setFeeMode(competition.feeMode);
 
-  const handleEventToggle = (event: Event) => {
-    setSelectedEvents((prev) => {
-      if (prev.includes(event)) {
-        const newEvents = prev.filter((e) => e !== event);
-        const newScrambles = { ...scrambles };
-        delete newScrambles[event];
-        setScrambles(newScrambles);
-        return newEvents;
-      } else {
-        return [...prev, event];
+      // Build scrambles map from competition data
+      const scramblesMap = new Map<Event, string[]>();
+      if (competition.scrambles && Array.isArray(competition.scrambles)) {
+        competition.scrambles.forEach(([scrambleArray, event]) => {
+          if (Array.isArray(scrambleArray) && scrambleArray.length > 0) {
+            scramblesMap.set(event, scrambleArray);
+          }
+        });
+      }
+      setScrambles(scramblesMap);
+    }
+  }, [competition]);
+
+  // Validate scrambles
+  useEffect(() => {
+    if (selectedEvents.length === 0) {
+      setValidationError(null);
+      return;
+    }
+
+    const missingScrambles: string[] = [];
+    const invalidScrambles: string[] = [];
+
+    selectedEvents.forEach(event => {
+      const eventScrambles = scrambles.get(event);
+      if (!eventScrambles || eventScrambles.length === 0) {
+        missingScrambles.push(EVENT_LABELS[event]);
+      } else if (eventScrambles.length !== 5) {
+        invalidScrambles.push(`${EVENT_LABELS[event]} (has ${eventScrambles.length}, needs 5)`);
+      } else if (eventScrambles.some(s => !s || s.trim() === '')) {
+        invalidScrambles.push(`${EVENT_LABELS[event]} (contains empty scrambles)`);
       }
     });
+
+    if (missingScrambles.length > 0) {
+      setValidationError(`Missing scrambles for: ${missingScrambles.join(', ')}`);
+    } else if (invalidScrambles.length > 0) {
+      setValidationError(`Invalid scrambles for: ${invalidScrambles.join(', ')}`);
+    } else {
+      setValidationError(null);
+    }
+  }, [selectedEvents, scrambles]);
+
+  const handleEventToggle = (event: Event, checked: boolean) => {
+    if (checked) {
+      setSelectedEvents([...selectedEvents, event]);
+    } else {
+      setSelectedEvents(selectedEvents.filter(e => e !== event));
+      // Remove scrambles for unchecked event
+      const newScrambles = new Map(scrambles);
+      newScrambles.delete(event);
+      setScrambles(newScrambles);
+    }
   };
 
   const handleScrambleChange = (event: Event, index: number, value: string) => {
-    setScrambles((prev) => {
-      const eventScrambles = prev[event] || ['', '', '', '', ''];
-      const newEventScrambles = [...eventScrambles];
-      newEventScrambles[index] = value;
-      return { ...prev, [event]: newEventScrambles };
-    });
+    const newScrambles = new Map(scrambles);
+    const eventScrambles = newScrambles.get(event) || ['', '', '', '', ''];
+    eventScrambles[index] = value;
+    newScrambles.set(event, eventScrambles);
+    setScrambles(newScrambles);
+  };
+
+  const handleFeeModeChange = (newFeeMode?: FeeMode) => {
+    setFeeMode(newFeeMode);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (selectedEvents.length === 0) {
-      toast.error('Please select at least one event');
+    if (validationError) {
       return;
     }
 
-    // Validate scrambles
-    for (const event of selectedEvents) {
-      const eventScrambles = scrambles[event] || [];
-      if (eventScrambles.length !== 5 || eventScrambles.some((s) => !s.trim())) {
-        toast.error(`Each event must have exactly 5 scrambles. Please check ${EVENT_LABELS[event]}.`);
-        return;
-      }
+    if (!competitionId) {
+      return;
     }
 
-    const competitionInput: CompetitionInput = {
-      name,
-      slug,
-      startDate: BigInt(new Date(startDate).getTime() * 1000000),
-      endDate: BigInt(new Date(endDate).getTime() * 1000000),
-      status,
-      participantLimit: participantLimit ? BigInt(participantLimit) : undefined,
-      feeMode,
-      events: selectedEvents,
-      scrambles: selectedEvents.map((event) => [scrambles[event] || [], event]),
-      registrationStartDate: registrationStartDate ? BigInt(new Date(registrationStartDate).getTime() * 1000000) : undefined,
-    };
-
     try {
-      await updateCompetitionMutation.mutateAsync({
-        id: BigInt(competitionId),
-        updates: competitionInput,
+      const scramblesArray: [string[], Event][] = selectedEvents.map(event => {
+        const eventScrambles = scrambles.get(event) || ['', '', '', '', ''];
+        return [eventScrambles, event];
       });
-      toast.success('Competition updated successfully');
+
+      await updateMutation.mutateAsync({
+        id: competitionId,
+        updates: {
+          name,
+          slug,
+          status: status as any,
+          startDate: BigInt(new Date(startDate).getTime() * 1_000_000),
+          endDate: BigInt(new Date(endDate).getTime() * 1_000_000),
+          registrationStartDate: registrationStartDate
+            ? BigInt(new Date(registrationStartDate).getTime() * 1_000_000)
+            : undefined,
+          participantLimit: participantLimit ? BigInt(participantLimit) : undefined,
+          feeMode: feeMode,
+          events: selectedEvents,
+          scrambles: scramblesArray,
+        },
+      });
+
       navigate({ to: '/admin/competitions' });
-    } catch (error) {
-      toast.error(normalizeError(error));
+    } catch (err) {
+      console.error('Failed to update competition:', err);
     }
   };
 
-  if (loadingCompetitions) {
+  if (isLoading) {
     return (
-      <AdminGuard>
-        <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-[400px]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      </AdminGuard>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {normalizeError(error)}
+          </AlertDescription>
+        </Alert>
+        <div className="mt-4">
+          <Button onClick={() => navigate({ to: '/admin/competitions' })}>
+            Back to Competitions
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!competition) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Competition not found
+          </AlertDescription>
+        </Alert>
+        <div className="mt-4">
+          <Button onClick={() => navigate({ to: '/admin/competitions' })}>
+            Back to Competitions
+          </Button>
+        </div>
+      </div>
     );
   }
 
   return (
-    <AdminGuard>
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-          <h1 className="text-4xl font-bold mb-8">Edit Competition</h1>
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-6">
+        <Button variant="outline" onClick={() => navigate({ to: '/admin/competitions' })}>
+          ← Back to Competitions
+        </Button>
+      </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Edit Competition</CardTitle>
+        </CardHeader>
+        <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Basic Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Competition Name</Label>
-                  <Input
-                    id="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="slug">Slug</Label>
-                  <Input
-                    id="slug"
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <Select value={status} onValueChange={(val) => setStatus(val as CompetitionStatus)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="upcoming">Upcoming</SelectItem>
-                      <SelectItem value="running">Running</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="startDate">Start Date</Label>
-                    <Input
-                      id="startDate"
-                      type="datetime-local"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="endDate">End Date</Label>
-                    <Input
-                      id="endDate"
-                      type="datetime-local"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="registrationStartDate">Registration Start Date (optional)</Label>
-                  <Input
-                    id="registrationStartDate"
-                    type="datetime-local"
-                    value={registrationStartDate}
-                    onChange={(e) => setRegistrationStartDate(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="participantLimit">Participant Limit (optional)</Label>
-                  <Input
-                    id="participantLimit"
-                    type="number"
-                    value={participantLimit}
-                    onChange={(e) => setParticipantLimit(e.target.value)}
-                    placeholder="Leave empty for unlimited"
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            {validationError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{validationError}</AlertDescription>
+              </Alert>
+            )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Pricing Configuration</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CompetitionPricingFields value={feeMode} onChange={setFeeMode} />
-              </CardContent>
-            </Card>
+            {updateMutation.isError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {normalizeError(updateMutation.error)}
+                </AlertDescription>
+              </Alert>
+            )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Events & Scrambles</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Select Events</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(Object.keys(EVENT_LABELS) as Event[]).map((event) => (
-                      <div key={event} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={event}
-                          checked={selectedEvents.includes(event)}
-                          onCheckedChange={() => handleEventToggle(event)}
-                        />
-                        <label htmlFor={event} className="text-sm cursor-pointer">
-                          {EVENT_LABELS[event]}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="name">Competition Name</Label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
 
-                {selectedEvents.map((event) => (
-                  <div key={event} className="space-y-2">
-                    <Label>{EVENT_LABELS[event]} - Scrambles (5 required)</Label>
-                    {[0, 1, 2, 3, 4].map((index) => (
-                      <Textarea
-                        key={index}
-                        placeholder={`Scramble ${index + 1}`}
-                        value={scrambles[event]?.[index] || ''}
-                        onChange={(e) => handleScrambleChange(event, index, e.target.value)}
-                        rows={2}
-                        required
+            <div className="space-y-2">
+              <Label htmlFor="slug">Slug</Label>
+              <Input
+                id="slug"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select value={status} onValueChange={(value) => setStatus(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="upcoming">Upcoming</SelectItem>
+                  <SelectItem value="running">Running</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="startDate">Start Date</Label>
+                <Input
+                  id="startDate"
+                  type="datetime-local"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="endDate">End Date</Label>
+                <Input
+                  id="endDate"
+                  type="datetime-local"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="registrationStartDate">Registration Start Date (Optional)</Label>
+              <Input
+                id="registrationStartDate"
+                type="datetime-local"
+                value={registrationStartDate}
+                onChange={(e) => setRegistrationStartDate(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="participantLimit">Participant Limit (Optional)</Label>
+              <Input
+                id="participantLimit"
+                type="number"
+                value={participantLimit}
+                onChange={(e) => setParticipantLimit(e.target.value)}
+                min="1"
+              />
+            </div>
+
+            <CompetitionPricingFields value={feeMode} onChange={handleFeeModeChange} />
+
+            <div className="space-y-4">
+              <Label>Events</Label>
+              <div className="space-y-2">
+                {Object.entries(EVENT_LABELS).map(([eventKey, label]) => {
+                  const event = eventKey as Event;
+                  const isChecked = selectedEvents.includes(event);
+                  return (
+                    <div key={event} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={event}
+                        checked={isChecked}
+                        onCheckedChange={(checked) => handleEventToggle(event, checked as boolean)}
                       />
-                    ))}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+                      <Label htmlFor={event} className="font-normal cursor-pointer">
+                        {label}
+                      </Label>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {selectedEvents.length > 0 && (
+              <div className="space-y-4">
+                <Label>Scrambles (5 per event)</Label>
+                {selectedEvents.map(event => {
+                  const eventScrambles = scrambles.get(event) || ['', '', '', '', ''];
+                  return (
+                    <Card key={event}>
+                      <CardHeader>
+                        <CardTitle className="text-base">{EVENT_LABELS[event]}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {eventScrambles.map((scramble, index) => (
+                          <div key={index} className="space-y-1">
+                            <Label htmlFor={`${event}-${index}`}>Scramble {index + 1}</Label>
+                            <Input
+                              id={`${event}-${index}`}
+                              value={scramble}
+                              onChange={(e) => handleScrambleChange(event, index, e.target.value)}
+                              placeholder={`Enter scramble ${index + 1}`}
+                              required
+                            />
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
 
             <div className="flex gap-4">
+              <Button
+                type="submit"
+                disabled={updateMutation.isPending || !!validationError}
+              >
+                {updateMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -279,18 +395,10 @@ export default function AdminEditCompetitionPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={updateCompetitionMutation.isPending}>
-                {updateCompetitionMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Save className="h-4 w-4 mr-2" />
-                )}
-                Save Changes
-              </Button>
             </div>
           </form>
-        </div>
-      </div>
-    </AdminGuard>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

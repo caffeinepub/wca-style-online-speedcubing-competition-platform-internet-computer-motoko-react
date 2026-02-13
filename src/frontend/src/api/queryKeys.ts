@@ -30,4 +30,6 @@ export const QUERY_KEYS = {
   adminUsers: ['adminUsers'] as const,
   adminCompetitionResults: (competitionId: string) => 
     ['adminCompetitionResults', competitionId] as const,
+  adminResults: (competitionId: string, event: string) =>
+    ['adminResults', competitionId, event] as const,
 } as const;

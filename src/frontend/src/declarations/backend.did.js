@@ -89,12 +89,24 @@ export const Competition = IDL.Record({
   'registrationStartDate' : IDL.Opt(Time),
   'startDate' : Time,
 });
+export const Attempt = IDL.Record({ 'penalty' : IDL.Nat, 'time' : IDL.Nat });
+export const PublicProfileInfo = IDL.Record({
+  'country' : IDL.Opt(IDL.Text),
+  'displayName' : IDL.Text,
+  'gender' : IDL.Opt(IDL.Text),
+});
+export const LeaderboardEntry = IDL.Record({
+  'ao5' : IDL.Opt(IDL.Nat),
+  'bestTime' : IDL.Nat,
+  'user' : IDL.Principal,
+  'attempts' : IDL.Vec(Attempt),
+  'userProfile' : IDL.Opt(PublicProfileInfo),
+});
 export const SolveStatus = IDL.Variant({
   'in_progress' : IDL.Null,
   'completed' : IDL.Null,
   'not_started' : IDL.Null,
 });
-export const Attempt = IDL.Record({ 'penalty' : IDL.Nat, 'time' : IDL.Nat });
 export const CompetitionResult = IDL.Record({
   'ao5' : IDL.Opt(IDL.Nat),
   'status' : SolveStatus,
@@ -125,6 +137,11 @@ export const idlService = IDL.Service({
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getCompetition' : IDL.Func([IDL.Nat], [Competition], ['query']),
+  'getCompetitionLeaderboard' : IDL.Func(
+      [IDL.Nat, Event],
+      [IDL.Vec(LeaderboardEntry)],
+      ['query'],
+    ),
   'getCompetitionResults' : IDL.Func(
       [IDL.Nat, Event],
       [IDL.Vec(CompetitionResult)],
@@ -235,12 +252,24 @@ export const idlFactory = ({ IDL }) => {
     'registrationStartDate' : IDL.Opt(Time),
     'startDate' : Time,
   });
+  const Attempt = IDL.Record({ 'penalty' : IDL.Nat, 'time' : IDL.Nat });
+  const PublicProfileInfo = IDL.Record({
+    'country' : IDL.Opt(IDL.Text),
+    'displayName' : IDL.Text,
+    'gender' : IDL.Opt(IDL.Text),
+  });
+  const LeaderboardEntry = IDL.Record({
+    'ao5' : IDL.Opt(IDL.Nat),
+    'bestTime' : IDL.Nat,
+    'user' : IDL.Principal,
+    'attempts' : IDL.Vec(Attempt),
+    'userProfile' : IDL.Opt(PublicProfileInfo),
+  });
   const SolveStatus = IDL.Variant({
     'in_progress' : IDL.Null,
     'completed' : IDL.Null,
     'not_started' : IDL.Null,
   });
-  const Attempt = IDL.Record({ 'penalty' : IDL.Nat, 'time' : IDL.Nat });
   const CompetitionResult = IDL.Record({
     'ao5' : IDL.Opt(IDL.Nat),
     'status' : SolveStatus,
@@ -275,6 +304,11 @@ export const idlFactory = ({ IDL }) => {
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getCompetition' : IDL.Func([IDL.Nat], [Competition], ['query']),
+    'getCompetitionLeaderboard' : IDL.Func(
+        [IDL.Nat, Event],
+        [IDL.Vec(LeaderboardEntry)],
+        ['query'],
+      ),
     'getCompetitionResults' : IDL.Func(
         [IDL.Nat, Event],
         [IDL.Vec(CompetitionResult)],

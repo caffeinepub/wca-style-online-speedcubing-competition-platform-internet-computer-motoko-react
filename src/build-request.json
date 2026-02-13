@@ -1,73 +1,78 @@
 {
   "kind": "build_request",
-  "title": "Fix SolveFlow refresh auto-DNF advancement so users continue from the correct next attempt",
+  "title": "Fix admin loading screens and competition edit crash (undefined forEach) + ensure leaderboard loads",
   "priority": "high",
   "requirements": [
     {
-      "id": "REQ-123",
-      "text": "Fix solve-session refresh recovery so that when a user refreshes during attempt N, the backend marks attempt N as DNF and advances `currentAttempt` to N+1; after reload, the solve flow must resume on the next attempt (not restart at attempt 1) and must not allow re-solving an already-DNF’d attempt index.",
-      "target": "both",
-      "source": {
-        "messageIds": [
-          "msg-1"
-        ],
-        "quotes": [
-          "This attempt was marked DNF because the page was refreshed. Continuing with attempt 1.\nfiest solve completed and i refresh on second still on first after refresh and when i try to do again it says but it didnt move to 2 nd as first is dnf."
-        ]
-      },
-      "acceptanceCriteria": [
-        "Given attempt 1 is completed, if the user refreshes during attempt 2, the backend persists attempt 2 as DNF and sets the next eligible attempt to attempt 3.",
-        "After the refresh, the SolveFlow UI shows “Attempt 3 of 5” (not “Attempt 1 of 5”).",
-        "After the refresh, the user is shown the scramble for the next eligible attempt (e.g., attempt 3) and cannot re-run attempt 2 timing or submit another solve for attempt 2.",
-        "The backend prevents duplicate/overwrite submissions for any attempt index that already has a stored non-zero time or a stored DNF marker, including the auto-DNF case.",
-        "If the user refreshes during attempt 1 before any successful submission, attempt 1 is marked DNF and the UI resumes at attempt 2.",
-        "All user-facing messaging for this scenario is English-only and clearly indicates which attempt was marked DNF and which attempt the user will continue with."
-      ]
-    },
-    {
-      "id": "REQ-124",
-      "text": "Update SolveFlowPage refresh messaging and attempt index display so it never shows an incorrect attempt number (e.g., “Continuing with attempt 1”) when the backend has advanced the session; the message must reflect the actual 1-based attempt number that the user should do next.",
+      "id": "REQ-125",
+      "text": "Fix the admin competition edit flow so it never crashes with \"Cannot read properties of undefined (reading 'forEach')\" and the edit form always loads the correct existing competition data (including events, feeMode, registrationStartDate, and per-event scrambles). Specifically, stop relying on a competition list payload that may not contain `scrambles`, and fetch a full competition record for the selected `competitionId` before building the scrambles map.",
       "target": "frontend",
       "source": {
         "messageIds": [
           "msg-1"
         ],
         "quotes": [
-          "This attempt was marked DNF because the page was refreshed. Continuing with attempt 1."
+          "competions open but unable to edit says : Something went wrong!\nHide Error\nCannot read properties of undefined (reading 'forEach')"
         ]
       },
       "acceptanceCriteria": [
-        "When the backend indicates an auto-DNF advancement occurred, the UI shows an English message in the form: “Attempt <N> was marked DNF because the page was refreshed. Continuing with attempt <N+1>.”",
-        "The attempt number shown in the page header (e.g., “Attempt X of 5”) matches the server-reported next attempt index + 1.",
-        "No toast/banner/message claims the app is continuing with attempt 1 unless the next eligible attempt is actually attempt 1.",
-        "The UI does not silently fail; the user always sees either the correct resumed attempt screen or a clear English error state routed via existing error normalization (`normalizeError`) where applicable."
+        "Navigating to `/admin/competitions/$competitionId/edit` no longer throws any runtime error, including the reported `forEach` undefined error.",
+        "The edit page loads and displays: name, slug, status, start/end dates, optional registrationStartDate, participantLimit, feeMode, selected events, and 5 scrambles per selected event (when present in backend data).",
+        "If scrambles are missing/invalid for any event, the page shows a clear English error state explaining what is missing (instead of crashing) and does not allow saving until validation passes.",
+        "No changes are made to immutable frontend paths listed in SYSTEM_CONTEXT."
+      ]
+    },
+    {
+      "id": "REQ-126",
+      "text": "Fix the admin Users and Results management pages so they do not stay in a perpetual loading state. Remove/replace any React Query stubs/disabled hooks that return empty arrays, never resolve, or throw \"Backend method not available\" and wire the pages to real backend actor methods so admin user management and admin results management load real data and actions execute end-to-end.",
+      "target": "both",
+      "source": {
+        "messageIds": [
+          "msg-1"
+        ],
+        "quotes": [
+          "leadbooard, user management and results management from admin side doesnt load still loading"
+        ]
+      },
+      "acceptanceCriteria": [
+        "`/admin/users` transitions from loading to either (a) a populated users table or (b) a stable English error state; it must not spin indefinitely when the backend returns an error.",
+        "`/admin/results` transitions from loading to either (a) populated filter controls and results table (after selecting a competition) or (b) a stable English error state; it must not spin indefinitely when the backend returns an error.",
+        "Admin actions in Users work without placeholders: block/unblock, delete, view solve history, reset competition status (with errors shown in English via existing normalization where applicable).",
+        "Admin actions in Results work without placeholders: list results for selected competition+event, toggle hidden/visible state, and export CSV (with errors shown in English via existing normalization where applicable).",
+        "Backend implements (or restores) the specific admin actor methods required by the existing frontend hooks/pages so the UI is not forced to rely on stubs."
+      ]
+    },
+    {
+      "id": "REQ-127",
+      "text": "Fix the public leaderboard so it loads reliably (no perpetual loading) and displays real results when they exist. Ensure the frontend leaderboard query uses the intended backend leaderboard/results API, and ensure the backend filters results correctly (completed only; not hidden). Add a stable English error state if the query fails so the page does not remain stuck loading.",
+      "target": "both",
+      "source": {
+        "messageIds": [
+          "msg-1"
+        ],
+        "quotes": [
+          "leadbooard... doesnt load still loading"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Leaderboard pages/routes render a loading indicator only while the underlying request is in-flight, and then render either results or a stable English error state (no infinite spinner).",
+        "When completed, non-hidden results exist for a competition+event, the leaderboard shows them; when none exist, the page clearly communicates that no results are available.",
+        "Backend leaderboard/results response used by the leaderboard excludes hidden results and excludes non-completed results.",
+        "Competitor display name rendering behavior remains English-only and consistent with existing logic (display name when available; fallback to \"Anonymous\" only when no display name exists)."
       ]
     }
   ],
   "constraints": [
-    "Backend must remain a single Motoko actor; all logic stays in backend/main.mo.",
-    "Only add backend migration (backend/migration.mo) if required by persisted state changes (follow the conditional migration policy).",
-    "Do not edit any frontend paths listed as immutable in SYSTEM_CONTEXT.",
-    "Use English for all user-facing text."
+    "Make only necessary changes to fix the reported issues; do not remove or replace unrelated existing functionality.",
+    "Do not edit frontend immutable paths listed in SYSTEM_CONTEXT.",
+    "All user-facing text introduced/changed by this work must be in English."
   ],
   "nonGoals": [
-    "Changing WCA inspection penalty rules beyond ensuring refresh recovery uses the correct attempt advancement.",
-    "Adding new competition/payment/admin features unrelated to solve-flow refresh recovery."
+    "Implementing any new admin features beyond making existing Users/Competitions edit/Results screens load and function.",
+    "Changing the solve-flow, payment flow, or site-wide theme as part of these fixes (unless required to unblock loading/error handling)."
   ],
   "imageRequirements": {
     "required": [],
     "edits": []
-  },
-  "userProfileUpdate": {
-    "goalsToAdd": [],
-    "goalsToRemove": [],
-    "preferencesToAdd": [
-      "All user-facing text should be English-only."
-    ],
-    "preferencesToRemove": [],
-    "miscToAdd": [],
-    "miscToRemove": [],
-    "fieldsToSet": {},
-    "fieldsToDelete": []
   }
 }

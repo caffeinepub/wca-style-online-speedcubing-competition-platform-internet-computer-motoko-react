@@ -1,58 +1,72 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-13T00:35:09.442Z",
-  "summary": "Diff shows primarily frontend-side refresh recovery handling in SolveFlowPage (using sessionStorage via a new solveSession utility) and some error-normalization updates, but there is no clear evidence (in the provided/truncated diff) of the required backend auto-DNF + advancement logic or backend-side duplicate/overwrite prevention tied to the auto-DNF case. UI messaging appears to implement the requested English sentence format, but other UI AC items (header attempt number sourced from server-reported next attempt, preventing re-solving at the backend) are not verifiable from the truncated summary.",
+  "generatedAt": "2026-02-13T01:32:00.363Z",
+  "summary": "Diff implements significant frontend fixes for admin competition edit (fetch full competition and build scrambles map defensively), adds explicit loading/error UI for admin Users/Results and Leaderboard pages, and introduces new query keys and shared pricing fields. However, the diff summary does not provide enough evidence that the required backend actor methods were implemented/restored for admin users/results/leaderboard, nor that backend leaderboard filtering (completed-only, not hidden) is enforced. Some required admin actions (solve history, reset competition status) are not evidenced in the modified pages shown.",
   "missing_requirements": [
     {
-      "id": "REQ-123",
-      "requirement": "Backend refresh recovery: when user refreshes during attempt N, persist attempt N as DNF and advance currentAttempt to N+1; resume on next attempt after reload; prevent re-solving and prevent duplicate/overwrite submissions for already-stored attempts including auto-DNF.",
-      "reason": "The diff summary for backend/main.mo is truncated and only shows type definitions/imports; it contains no visible implementation of auto-DNF-on-refresh, currentAttempt advancement, or backend enforcement against duplicate/overwrite submissions for attempts already recorded (time>0 or DNF marker). Frontend code appears to infer refresh recovery from sessionStorage attempts length rather than from a backend-reported advancement event, which does not demonstrate the backend requirement is implemented.",
+      "id": "REQ-126",
+      "requirement": "Wire admin Users management to real backend actor methods so /admin/users loads real data and all required actions execute end-to-end (block/unblock, delete, view solve history, reset competition status), with stable English error state (no infinite loading).",
+      "reason": "The AdminUsersPage shows load/error/table UI and includes block/unblock and delete flows, but there is no evidence in the provided diff summary of implementing or restoring the necessary backend actor methods, and no evidence that \"view solve history\" or \"reset competition status\" actions exist in the page/hooks.",
       "evidence": [
-        "backend/main.mo (truncated)",
-        "frontend/src/pages/SolveFlowPage.tsx (truncated)"
+        "frontend/src/pages/admin/AdminUsersPage.tsx",
+        "frontend/src/hooks/useQueries.ts (truncated)",
+        "backend/main.mo (truncated)"
       ]
     },
     {
-      "id": "REQ-124",
-      "requirement": "SolveFlowPage attempt index display must match the server-reported next attempt index + 1, and messaging must never claim attempt 1 unless actually continuing with attempt 1; use existing normalizeError for clear English error state when applicable.",
-      "reason": "SolveFlowPage sets recovery state based on client-side storedAttempts.length and sets currentAttempt locally; the diff does not show using a backend-reported next attempt index/flag for auto-DNF advancement. Also, the truncated SolveFlowPage snippet does not include the header rendering logic (“Attempt X of 5”) so it cannot be verified that the header always matches server-reported next attempt.",
+      "id": "REQ-126",
+      "requirement": "Wire admin Results management to real backend actor methods so /admin/results loads real data and required actions execute end-to-end (list results for selected competition+event, toggle hidden/visible, export CSV), with stable English error state (no infinite loading).",
+      "reason": "AdminResultsPage includes UI for selecting competition/event, listing results, toggling visibility, and exporting CSV, but the diff summary does not show the underlying hooks implementations or backend actor methods that return real data and perform the toggle end-to-end.",
       "evidence": [
-        "frontend/src/pages/SolveFlowPage.tsx (truncated)"
+        "frontend/src/pages/admin/AdminResultsPage.tsx",
+        "frontend/src/hooks/useQueries.ts (truncated)",
+        "backend/main.mo (truncated)"
+      ]
+    },
+    {
+      "id": "REQ-127",
+      "requirement": "Ensure leaderboard loads reliably using the intended backend leaderboard/results API, and ensure backend filters results correctly (completed only; not hidden). Add stable English error state so it never remains stuck loading.",
+      "reason": "LeaderboardPage now has explicit loading and error rendering, but the diff summary does not show evidence that the frontend query is using the intended backend method (beyond a note in frontend-file-summaries) nor any backend implementation that filters out hidden and non-completed results.",
+      "evidence": [
+        "frontend/src/pages/LeaderboardPage.tsx",
+        "frontend/src/hooks/useQueries.ts (truncated)",
+        "backend/main.mo (truncated)",
+        "frontend-file-summaries.txt (truncated)"
       ]
     }
   ],
   "hallucinated_features": [
     {
-      "description": "Added sessionStorage-based solve session utility that stores attempt history and timestamp (tab-scoped) in addition to token.",
-      "reason": "REQ-123/REQ-124 request correct refresh recovery behavior and messaging, but do not explicitly require persisting attempts client-side in sessionStorage with timestamps; this is an additional mechanism beyond the stated requirements (though it may support the goal).",
+      "description": "Introduced a new CompetitionPricingFields component and integrated pricing mode UI/logic (free/per-event/base+additional/all-events-flat) into admin competition forms.",
+      "reason": "The BuildRequest focuses on fixing loading screens, the admin edit crash, and leaderboard loading. Adding/overhauling pricing UI may be beyond the minimum necessary changes to address the reported crashes/loading issues (even if related to displaying feeMode).",
       "evidence": [
-        "frontend/src/lib/solveSession.ts"
+        "frontend/src/components/admin/CompetitionPricingFields.tsx",
+        "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
+        "frontend/src/pages/admin/AdminEditCompetitionPage.tsx"
       ]
     },
     {
-      "description": "Updated/expanded normalizeError mapping for many error categories (payments, competitions, authorization, etc.).",
-      "reason": "REQ-124 mentions routing errors via existing normalizeError where applicable, but the diff shows broader error-message mapping changes not specifically tied to solve-flow refresh recovery messaging.",
+      "description": "Expanded normalizeError mappings with additional categories and user-facing English messages (e.g., backend method not available, actor not available, various competition/session/payment cases).",
+      "reason": "While stable English error states are required, the diff shows broad new normalization behavior not explicitly requested (beyond handling loading/error states for admin pages and leaderboard).",
       "evidence": [
-        "frontend/src/api/errors.ts (truncated)"
-      ]
-    },
-    {
-      "description": "Added/updated a detailed Regression & Smoke Test checklist section for refresh recovery and other solve-flow behaviors.",
-      "reason": "Documentation/checklists were not requested in REQ-123/REQ-124 and are outside the stated requirements.",
-      "evidence": [
-        "frontend/REGRESSION_SMOKE_TEST_CHECKLIST.md (truncated)"
+        "frontend/src/api/errors.ts"
       ]
     }
   ],
-  "confidence": 0.56,
+  "confidence": 0.62,
   "changed_files": [
     "backend/main.mo",
     "frontend-file-summaries.txt",
-    "frontend/REGRESSION_SMOKE_TEST_CHECKLIST.md",
     "frontend/src/api/errors.ts",
-    "frontend/src/lib/solveSession.ts",
-    "frontend/src/pages/SolveFlowPage.tsx",
+    "frontend/src/api/queryKeys.ts",
+    "frontend/src/components/admin/CompetitionPricingFields.tsx",
+    "frontend/src/hooks/useQueries.ts",
+    "frontend/src/pages/LeaderboardPage.tsx",
+    "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
+    "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
+    "frontend/src/pages/admin/AdminResultsPage.tsx",
+    "frontend/src/pages/admin/AdminUsersPage.tsx",
     "project_state.json"
   ]
 }

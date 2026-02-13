@@ -386,6 +386,37 @@ actor {
     };
   };
 
+  public query ({ caller }) func getCompetitionLeaderboard(competitionId : Nat, event : Event) : async [LeaderboardEntry] {
+    ignore caller;
+    let filteredResults = results.filter(
+      func((cid, user, eventId), result) {
+        cid == competitionId and event == eventId and result.status == #completed and not (hiddenLeaderboardEntries.get((competitionId, user, eventId)) == ?true);
+      }
+    );
+
+    let mappedEntries = filteredResults.toArray().map(
+      func((key, result)) {
+        {
+          user = result.user;
+          userProfile = switch (userProfiles.get(result.user)) {
+            case (?profile) {
+              ?{
+                displayName = profile.displayName;
+                country = profile.country;
+                gender = profile.gender;
+              };
+            };
+            case (null) { null };
+          };
+          attempts = result.attempts.map(func(a) { { time = a.time; penalty = a.penalty } });
+          ao5 = result.ao5;
+          bestTime = result.attempts[0].time;
+        };
+      }
+    );
+    mappedEntries;
+  };
+
   // Public endpoint - no auth required, returns active competitions
   public query func getAllCompetitions() : async [CompetitionPublic] {
     let allComps = competitions.values().toArray();

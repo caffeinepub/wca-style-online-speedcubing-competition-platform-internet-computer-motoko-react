@@ -65,12 +65,24 @@ export type Event = { 'megaminx' : null } |
 export type FeeMode = { 'perEvent' : bigint } |
   { 'allEventsFlat' : bigint } |
   { 'basePlusAdditional' : { 'baseFee' : bigint, 'additionalFee' : bigint } };
+export interface LeaderboardEntry {
+  'ao5' : [] | [bigint],
+  'bestTime' : bigint,
+  'user' : Principal,
+  'attempts' : Array<Attempt>,
+  'userProfile' : [] | [PublicProfileInfo],
+}
 export interface PaymentConfirmation {
   'razorpayPaymentId' : string,
   'razorpaySignature' : string,
   'event' : Event,
   'razorpayOrderId' : string,
   'competitionId' : bigint,
+}
+export interface PublicProfileInfo {
+  'country' : [] | [string],
+  'displayName' : string,
+  'gender' : [] | [string],
 }
 export interface RazorpayCredentials { 'keyId' : string, 'keySecret' : string }
 export interface RazorpayOrderRequest {
@@ -109,6 +121,10 @@ export interface _SERVICE {
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getCompetition' : ActorMethod<[bigint], Competition>,
+  'getCompetitionLeaderboard' : ActorMethod<
+    [bigint, Event],
+    Array<LeaderboardEntry>
+  >,
   'getCompetitionResults' : ActorMethod<
     [bigint, Event],
     Array<CompetitionResult>

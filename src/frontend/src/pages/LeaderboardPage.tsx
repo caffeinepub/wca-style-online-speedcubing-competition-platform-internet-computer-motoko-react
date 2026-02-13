@@ -1,198 +1,187 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from '@tanstack/react-router';
+import React, { useState, useEffect } from 'react';
+import { useParams } from '@tanstack/react-router';
 import { useGetCompetition, useGetLeaderboard } from '../hooks/useQueries';
-import { Loader2, ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { EVENT_LABELS } from '../types/domain';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { Badge } from '../components/ui/badge';
 import { Event } from '../backend';
-import { Trophy, Medal } from 'lucide-react';
-import { formatTime } from '../lib/timeUtils';
-import { calculateAo5 } from '../lib/ao5';
+import { EVENT_LABELS } from '../types/domain';
+import { normalizeError } from '../api/errors';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { AlertCircle, Loader2, Trophy } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
 
 export default function LeaderboardPage() {
-  const { competitionId } = useParams({ from: '/competitions/$competitionId/leaderboard' });
+  const { competitionId: competitionIdParam } = useParams({ from: '/competitions/$competitionId/leaderboard' });
+  const competitionId = BigInt(competitionIdParam);
   const navigate = useNavigate();
-  const compId = BigInt(competitionId);
 
-  const { data: competition, isLoading: competitionLoading } = useGetCompetition(compId);
+  const { data: competition, isLoading: competitionLoading, isError: competitionError, error: competitionErrorObj } = useGetCompetition(competitionId);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
+  const {
+    data: leaderboard,
+    isLoading: leaderboardLoading,
+    isError: leaderboardError,
+    error: leaderboardErrorObj,
+  } = useGetLeaderboard(competitionId, selectedEvent || Event.threeByThree);
+
   // Set default event when competition loads
-  if (competition && !selectedEvent && competition.events.length > 0) {
-    setSelectedEvent(competition.events[0]);
-  }
-
-  const { data: leaderboard, isLoading: leaderboardLoading } = useGetLeaderboard(
-    compId,
-    selectedEvent || Event.threeByThree
-  );
-
-  const getRankIcon = (rank: number) => {
-    if (rank === 1) return <Trophy className="w-5 h-5 text-chart-4" />;
-    if (rank === 2) return <Medal className="w-5 h-5 text-muted-foreground" />;
-    if (rank === 3) return <Medal className="w-5 h-5 text-chart-5" />;
-    return null;
-  };
-
-  const getDisplayName = (entry: any): string => {
-    if (entry.userProfile && entry.userProfile.displayName && entry.userProfile.displayName.trim()) {
-      return entry.userProfile.displayName.trim();
+  useEffect(() => {
+    if (competition && competition.events.length > 0 && !selectedEvent) {
+      setSelectedEvent(competition.events[0]);
     }
-    return 'Anonymous';
-  };
+  }, [competition, selectedEvent]);
 
-  const handleNameClick = (userPrincipal: any) => {
-    const principalStr = userPrincipal.toString();
-    navigate({ to: '/profiles/$principal', params: { principal: principalStr } });
+  const handleCompetitorClick = (principalString: string) => {
+    navigate({ to: '/profiles/$principal', params: { principal: principalString } });
   };
 
   if (competitionLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  if (competitionError) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {normalizeError(competitionErrorObj)}
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
 
   if (!competition) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle>Competition Not Found</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => navigate({ to: '/competitions' })}>
-              Back to Competitions
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="container mx-auto px-4 py-8">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Competition not found
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
 
-  const entries = leaderboard?.map((entry, index) => {
-    const attempts = entry.attempts.map((a) => ({
-      time: Number(a.time),
-      penalty: Number(a.penalty),
-    }));
-    const ao5 = calculateAo5(attempts);
-
-    return {
-      rank: index + 1,
-      displayName: getDisplayName(entry),
-      userPrincipal: entry.user,
-      ao5,
-      attempts,
-    };
-  }) || [];
-
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
-        <Button
-          variant="ghost"
-          onClick={() => navigate({ to: '/competitions/$competitionId', params: { competitionId } })}
-          className="mb-6"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Competition
-        </Button>
+    <div className="container mx-auto px-4 py-8">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trophy className="h-6 w-6 text-primary" />
+            {competition.name} - Leaderboard
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Select Event</label>
+            <Select
+              value={selectedEvent || ''}
+              onValueChange={(value) => setSelectedEvent(value as Event)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select an event" />
+              </SelectTrigger>
+              <SelectContent>
+                {competition.events.map((event) => (
+                  <SelectItem key={event} value={event}>
+                    {EVENT_LABELS[event]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">{competition.name}</h1>
-          <p className="text-muted-foreground">Competition Leaderboards</p>
-        </div>
-
-        {competition.events.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">No events available for this competition</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            <div className="mb-6">
-              <label className="text-sm font-medium mb-2 block">Select Event</label>
-              <Select
-                value={selectedEvent || undefined}
-                onValueChange={(value) => setSelectedEvent(value as Event)}
-              >
-                <SelectTrigger className="w-full md:w-64">
-                  <SelectValue placeholder="Choose an event" />
-                </SelectTrigger>
-                <SelectContent>
-                  {competition.events.map((event) => (
-                    <SelectItem key={event} value={event}>
-                      {EVENT_LABELS[event]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {leaderboardLoading && (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
+          )}
 
-            {leaderboardLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : !leaderboard || leaderboard.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <p className="text-muted-foreground">
-                    No completed results yet for {selectedEvent ? EVENT_LABELS[selectedEvent] : 'this event'}
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-4 px-4 font-bold text-sm text-muted-foreground">Rank</th>
-                      <th className="text-left py-4 px-4 font-bold text-sm text-muted-foreground">Competitor</th>
-                      <th className="text-left py-4 px-4 font-bold text-sm text-muted-foreground">Ao5</th>
-                      <th className="text-left py-4 px-4 font-bold text-sm text-muted-foreground">Solve 1</th>
-                      <th className="text-left py-4 px-4 font-bold text-sm text-muted-foreground">Solve 2</th>
-                      <th className="text-left py-4 px-4 font-bold text-sm text-muted-foreground">Solve 3</th>
-                      <th className="text-left py-4 px-4 font-bold text-sm text-muted-foreground">Solve 4</th>
-                      <th className="text-left py-4 px-4 font-bold text-sm text-muted-foreground">Solve 5</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {entries.map((entry) => (
-                      <tr key={entry.rank} className="border-b border-border hover:bg-accent/50 transition-colors">
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-2">
-                            {getRankIcon(entry.rank)}
-                            <span className="font-bold text-lg">{entry.rank}</span>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
+          {leaderboardError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {normalizeError(leaderboardErrorObj)}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {!leaderboardLoading && !leaderboardError && leaderboard && leaderboard.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              No results available for this event yet
+            </div>
+          )}
+
+          {!leaderboardLoading && !leaderboardError && leaderboard && leaderboard.length > 0 && (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-16">Rank</TableHead>
+                    <TableHead>Competitor</TableHead>
+                    <TableHead>Ao5</TableHead>
+                    <TableHead>Best</TableHead>
+                    <TableHead>Attempt 1</TableHead>
+                    <TableHead>Attempt 2</TableHead>
+                    <TableHead>Attempt 3</TableHead>
+                    <TableHead>Attempt 4</TableHead>
+                    <TableHead>Attempt 5</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {leaderboard.map((entry, index) => {
+                    const displayName = entry.userProfile?.displayName || 'Anonymous';
+                    return (
+                      <TableRow key={entry.user.toString()}>
+                        <TableCell className="font-bold">
+                          {index === 0 && <Trophy className="inline h-4 w-4 text-yellow-500 mr-1" />}
+                          {index + 1}
+                        </TableCell>
+                        <TableCell>
                           <button
-                            onClick={() => handleNameClick(entry.userPrincipal)}
-                            className="font-medium text-chart-1 hover:underline focus:outline-none focus:underline"
+                            onClick={() => handleCompetitorClick(entry.user.toString())}
+                            className="text-primary hover:underline"
                           >
-                            {entry.displayName}
+                            {displayName}
                           </button>
-                        </td>
-                        <td className="py-4 px-4 font-bold text-chart-1">{formatTime(entry.ao5)}</td>
-                        {entry.attempts.map((attempt, idx) => (
-                          <td key={idx} className="py-4 px-4 text-muted-foreground">
-                            {formatTime(attempt.time + attempt.penalty)}
-                            {attempt.penalty > 0 && <span className="text-destructive ml-1">+{attempt.penalty / 1000}</span>}
-                          </td>
+                        </TableCell>
+                        <TableCell className="font-semibold">
+                          {entry.ao5 ? `${(Number(entry.ao5) / 1000).toFixed(2)}s` : 'N/A'}
+                        </TableCell>
+                        <TableCell>
+                          {entry.bestTime ? `${(Number(entry.bestTime) / 1000).toFixed(2)}s` : 'N/A'}
+                        </TableCell>
+                        {entry.attempts.map((attempt, i) => (
+                          <TableCell key={i}>
+                            {attempt.time ? `${(Number(attempt.time) / 1000).toFixed(2)}s` : 'DNF'}
+                            {attempt.penalty > 0 && (
+                              <Badge variant="secondary" className="ml-1">
+                                +{Number(attempt.penalty) / 1000}s
+                              </Badge>
+                            )}
+                          </TableCell>
                         ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

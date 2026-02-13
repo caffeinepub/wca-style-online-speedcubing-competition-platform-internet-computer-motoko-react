@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 67,
+  "projectStateVersion": 69,
   "summary": "Full-stack online speedcubing competition platform with multi-event, WCA-style 5-solve flow, manual external payment-link based entry (replacing Razorpay checkout) with user “Request approval” flow and admin approvals panel, strong integrity controls (session lock, progressive scrambles, recovery), WCA Ao5 rules server-side validated, post-completion UX enhancements, leaderboard discoverability, pricing enhancements, and a registration-start date feature that gates starting until a specified datetime and auto-transitions upcoming competitions to running at that time.",
   "architectural_notes": [
     "Tech stack: Next.js (App Router) + TypeScript + PostgreSQL + Prisma ORM + NextAuth; deploy on Vercel.",
@@ -705,6 +705,30 @@
       "title": "Update SolveFlowPage refresh messaging and attempt index display so it never shows an incorrect attempt number (e.g., “Continuing with attempt 1”) when the backend has advanced the session; the message must reflect the actual 1-based attempt number that the user should do next.",
       "reqIds": [
         "REQ-124"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-the-admin-competition-edit-flow-so-it-never-crashes-with-cannot-read-properties-of-undefined-reading-foreach-and-the-edit-form-always-loads-the-correct-existing-competition-data-including-events-feemode-registrationstartdate-and-per-event-scrambles-specifically-stop-relying-on-a-competition-list-payload-that-may-not-contain-scrambles-and-fetch-a-full-competition-record-for-the-selected-competitionid-before-building-the-scrambles-map",
+      "title": "Fix the admin competition edit flow so it never crashes with \"Cannot read properties of undefined (reading 'forEach')\" and the edit form always loads the correct existing competition data (including events, feeMode, registrationStartDate, and per-event scrambles). Specifically, stop relying on a competition list payload that may not contain `scrambles`, and fetch a full competition record for the selected `competitionId` before building the scrambles map.",
+      "reqIds": [
+        "REQ-125"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-the-admin-users-and-results-management-pages-so-they-do-not-stay-in-a-perpetual-loading-state-remove-replace-any-react-query-stubs-disabled-hooks-that-return-empty-arrays-never-resolve-or-throw-backend-method-not-available-and-wire-the-pages-to-real-backend-actor-methods-so-admin-user-management-and-admin-results-management-load-real-data-and-actions-execute-end-to-end",
+      "title": "Fix the admin Users and Results management pages so they do not stay in a perpetual loading state. Remove/replace any React Query stubs/disabled hooks that return empty arrays, never resolve, or throw \"Backend method not available\" and wire the pages to real backend actor methods so admin user management and admin results management load real data and actions execute end-to-end.",
+      "reqIds": [
+        "REQ-126"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-the-public-leaderboard-so-it-loads-reliably-no-perpetual-loading-and-displays-real-results-when-they-exist-ensure-the-frontend-leaderboard-query-uses-the-intended-backend-leaderboard-results-api-and-ensure-the-backend-filters-results-correctly-completed-only-not-hidden-add-a-stable-english-error-state-if-the-query-fails-so-the-page-does-not-remain-stuck-loading",
+      "title": "Fix the public leaderboard so it loads reliably (no perpetual loading) and displays real results when they exist. Ensure the frontend leaderboard query uses the intended backend leaderboard/results API, and ensure the backend filters results correctly (completed only; not hidden). Add a stable English error state if the query fails so the page does not remain stuck loading.",
+      "reqIds": [
+        "REQ-127"
       ],
       "version": 1
     }
