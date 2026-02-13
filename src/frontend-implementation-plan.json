@@ -1,37 +1,61 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "SolveFlow refresh recovery: sync from server session state and notify auto-DNF advance",
+  "title": "SolveFlow refresh recovery: resume at correct next attempt after auto-DNF advancement",
   "requirements": [
     {
-      "id": "REQ-118",
-      "summary": "On SolveFlowPage load, sync attempt/phase from server session state (using the existing session token) and notify the user if refresh auto-marked the prior attempt as DNF and advanced.",
+      "id": "REQ-123",
+      "summary": "Ensure SolveFlow resumes from the backend-reported next eligible attempt after refresh auto-DNF advancement and prevents re-solving an already-finished attempt index.",
       "acceptanceCriteria": [
-        "On SolveFlowPage mount, the page uses the existing session token (from sessionStorage) to fetch server session state and sets `currentAttempt`/phase based on the server response, not only on local component state.",
-        "If the backend indicates the previous attempt was auto-marked DNF due to refresh, the UI shows a clear English notification (toast and/or inline) such as: \"This attempt was marked DNF because the page was refreshed. Continuing with attempt <n>.\"",
-        "After refresh, the scramble shown and the attempt counter reflect the advanced attempt index (i.e., user proceeds to the next scramble/attempt).",
-        "All user-facing errors/messages shown for this flow remain English-only and any surfaced errors continue to go through `normalizeError` where applicable."
+        "Given attempt 1 is completed, if the user refreshes during attempt 2, the backend persists attempt 2 as DNF and sets the next eligible attempt to attempt 3.",
+        "After the refresh, the SolveFlow UI shows “Attempt 3 of 5” (not “Attempt 1 of 5”).",
+        "After the refresh, the user is shown the scramble for the next eligible attempt (e.g., attempt 3) and cannot re-run attempt 2 timing or submit another solve for attempt 2.",
+        "The backend prevents duplicate/overwrite submissions for any attempt index that already has a stored non-zero time or a stored DNF marker, including the auto-DNF case.",
+        "If the user refreshes during attempt 1 before any successful submission, attempt 1 is marked DNF and the UI resumes at attempt 2.",
+        "All user-facing messaging for this scenario is English-only and clearly indicates which attempt was marked DNF and which attempt the user will continue with."
       ],
       "file_operations": [
         {
+          "path": "frontend/src/pages/SolveFlowPage.tsx",
+          "operation": "modify",
+          "description": "Make SolveFlow state fully server-driven on load and after each submission: set currentAttempt from server-reported session state (not local increments), and guard the timer/submit flow so the UI cannot start or submit for an attempt index that the backend indicates is already finalized (including auto-DNF). Add English-only recovery behavior after refresh: if the session state indicates an auto-DNF advancement, resume at the next eligible attempt and present clear messaging indicating which attempt was marked DNF and which attempt the user continues with."
+        },
+        {
           "path": "frontend/src/hooks/useQueries.ts",
           "operation": "modify",
-          "description": "Add a solve-session state query hook (e.g., `useGetSolveSessionState`) that uses the stored session token to request the current server session state for (competitionId,event), returning attempt index, attempts list, completion status, and any backend-provided \"auto DNF due to refresh\" indicator so SolveFlowPage can render based on server truth."
+          "description": "Update solve-session React Query hooks used by SolveFlow to fetch the authoritative session state and submit an attempt in a way that supports refresh recovery: ensure the hooks return the server-reported current attempt index after refresh/submission so SolveFlow can resume at the next eligible attempt and avoid duplicate/overwrite submissions from the UI."
         },
         {
           "path": "frontend/src/types/backend-extended.ts",
           "operation": "modify",
-          "description": "Extend `SessionStateResponse` typing to include any additional optional fields required for the new refresh handling UI (e.g., a boolean/metadata flag indicating an auto-DNF-on-refresh occurred and what attempt index the user is continuing with), while keeping backward compatibility if the backend does not provide the flag."
+          "description": "Extend SessionStateResponse typing to support refresh recovery messaging and strict attempt progression (e.g., optional fields to identify whether auto-DNF occurred and which attempt index was marked), while remaining backward-compatible so the UI can compute the marked/next attempt numbers when only currentAttempt is available."
         },
+        {
+          "path": "frontend/REGRESSION_SMOKE_TEST_CHECKLIST.md",
+          "operation": "modify",
+          "description": "Add/adjust manual regression checklist steps for SolveFlow refresh recovery: refresh during attempt 1 and attempt N>1, verify the UI resumes at the backend-reported next attempt, shows the correct scramble, and blocks re-solving a DNF’d attempt index."
+        }
+      ]
+    },
+    {
+      "id": "REQ-124",
+      "summary": "Correct SolveFlow refresh messaging and attempt header display to always reflect the backend-advanced next attempt number.",
+      "acceptanceCriteria": [
+        "When the backend indicates an auto-DNF advancement occurred, the UI shows an English message in the form: “Attempt <N> was marked DNF because the page was refreshed. Continuing with attempt <N+1>.”",
+        "The attempt number shown in the page header (e.g., “Attempt X of 5”) matches the server-reported next attempt index + 1.",
+        "No toast/banner/message claims the app is continuing with attempt 1 unless the next eligible attempt is actually attempt 1.",
+        "The UI does not silently fail; the user always sees either the correct resumed attempt screen or a clear English error state routed via existing error normalization (`normalizeError`) where applicable."
+      ],
+      "file_operations": [
         {
           "path": "frontend/src/pages/SolveFlowPage.tsx",
           "operation": "modify",
-          "description": "On mount (after retrieving the session token from sessionStorage), fetch server session state via the new hook and set `currentAttempt`, `attempts`, and `phase` from the server response (including showing the advanced attempt index after refresh). If the response indicates the previous attempt was auto-marked DNF due to refresh, show an English-only notification (toast and/or inline `Alert`) and ensure scramble fetching uses the updated `currentAttempt`. Ensure any displayed errors are passed through `normalizeError`."
+          "description": "Update refresh-recovery UI messaging to be derived from backend session state: when auto-DNF advancement is indicated, show an English message exactly in the form “Attempt <N> was marked DNF because the page was refreshed. Continuing with attempt <N+1>.” Ensure the page header attempt display always uses the server-reported next attempt index + 1 and never falls back to attempt 1 unless the server indicates attempt 0 (1-based attempt 1) is next."
         },
         {
           "path": "frontend/src/api/errors.ts",
           "operation": "modify",
-          "description": "If needed for clearer SolveFlow recovery UX, add/adjust English-only normalization for any new/changed backend error messages surfaced by the session-state retrieval so SolveFlowPage continues to show user-friendly messages via `normalizeError`."
+          "description": "Adjust normalizeError handling for refresh auto-DNF and attempt-submission conflicts so user-facing text remains English-only and does not mask critical attempt numbers. Preserve detailed backend messages when they contain attempt indices for auto-DNF advancement, and ensure any failure still surfaces a clear normalized English error rather than silently failing."
         }
       ]
     }

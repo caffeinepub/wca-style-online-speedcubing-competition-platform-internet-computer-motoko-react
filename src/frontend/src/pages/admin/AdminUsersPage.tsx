@@ -1,20 +1,27 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Principal } from '@dfinity/principal';
 import AdminGuard from '../../components/auth/AdminGuard';
 import {
-  useAdminGetAllUsers,
+  useAdminGetUsers,
   useAdminBlockUser,
   useAdminDeleteUser,
-  useAdminResetUserCompetitionStatus,
   useAdminGetUserSolveHistory,
+  useAdminResetUserCompetitionStatus,
 } from '../../hooks/useQueries';
 import { normalizeError } from '../../api/errors';
-import { EVENT_LABELS } from '../../types/domain';
-import { Loader2, Ban, Trash2, RotateCcw, History } from 'lucide-react';
+import { Loader2, Ban, Trash2, RotateCcw, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import {
   Dialog,
   DialogContent,
@@ -23,69 +30,58 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import type { Event } from '../../backend';
 
 export default function AdminUsersPage() {
-  const { data: users = [], isLoading } = useAdminGetAllUsers();
+  const { data: users, isLoading } = useAdminGetUsers();
   const blockUserMutation = useAdminBlockUser();
   const deleteUserMutation = useAdminDeleteUser();
-  const resetStatusMutation = useAdminResetUserCompetitionStatus();
-  const getUserHistoryMutation = useAdminGetUserSolveHistory();
+  const getUserSolveHistoryMutation = useAdminGetUserSolveHistory();
+  const resetUserCompetitionStatusMutation = useAdminResetUserCompetitionStatus();
 
-  const [selectedUserForHistory, setSelectedUserForHistory] = useState<Principal | null>(null);
-  const [userHistory, setUserHistory] = useState<Array<[bigint, Event, any]>>([]);
+  const [selectedUserHistory, setSelectedUserHistory] = useState<any>(null);
 
-  const handleBlockUser = async (userPrincipal: Principal, currentlyBlocked: boolean) => {
+  const handleBlockUser = async (userPrincipal: string, currentlyBlocked: boolean) => {
     try {
       await blockUserMutation.mutateAsync({
-        user: userPrincipal,
+        user: userPrincipal as any,
         blocked: !currentlyBlocked,
       });
-      toast.success(currentlyBlocked ? 'User unblocked' : 'User blocked');
+      toast.success(currentlyBlocked ? 'User unblocked successfully' : 'User blocked successfully');
     } catch (error) {
       toast.error(normalizeError(error));
     }
   };
 
-  const handleDeleteUser = async (userPrincipal: Principal) => {
-    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-      return;
-    }
-
+  const handleDeleteUser = async (userPrincipal: string) => {
     try {
-      await deleteUserMutation.mutateAsync(userPrincipal);
-      toast.success('User deleted');
+      await deleteUserMutation.mutateAsync(userPrincipal as any);
+      toast.success('User deleted successfully');
     } catch (error) {
       toast.error(normalizeError(error));
     }
   };
 
-  const handleResetStatus = async (
-    userPrincipal: Principal,
+  const handleViewSolveHistory = async (userPrincipal: string) => {
+    try {
+      const history = await getUserSolveHistoryMutation.mutateAsync(userPrincipal as any);
+      setSelectedUserHistory(history);
+    } catch (error) {
+      toast.error(normalizeError(error));
+    }
+  };
+
+  const handleResetCompetitionStatus = async (
+    userPrincipal: string,
     competitionId: bigint,
-    event: Event
+    event: string
   ) => {
-    if (!confirm('Are you sure you want to reset this competition status?')) {
-      return;
-    }
-
     try {
-      await resetStatusMutation.mutateAsync({
-        user: userPrincipal,
+      await resetUserCompetitionStatusMutation.mutateAsync({
+        user: userPrincipal as any,
         competitionId,
-        event,
+        event: event as any,
       });
-      toast.success('Competition status reset');
-    } catch (error) {
-      toast.error(normalizeError(error));
-    }
-  };
-
-  const handleViewHistory = async (userPrincipal: Principal) => {
-    try {
-      const history = await getUserHistoryMutation.mutateAsync(userPrincipal);
-      setUserHistory(history);
-      setSelectedUserForHistory(userPrincipal);
+      toast.success('Competition status reset successfully');
     } catch (error) {
       toast.error(normalizeError(error));
     }
@@ -94,8 +90,10 @@ export default function AdminUsersPage() {
   if (isLoading) {
     return (
       <AdminGuard>
-        <div className="min-h-screen bg-background flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
         </div>
       </AdminGuard>
     );
@@ -103,136 +101,131 @@ export default function AdminUsersPage() {
 
   return (
     <AdminGuard>
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-8">
-          <h1 className="text-4xl font-bold mb-8">User Management</h1>
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold mb-6">User Management</h1>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>All Users ({users.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Principal</TableHead>
-                    <TableHead>Display Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.principal.toString()}>
-                      <TableCell className="font-mono text-xs">
-                        {user.principal.toString().slice(0, 12)}...
-                      </TableCell>
-                      <TableCell>
-                        {user.profile?.displayName || <span className="text-muted-foreground">No profile</span>}
-                      </TableCell>
-                      <TableCell>
-                        {user.email || <span className="text-muted-foreground">No email</span>}
-                      </TableCell>
-                      <TableCell>
+        <div className="bg-card rounded-lg border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-muted">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                    Principal
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                    Display Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {users && users.length > 0 ? (
+                  users.map((user) => (
+                    <tr key={user.principal.toString()}>
+                      <td className="px-6 py-4 text-sm font-mono">
+                        {user.principal.toString().slice(0, 20)}...
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {user.profile?.displayName || 'No profile'}
+                      </td>
+                      <td className="px-6 py-4 text-sm">{user.email || 'N/A'}</td>
+                      <td className="px-6 py-4 text-sm">
                         {user.isBlocked ? (
-                          <span className="px-2 py-1 rounded text-xs bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                          <span className="px-2 py-1 bg-destructive/10 text-destructive rounded-full text-xs">
                             Blocked
                           </span>
                         ) : (
-                          <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 rounded-full text-xs">
                             Active
                           </span>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleBlockUser(user.principal, user.isBlocked)}
-                            disabled={blockUserMutation.isPending}
-                          >
-                            <Ban className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteUser(user.principal)}
-                            disabled={deleteUserMutation.isPending}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleViewHistory(user.principal)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right space-x-2">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewSolveHistory(user.principal.toString())}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Solve History</DialogTitle>
+                              <DialogDescription>
+                                View solve history for {user.profile?.displayName || 'this user'}
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="py-4">
+                              {selectedUserHistory ? (
+                                <pre className="text-xs overflow-auto">
+                                  {JSON.stringify(selectedUserHistory, null, 2)}
+                                </pre>
+                              ) : (
+                                <p className="text-muted-foreground">Loading...</p>
+                              )}
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            handleBlockUser(user.principal.toString(), user.isBlocked)
+                          }
+                          disabled={blockUserMutation.isPending}
+                        >
+                          <Ban className="h-4 w-4" />
+                        </Button>
+
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete User</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete this user? This action cannot be
+                                undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteUser(user.principal.toString())}
                               >
-                                <History className="h-4 w-4" />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-2xl">
-                              <DialogHeader>
-                                <DialogTitle>Solve History</DialogTitle>
-                                <DialogDescription>
-                                  {user.profile?.displayName || user.principal.toString()}
-                                </DialogDescription>
-                              </DialogHeader>
-                              <div className="max-h-96 overflow-y-auto">
-                                {getUserHistoryMutation.isPending ? (
-                                  <div className="flex items-center justify-center py-8">
-                                    <Loader2 className="h-6 w-6 animate-spin" />
-                                  </div>
-                                ) : userHistory.length === 0 ? (
-                                  <p className="text-center text-muted-foreground py-8">
-                                    No solve history found
-                                  </p>
-                                ) : (
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow>
-                                        <TableHead>Competition ID</TableHead>
-                                        <TableHead>Event</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead>Actions</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {userHistory.map(([compId, event, result], index) => (
-                                        <TableRow key={index}>
-                                          <TableCell>{compId.toString()}</TableCell>
-                                          <TableCell>{EVENT_LABELS[event]}</TableCell>
-                                          <TableCell>{result.status}</TableCell>
-                                          <TableCell>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={() =>
-                                                handleResetStatus(user.principal, compId, event)
-                                              }
-                                              disabled={resetStatusMutation.isPending}
-                                            >
-                                              <RotateCcw className="h-4 w-4" />
-                                            </Button>
-                                          </TableCell>
-                                        </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                )}
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">
+                      No users found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </AdminGuard>

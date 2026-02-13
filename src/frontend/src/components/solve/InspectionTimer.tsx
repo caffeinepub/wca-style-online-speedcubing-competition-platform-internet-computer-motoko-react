@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Eye, EyeOff } from 'lucide-react';
 
@@ -12,7 +12,21 @@ export default function InspectionTimer({ scramble, onComplete, onStart }: Inspe
   const [timeLeft, setTimeLeft] = useState(15);
   const [isRunning, setIsRunning] = useState(false);
   const [showScramble, setShowScramble] = useState(false);
+  
+  // Use refs to store callbacks to prevent interval recreation
+  const onCompleteRef = useRef(onComplete);
+  const onStartRef = useRef(onStart);
 
+  // Update refs when callbacks change
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  useEffect(() => {
+    onStartRef.current = onStart;
+  }, [onStart]);
+
+  // Countdown effect - only depends on isRunning
   useEffect(() => {
     if (!isRunning) return;
 
@@ -20,7 +34,9 @@ export default function InspectionTimer({ scramble, onComplete, onStart }: Inspe
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          onComplete();
+          setIsRunning(false);
+          // Call the ref version to avoid dependency issues
+          onCompleteRef.current();
           return 0;
         }
         return prev - 1;
@@ -28,19 +44,21 @@ export default function InspectionTimer({ scramble, onComplete, onStart }: Inspe
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRunning, onComplete]);
+  }, [isRunning]); // Only depend on isRunning
 
-  const handleStart = () => {
+  const handleStart = useCallback(() => {
+    setTimeLeft(15); // Reset to 15 when starting
     setIsRunning(true);
     setShowScramble(true);
-    if (onStart) {
-      onStart();
+    if (onStartRef.current) {
+      onStartRef.current();
     }
-  };
+  }, []);
 
-  const handleSkip = () => {
-    onComplete();
-  };
+  const handleSkip = useCallback(() => {
+    setIsRunning(false);
+    onCompleteRef.current();
+  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center space-y-8 w-full max-w-2xl">

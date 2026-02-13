@@ -10,9 +10,7 @@ import Runtime "mo:core/Runtime";
 import AccessControl "authorization/access-control";
 import Nat8 "mo:core/Nat8";
 import MixinAuthorization "authorization/MixinAuthorization";
-import Migration "migration";
 
-(with migration = Migration.run)
 actor {
   module NatPrincipalEvent {
     public func compare(x : (Nat, Principal, Event), y : (Nat, Principal, Event)) : Order.Order {
@@ -362,13 +360,9 @@ actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
-  // NEW: Public API to get competitor's visible results across all competitions
-  public query ({ caller }) func getCompetitorResults(competitor : Principal) : async CompetitorResults {
-    // Any authenticated user can view public results
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view competitor results");
-    };
-
+  // Public API to get competitor's visible results across all competitions
+  // No authentication required - public leaderboard data
+  public query func getCompetitorResults(competitor : Principal) : async CompetitorResults {
     let filteredResults = results.filter(
       func((cid, user, event), result) {
         user == competitor and result.status == #completed and not (hiddenLeaderboardEntries.get((cid, user, event)) == ?true);
@@ -392,17 +386,16 @@ actor {
     };
   };
 
-  public query ({ caller }) func getAllCompetitions() : async [CompetitionPublic] {
-    // Public endpoint - no auth required, but only returns active competitions
+  // Public endpoint - no auth required, returns active competitions
+  public query func getAllCompetitions() : async [CompetitionPublic] {
     let allComps = competitions.values().toArray();
     let activeComps = allComps.filter(func(c) { c.isActive });
-    // Auto-transition competitions before returning
     let transitionedComps = activeComps.map(autoTransitionCompetition);
     transitionedComps.map<Competition, CompetitionPublic>(toPublicCompetition);
   };
 
-  public query ({ caller }) func getCompetition(competitionId : Nat) : async Competition {
-    // Public endpoint - no auth required
+  // Public endpoint - no auth required
+  public query func getCompetition(competitionId : Nat) : async Competition {
     switch (competitions.get(competitionId)) {
       case (?c) {
         if (not c.isActive) {
@@ -414,12 +407,8 @@ actor {
     };
   };
 
-  public query ({ caller }) func getCompetitionResults(competitionId : Nat, event : Event) : async [CompetitionResult] {
-    // Any user can view public competition results
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view competition results");
-    };
-
+  // Public endpoint - no auth required, returns public competition results
+  public query func getCompetitionResults(competitionId : Nat, event : Event) : async [CompetitionResult] {
     let comp = switch (competitions.get(competitionId)) {
       case (?c) {
         if (not c.isActive) {
@@ -487,7 +476,6 @@ actor {
     };
   };
 
-  // Auto-transition competition status based on registrationStartDate
   private func autoTransitionCompetition(comp : Competition) : Competition {
     switch (comp.status) {
       case (#upcoming) {
@@ -495,7 +483,6 @@ actor {
           case (?regStartDate) {
             let now = Time.now();
             if (now >= regStartDate) {
-              // Auto-transition to running
               {
                 comp with status = #running
               };
@@ -504,7 +491,6 @@ actor {
             };
           };
           case (null) {
-            // No registration start date, keep as is
             comp;
           };
         };
@@ -515,7 +501,6 @@ actor {
     };
   };
 
-  // Check if registration is gated for a competition
   private func isRegistrationGated(comp : Competition) : Bool {
     switch (comp.status) {
       case (#upcoming) {
@@ -535,14 +520,11 @@ actor {
     };
   };
 
-  // Enforce registration gating authorization
   private func enforceRegistrationGating(caller : Principal, competitionId : Nat, event : Event) {
-    // Check if user is blocked
     if (blockedUsers.get(caller) == ?true) {
       Runtime.trap("User is blocked");
     };
 
-    // Get competition and auto-transition if needed
     let comp = switch (competitions.get(competitionId)) {
       case (?c) {
         let transitioned = autoTransitionCompetition(c);
@@ -556,29 +538,24 @@ actor {
       };
     };
 
-    // Check if competition is active
     if (not comp.isActive) {
       Runtime.trap("Competition is not active");
     };
 
-    // Check if competition is locked
     if (comp.isLocked) {
       Runtime.trap("Competition is locked");
     };
 
-    // Check if event is part of competition
     let eventExists = comp.events.find(func(e) { e == event });
     if (eventExists == null) {
       Runtime.trap("Event is not part of this competition");
     };
 
-    // CRITICAL: Enforce registration gating
     if (isRegistrationGated(comp)) {
       Runtime.trap("Registration has not started yet for this competition");
     };
   };
 
-  // Verify session token belongs to caller
   private func verifySessionToken(caller : Principal, competitionId : Nat, event : Event, sessionToken : [Nat8]) : Bool {
     switch (activeSessions.get((competitionId, caller, event))) {
       case (?session) {
@@ -640,7 +617,6 @@ actor {
     };
   };
 
-  // Admin: Set Razorpay credentials
   public shared ({ caller }) func setRazorpayCredentials(credentials : RazorpayCredentials) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can set Razorpay credentials");
@@ -660,10 +636,8 @@ actor {
       Runtime.trap("Unauthorized: Only users can create payment orders");
     };
 
-    // CRITICAL: Enforce registration gating
     enforceRegistrationGating(caller, request.competitionId, request.event);
 
-    // Check if already paid
     if (hasCompletedPaymentForEvent(caller, request.competitionId, request.event)) {
       Runtime.trap("Already paid for this event");
     };
@@ -693,16 +667,13 @@ actor {
     };
   };
 
-  // User: Confirm payment
   public shared ({ caller }) func confirmPayment(confirmation : PaymentConfirmation) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can confirm payments");
     };
 
-    // CRITICAL: Enforce registration gating
     enforceRegistrationGating(caller, confirmation.competitionId, confirmation.event);
 
-    // Verify order exists and belongs to caller
     let orderInfo = switch (createdOrders.get(confirmation.razorpayOrderId)) {
       case (?(user, compId, event)) {
         if (user != caller) {
@@ -718,15 +689,12 @@ actor {
       };
     };
 
-    // Check if already paid
     if (hasCompletedPaymentForEvent(caller, confirmation.competitionId, confirmation.event)) {
       Runtime.trap("Already paid for this event");
     };
 
-    // Store payment confirmation
     payments.add((confirmation.competitionId, caller, confirmation.event), confirmation);
 
-    // Store in user payments
     let comp = switch (competitions.get(confirmation.competitionId)) {
       case (?c) { c };
       case (null) { Runtime.trap("Competition does not exist") };
@@ -763,16 +731,13 @@ actor {
     userPaymentMap.add(paidEvent.id, paidEvent);
   };
 
-  // NEW User: Start or resume competition session
   public shared ({ caller }) func startOrResumeCompetitionSession(competitionId : Nat, event : Event) : async [Nat8] {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can start sessions");
     };
 
-    // CRITICAL: Enforce registration gating
     enforceRegistrationGating(caller, competitionId, event);
 
-    // Check if payment is required
     let comp = switch (competitions.get(competitionId)) {
       case (?c) { c };
       case (null) { Runtime.trap("Competition does not exist") };
@@ -780,24 +745,19 @@ actor {
 
     switch (comp.feeMode) {
       case (?_) {
-        // Payment required, check if paid
         if (not hasCompletedPaymentForEvent(caller, competitionId, event)) {
           Runtime.trap("Payment required for this event");
         };
       };
       case (null) {
-        // No payment required
       };
     };
 
-    // Check if session already exists
     switch (activeSessions.get((competitionId, caller, event))) {
       case (?session) {
         if (session.isCompleted) {
           Runtime.trap("Session already completed for this competition and event");
         } else if (session.startTime != null) {
-          // If a session is in progress (i.e., attempt started but not completed),
-          // mark the current attempt as DNF and increment the currentAttempt counter.
           let attempts = updateAttempts(session.currentAttempt, session.attempts);
           let updatedSession = {
             session with
@@ -811,7 +771,6 @@ actor {
         };
       };
       case (null) {
-        // Create session token (simplified)
         let sessionToken : [Nat8] = [1, 2, 3, 4, 5, 6, 7, 8];
         let newSession : SolveSession = {
           sessionToken;
@@ -835,7 +794,6 @@ actor {
   func updateAttempts(currentAttempt : Nat, attempts : [Attempt]) : [Attempt] {
     let length = attempts.size();
 
-    // If currentAttempt is out of bounds, return attempts as is
     if (currentAttempt >= length) {
       return attempts;
     };
@@ -844,17 +802,12 @@ actor {
       length,
       func(i) {
         if (Nat.equal(i, currentAttempt)) {
-          // Update the selected attempt to DNF
           { attempts[i] with time = 0; penalty = 0 };
         } else {
-          // Leave other attempts unchanged
           attempts[i];
         };
       },
     );
     updated;
   };
-
-  // begin rest of actor (unchanged)
-  // ...
 };

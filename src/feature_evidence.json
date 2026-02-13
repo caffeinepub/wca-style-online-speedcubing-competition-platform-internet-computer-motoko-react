@@ -2,13 +2,11 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-update-the-solve-flow-frontend-to-align-with-the-new-refresh-handling-on-solveflowpage-load-fetch-the-current-server-session-state-and-render-the-correct-next-attempt-index-after-any-auto-dnf-on-refresh-advance-showing-a-clear-english-message-to-the-user-when-a-refresh-caused-the-previous-attempt-to-be-marked-dnf-and-the-flow-continued",
-      "featureTitle": "Update the Solve Flow frontend to align with the new refresh handling: on SolveFlowPage load, fetch the current server session state and render the correct next attempt index after any auto-DNF-on-refresh advance, showing a clear English message to the user when a refresh caused the previous attempt to be marked DNF and the flow continued.",
+      "featureId": "feature-fix-solve-session-refresh-recovery-so-that-when-a-user-refreshes-during-attempt-n-the-backend-marks-attempt-n-as-dnf-and-advances-currentattempt-to-n-1-after-reload-the-solve-flow-must-resume-on-the-next-attempt-not-restart-at-attempt-1-and-must-not-allow-re-solving-an-already-dnf-d-attempt-index",
+      "featureTitle": "Fix solve-session refresh recovery so that when a user refreshes during attempt N, the backend marks attempt N as DNF and advances `currentAttempt` to N+1; after reload, the solve flow must resume on the next attempt (not restart at attempt 1) and must not allow re-solving an already-DNF’d attempt index.",
       "files": [
-        "frontend/src/api/errors.ts",
-        "frontend/src/hooks/useQueries.ts",
-        "frontend/src/pages/SolveFlowPage.tsx",
-        "frontend/src/types/backend-extended.ts"
+        "frontend/REGRESSION_SMOKE_TEST_CHECKLIST.md",
+        "frontend/src/pages/SolveFlowPage.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -20,7 +18,28 @@
         "http-outcalls@3.0.0"
       ],
       "testIds": [
-        "REQ-118"
+        "REQ-123"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-update-solveflowpage-refresh-messaging-and-attempt-index-display-so-it-never-shows-an-incorrect-attempt-number-e-g-continuing-with-attempt-1-when-the-backend-has-advanced-the-session-the-message-must-reflect-the-actual-1-based-attempt-number-that-the-user-should-do-next",
+      "featureTitle": "Update SolveFlowPage refresh messaging and attempt index display so it never shows an incorrect attempt number (e.g., “Continuing with attempt 1”) when the backend has advanced the session; the message must reflect the actual 1-based attempt number that the user should do next.",
+      "files": [
+        "frontend/src/api/errors.ts",
+        "frontend/src/pages/SolveFlowPage.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "http-outcalls@3.0.0"
+      ],
+      "testIds": [
+        "REQ-124"
       ],
       "confidence": "high"
     }

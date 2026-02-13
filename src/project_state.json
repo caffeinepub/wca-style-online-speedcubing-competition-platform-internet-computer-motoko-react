@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 61,
+  "projectStateVersion": 67,
   "summary": "Full-stack online speedcubing competition platform with multi-event, WCA-style 5-solve flow, manual external payment-link based entry (replacing Razorpay checkout) with user “Request approval” flow and admin approvals panel, strong integrity controls (session lock, progressive scrambles, recovery), WCA Ao5 rules server-side validated, post-completion UX enhancements, leaderboard discoverability, pricing enhancements, and a registration-start date feature that gates starting until a specified datetime and auto-transitions upcoming competitions to running at that time.",
   "architectural_notes": [
     "Tech stack: Next.js (App Router) + TypeScript + PostgreSQL + Prisma ORM + NextAuth; deploy on Vercel.",
@@ -659,6 +659,54 @@
         "REQ-118"
       ],
       "version": 1
+    },
+    {
+      "id": "feature-fix-solveflow-refresh-recovery-so-that-when-a-user-refreshes-during-attempt-n-e-g-during-attempt-2-after-completing-attempt-1-the-solve-flow-resumes-at-attempt-n-1-e-g-attempt-3-and-shows-an-english-message-stating-that-attempt-n-was-marked-dnf-due-to-page-refresh-the-solve-flow-must-never-restart-from-attempt-1-in-this-scenario",
+      "title": "Fix SolveFlow refresh recovery so that when a user refreshes during attempt N (e.g., during attempt 2 after completing attempt 1), the solve flow resumes at attempt N+1 (e.g., attempt 3) and shows an English message stating that attempt N was marked DNF due to page refresh. The solve flow must never restart from attempt 1 in this scenario.",
+      "reqIds": [
+        "REQ-119"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-the-solveflow-inspection-countdown-so-that-when-the-user-clicks-start-inspection-the-timer-visibly-counts-down-from-15-to-0-15-14-13-without-getting-stuck-and-still-triggers-the-inspection-complete-transition-into-the-solve-phase-at-0",
+      "title": "Fix the SolveFlow inspection countdown so that when the user clicks “Start Inspection”, the timer visibly counts down from 15 to 0 (15, 14, 13, …) without getting stuck, and still triggers the inspection-complete transition into the solve phase at 0.",
+      "reqIds": [
+        "REQ-120"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-persist-each-solve-attempt-to-the-backend-immediately-after-the-solve-completes-attempt-by-attempt-keyed-to-the-authenticated-user-account-and-the-active-solve-session-so-that-refreshing-the-page-cannot-allow-a-user-to-restart-an-already-completed-attempt-or-re-run-timing-for-the-same-attempt-index",
+      "title": "Persist each solve attempt to the backend immediately after the solve completes (attempt-by-attempt), keyed to the authenticated user account and the active solve session, so that refreshing the page cannot allow a user to restart an already-completed attempt or re-run timing for the same attempt index.",
+      "reqIds": [
+        "REQ-121"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-automatically-mark-a-competition-event-as-completed-server-side-immediately-when-the-5th-solve-is-successfully-stored-even-if-the-user-does-not-click-finish-competition-or-choose-another-event-and-ensure-the-result-becomes-leaderboard-eligible-without-any-additional-ui-action",
+      "title": "Automatically mark a competition event as completed server-side immediately when the 5th solve is successfully stored, even if the user does not click “Finish Competition” or “Choose Another Event”, and ensure the result becomes leaderboard-eligible without any additional UI action.",
+      "reqIds": [
+        "REQ-122"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-solve-session-refresh-recovery-so-that-when-a-user-refreshes-during-attempt-n-the-backend-marks-attempt-n-as-dnf-and-advances-currentattempt-to-n-1-after-reload-the-solve-flow-must-resume-on-the-next-attempt-not-restart-at-attempt-1-and-must-not-allow-re-solving-an-already-dnf-d-attempt-index",
+      "title": "Fix solve-session refresh recovery so that when a user refreshes during attempt N, the backend marks attempt N as DNF and advances `currentAttempt` to N+1; after reload, the solve flow must resume on the next attempt (not restart at attempt 1) and must not allow re-solving an already-DNF’d attempt index.",
+      "reqIds": [
+        "REQ-123"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-solveflowpage-refresh-messaging-and-attempt-index-display-so-it-never-shows-an-incorrect-attempt-number-e-g-continuing-with-attempt-1-when-the-backend-has-advanced-the-session-the-message-must-reflect-the-actual-1-based-attempt-number-that-the-user-should-do-next",
+      "title": "Update SolveFlowPage refresh messaging and attempt index display so it never shows an incorrect attempt number (e.g., “Continuing with attempt 1”) when the backend has advanced the session; the message must reflect the actual 1-based attempt number that the user should do next.",
+      "reqIds": [
+        "REQ-124"
+      ],
+      "version": 1
     }
   ],
   "new_feature_requests": [
@@ -1212,6 +1260,18 @@
       "reqIds": [
         "REQ-117"
       ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-120",
+      "summary": "Fix SolveFlow inspection timer UX so that when inspection starts it visibly counts down from 15 seconds to 0 and triggers the correct penalty logic (+2 for 15–17s, DNF for >17s) without getting stuck.",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-121",
+      "summary": "Auto-complete an event server-side immediately after the 5th solve is successfully stored, even if the user does not click a “Complete competition” / “Choose another event” button; ensure leaderboard eligibility is not blocked by missing post-5-solves UI actions.",
+      "reqIds": [],
       "status": "pending"
     }
   ],

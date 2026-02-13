@@ -1,17 +1,21 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import RequireAuth from '../components/auth/RequireAuth';
 import InspectionTimer from '../components/solve/InspectionTimer';
 import SolveTimer from '../components/solve/SolveTimer';
 import SolveCompletionScreen from '../components/solve/SolveCompletionScreen';
-import { useGetCompetition, useGetScrambleForAttempt, useSubmitResult, useStartCompetition } from '../hooks/useQueries';
+import { 
+  useGetCompetition, 
+  useGetScrambleForAttempt, 
+  useStartCompetition,
+} from '../hooks/useQueries';
 import { getSolveSession, clearSolveSession, storeSolveSession } from '../lib/solveSession';
 import { normalizeError } from '../api/errors';
 import { EVENT_LABELS } from '../types/domain';
-import { Loader2, AlertCircle, Info } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, AlertCircle, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { Event } from '../backend';
 
 type SolvePhase = 'inspection' | 'solving' | 'completed';
@@ -27,7 +31,6 @@ export default function SolveFlowPage() {
     competitionId: string;
     event: Event;
   };
-  const search = useSearch({ strict: false }) as { attempt?: string };
 
   const [phase, setPhase] = useState<SolvePhase>('inspection');
   const [currentAttempt, setCurrentAttempt] = useState(0);
@@ -36,7 +39,8 @@ export default function SolveFlowPage() {
   const [inspectionStartTime, setInspectionStartTime] = useState<number | null>(null);
   const [inspectionPenalty, setInspectionPenalty] = useState<number>(0);
   const [sessionSynced, setSessionSynced] = useState(false);
-  const [wasAutoDNF, setWasAutoDNF] = useState(false);
+  const [wasRefreshRecovery, setWasRefreshRecovery] = useState(false);
+  const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
 
   const { data: competition, isLoading: competitionLoading } = useGetCompetition(BigInt(competitionId));
   const { data: scramble, isLoading: scrambleLoading, error: scrambleError } = useGetScrambleForAttempt(
@@ -44,7 +48,6 @@ export default function SolveFlowPage() {
     event,
     currentAttempt
   );
-  const submitResultMutation = useSubmitResult();
   const startCompetitionMutation = useStartCompetition();
 
   // Sync session state on mount
@@ -57,51 +60,51 @@ export default function SolveFlowPage() {
         return;
       }
 
-      // Store the initial attempt index from local storage
-      const initialAttempt = search.attempt ? parseInt(search.attempt, 10) : 0;
-      
       try {
-        // Call backend to sync session state (this will auto-DNF if refresh occurred during solve)
+        // Call backend to get or resume session
         const newSessionToken = await startCompetitionMutation.mutateAsync({
           competitionId: BigInt(competitionId),
           event,
         });
 
-        // Store the new session token
+        // Store the session token
         storeSolveSession(competitionId, event, newSessionToken);
         setSessionToken(newSessionToken);
-
-        // Check if we need to advance to the next attempt
-        // The backend increments currentAttempt if refresh occurred during an active solve
-        // We detect this by checking if the scramble for the initial attempt is still valid
-        // If the backend advanced the attempt, we should show the next scramble
         
-        // For now, we'll use a simple heuristic:
-        // If the user had started an attempt (phase was 'solving'), the backend will have
-        // marked it as DNF and advanced. We detect this by checking if we're on attempt 0
-        // but the URL suggests we should be further along.
-        
-        // Since we don't have explicit backend state, we'll check if the session was resumed
-        // and show a notification if the attempt index changed
-        const storedPhase = sessionStorage.getItem(`solve-phase-${competitionId}-${event}`);
-        const storedAttempt = sessionStorage.getItem(`solve-attempt-${competitionId}-${event}`);
-        
-        if (storedPhase === 'solving' && storedAttempt !== null) {
-          const lastAttempt = parseInt(storedAttempt, 10);
-          // If we were solving, the backend marked it as DNF and advanced
-          setCurrentAttempt(lastAttempt + 1);
-          setWasAutoDNF(true);
-          
-          // Clear the stored phase
-          sessionStorage.removeItem(`solve-phase-${competitionId}-${event}`);
-          sessionStorage.removeItem(`solve-attempt-${competitionId}-${event}`);
-        } else if (!isNaN(initialAttempt) && initialAttempt >= 0 && initialAttempt < 5) {
-          setCurrentAttempt(initialAttempt);
+        // Check if this is a refresh recovery scenario
+        // The backend auto-advances on refresh, so if we have stored attempts
+        // but the backend returns a new token, we need to detect this
+        const storedAttempts = session.attempts || [];
+        if (storedAttempts.length > 0) {
+          // This is a refresh recovery - backend has already marked previous attempt as DNF
+          setWasRefreshRecovery(true);
+          const markedAttempt = storedAttempts.length; // 0-indexed, so length is the next attempt
+          const nextAttempt = markedAttempt + 1;
+          setRecoveryMessage(
+            `Attempt ${markedAttempt} was marked DNF because the page was refreshed. Continuing with attempt ${nextAttempt}.`
+          );
+          setCurrentAttempt(markedAttempt); // Backend has already advanced
+          setAttempts(storedAttempts);
         }
-
+        
         setSessionSynced(true);
       } catch (error) {
-        toast.error(normalizeError(error));
+        const errorMsg = normalizeError(error);
+        
+        // Handle "resuming existing session" case
+        if (errorMsg.includes('Resuming your existing session')) {
+          // This is expected - just continue
+          const session = getSolveSession(competitionId, event);
+          if (session?.token) {
+            setSessionToken(session.token);
+            setCurrentAttempt(session.attempts?.length || 0);
+            setAttempts(session.attempts || []);
+            setSessionSynced(true);
+            return;
+          }
+        }
+        
+        toast.error(errorMsg);
         navigate({ to: `/competitions/${competitionId}` });
       }
     };
@@ -109,37 +112,18 @@ export default function SolveFlowPage() {
     if (!sessionSynced) {
       syncSession();
     }
-  }, [competitionId, event, navigate, search.attempt, sessionSynced, startCompetitionMutation]);
+  }, [competitionId, event, navigate, sessionSynced, startCompetitionMutation]);
 
-  // Show auto-DNF notification
-  useEffect(() => {
-    if (wasAutoDNF && sessionSynced) {
-      toast.info(
-        `This attempt was marked DNF because the page was refreshed. Continuing with attempt ${currentAttempt + 1}.`,
-        { duration: 6000 }
-      );
-      setWasAutoDNF(false);
-    }
-  }, [wasAutoDNF, sessionSynced, currentAttempt]);
-
-  // Store current phase and attempt for refresh detection
-  useEffect(() => {
-    if (sessionSynced) {
-      sessionStorage.setItem(`solve-phase-${competitionId}-${event}`, phase);
-      sessionStorage.setItem(`solve-attempt-${competitionId}-${event}`, currentAttempt.toString());
-    }
-  }, [phase, currentAttempt, competitionId, event, sessionSynced]);
-
-  const handleInspectionComplete = () => {
+  const handleInspectionComplete = useCallback(() => {
     setPhase('solving');
-  };
+  }, []);
 
-  const handleInspectionStart = () => {
+  const handleInspectionStart = useCallback(() => {
     setInspectionStartTime(Date.now());
-  };
+  }, []);
 
-  const handleSolveStart = () => {
-    // Calculate inspection penalty when solve timer starts (not when it completes)
+  const handleSolveStart = useCallback(() => {
+    // Calculate inspection penalty when solve timer starts
     let penalty = 0;
     
     if (inspectionStartTime) {
@@ -158,44 +142,45 @@ export default function SolveFlowPage() {
       }
     }
     
-    // Store the penalty to apply when solve completes
     setInspectionPenalty(penalty);
-  };
+  }, [inspectionStartTime]);
 
-  const handleSolveComplete = async (time: number, penalty: number) => {
-    // Apply the inspection penalty that was calculated when solve started
+  const handleSolveComplete = useCallback(async (time: number, penalty: number) => {
+    // Apply the inspection penalty
     const finalPenalty = penalty + inspectionPenalty;
 
+    // Update local state immediately
     const newAttempts = [...attempts, { time, penalty: finalPenalty }];
     setAttempts(newAttempts);
+    
+    // Store in session storage for refresh recovery
+    const session = getSolveSession(competitionId, event);
+    if (session) {
+      storeSolveSession(competitionId, event, sessionToken!, newAttempts);
+    }
 
-    if (newAttempts.length === 5) {
-      // Submit all attempts
-      try {
-        await submitResultMutation.mutateAsync({
-          competitionId: BigInt(competitionId),
-          event,
-          attempts: newAttempts,
-          status: 'completed',
-        });
-        
-        // Clear session and stored state
-        clearSolveSession(competitionId, event);
-        sessionStorage.removeItem(`solve-phase-${competitionId}-${event}`);
-        sessionStorage.removeItem(`solve-attempt-${competitionId}-${event}`);
-        
-        setPhase('completed');
-      } catch (error) {
-        toast.error(normalizeError(error));
-      }
+    // Check if we've completed all 5 attempts
+    if (newAttempts.length >= 5) {
+      // Competition is complete
+      clearSolveSession(competitionId, event);
+      setPhase('completed');
+      toast.success('All attempts completed!');
     } else {
       // Move to next attempt
       setCurrentAttempt(currentAttempt + 1);
       setPhase('inspection');
       setInspectionStartTime(null);
       setInspectionPenalty(0);
+      toast.success(`Attempt ${currentAttempt + 1} completed!`);
     }
-  };
+  }, [
+    inspectionPenalty,
+    competitionId,
+    event,
+    sessionToken,
+    currentAttempt,
+    attempts,
+  ]);
 
   if (competitionLoading || !sessionSynced) {
     return (
@@ -282,6 +267,15 @@ export default function SolveFlowPage() {
             </p>
           </div>
 
+          {wasRefreshRecovery && recoveryMessage && (
+            <Alert className="mb-6 border-orange-500 bg-orange-50 dark:bg-orange-950/20">
+              <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+              <AlertDescription className="text-orange-800 dark:text-orange-200">
+                {recoveryMessage}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {scrambleLoading ? (
             <div className="flex-1 flex items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -316,7 +310,7 @@ export default function SolveFlowPage() {
                   >
                     <span className="text-sm text-muted-foreground">#{index + 1}: </span>
                     <span className="font-mono">
-                      {attempt.penalty === 999999
+                      {attempt.penalty === 999999 || (attempt.time === 0 && attempt.penalty === 0)
                         ? 'DNF'
                         : `${((attempt.time + attempt.penalty) / 1000).toFixed(2)}s`}
                     </span>

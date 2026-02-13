@@ -1,68 +1,58 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-12T23:43:57.672Z",
-  "summary": "Diff shows substantial frontend changes (including SolveFlowPage refresh handling heuristics and new extended types) and an added backend/migration.mo stub, but the provided backend/main.mo snippet is truncated and contains no visible implementation of the required server-side auto-DNF-on-refresh recovery. The changes also violate the BuildRequest constraint to implement backend logic only in backend/main.mo and not edit frontend files.",
+  "generatedAt": "2026-02-13T00:35:09.442Z",
+  "summary": "Diff shows primarily frontend-side refresh recovery handling in SolveFlowPage (using sessionStorage via a new solveSession utility) and some error-normalization updates, but there is no clear evidence (in the provided/truncated diff) of the required backend auto-DNF + advancement logic or backend-side duplicate/overwrite prevention tied to the auto-DNF case. UI messaging appears to implement the requested English sentence format, but other UI AC items (header attempt number sourced from server-reported next attempt, preventing re-solving at the backend) are not verifiable from the truncated summary.",
   "missing_requirements": [
     {
-      "id": "REQ-117",
-      "requirement": "Backend must auto-mark the currently in-progress attempt as DNF on next session-state retrieval after a refresh, persist it using existing DNF convention, advance currentAttempt by 1, and do so idempotently without affecting between-attempt/completed sessions.",
-      "reason": "The diff summary for backend/main.mo is truncated and the visible portion contains only type/import definitions and migration wiring; there is no visible code showing session-state retrieval logic, auto-DNF persistence to attempts, currentAttempt incrementing, or idempotency checks.",
+      "id": "REQ-123",
+      "requirement": "Backend refresh recovery: when user refreshes during attempt N, persist attempt N as DNF and advance currentAttempt to N+1; resume on next attempt after reload; prevent re-solving and prevent duplicate/overwrite submissions for already-stored attempts including auto-DNF.",
+      "reason": "The diff summary for backend/main.mo is truncated and only shows type definitions/imports; it contains no visible implementation of auto-DNF-on-refresh, currentAttempt advancement, or backend enforcement against duplicate/overwrite submissions for attempts already recorded (time>0 or DNF marker). Frontend code appears to infer refresh recovery from sessionStorage attempts length rather than from a backend-reported advancement event, which does not demonstrate the backend requirement is implemented.",
       "evidence": [
-        "backend/main.mo (truncated; no session recovery logic shown)"
+        "backend/main.mo (truncated)",
+        "frontend/src/pages/SolveFlowPage.tsx (truncated)"
       ]
     },
     {
-      "id": "REQ-118",
-      "requirement": "Frontend SolveFlowPage must fetch current server session state using existing session token on mount, set currentAttempt/phase from server response, and show a clear English notification when backend indicates auto-DNF due to refresh (errors through normalizeError).",
-      "reason": "SolveFlowPage changes shown rely on calling startCompetitionMutation and a local heuristic/commentary stating there is no explicit backend state; the diff does not show a dedicated session-state fetch using the existing session token nor a confirmed UI notification driven by a backend-provided 'wasAutoDNF' indicator.",
+      "id": "REQ-124",
+      "requirement": "SolveFlowPage attempt index display must match the server-reported next attempt index + 1, and messaging must never claim attempt 1 unless actually continuing with attempt 1; use existing normalizeError for clear English error state when applicable.",
+      "reason": "SolveFlowPage sets recovery state based on client-side storedAttempts.length and sets currentAttempt locally; the diff does not show using a backend-reported next attempt index/flag for auto-DNF advancement. Also, the truncated SolveFlowPage snippet does not include the header rendering logic (“Attempt X of 5”) so it cannot be verified that the header always matches server-reported next attempt.",
       "evidence": [
-        "frontend/src/pages/SolveFlowPage.tsx (truncated; heuristic-based detection; comments: 'Since we don't have explicit backend state')",
-        "frontend/src/types/backend-extended.ts (adds wasAutoDNF?: boolean but no evidence it is actually used/returned by backend)"
+        "frontend/src/pages/SolveFlowPage.tsx (truncated)"
       ]
     }
   ],
   "hallucinated_features": [
     {
-      "description": "Added/modified multiple frontend files despite the constraint 'Do not edit any frontend files under frontend.immutablePaths' and requirement to implement logic in backend/main.mo only.",
-      "reason": "Diff includes modifications to several frontend files unrelated to an allowed backend-only change set.",
+      "description": "Added sessionStorage-based solve session utility that stores attempt history and timestamp (tab-scoped) in addition to token.",
+      "reason": "REQ-123/REQ-124 request correct refresh recovery behavior and messaging, but do not explicitly require persisting attempts client-side in sessionStorage with timestamps; this is an additional mechanism beyond the stated requirements (though it may support the goal).",
       "evidence": [
-        "frontend/src/pages/SolveFlowPage.tsx",
-        "frontend/src/hooks/useQueries.ts",
-        "frontend/src/api/errors.ts",
-        "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
-        "frontend/src/types/backend-extended.ts",
-        "frontend-file-summaries.txt"
+        "frontend/src/lib/solveSession.ts"
       ]
     },
     {
-      "description": "Introduced a migration module stub without clear evidence of a required state schema change related to the requested refresh->DNF behavior.",
-      "reason": "backend/migration.mo was added but appears to be a no-op passthrough and the BuildRequest allows migration only if state schema changes require it; the diff summary does not show such a schema change.",
+      "description": "Updated/expanded normalizeError mapping for many error categories (payments, competitions, authorization, etc.).",
+      "reason": "REQ-124 mentions routing errors via existing normalizeError where applicable, but the diff shows broader error-message mapping changes not specifically tied to solve-flow refresh recovery messaging.",
       "evidence": [
-        "backend/migration.mo"
+        "frontend/src/api/errors.ts (truncated)"
       ]
     },
     {
-      "description": "Implemented/modified various frontend/admin/payment/error-normalization behaviors not requested by REQ-117/REQ-118 (beyond the specific solve-flow refresh messaging requirement).",
-      "reason": "The BuildRequest is narrowly focused on refresh->DNF behavior; the diff shows broader frontend changes (admin edit page, extended types, many normalizeError mappings) without being requested.",
+      "description": "Added/updated a detailed Regression & Smoke Test checklist section for refresh recovery and other solve-flow behaviors.",
+      "reason": "Documentation/checklists were not requested in REQ-123/REQ-124 and are outside the stated requirements.",
       "evidence": [
-        "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
-        "frontend/src/api/errors.ts",
-        "frontend/src/hooks/useQueries.ts",
-        "frontend/src/types/backend-extended.ts"
+        "frontend/REGRESSION_SMOKE_TEST_CHECKLIST.md (truncated)"
       ]
     }
   ],
-  "confidence": 0.74,
+  "confidence": 0.56,
   "changed_files": [
     "backend/main.mo",
-    "backend/migration.mo",
     "frontend-file-summaries.txt",
+    "frontend/REGRESSION_SMOKE_TEST_CHECKLIST.md",
     "frontend/src/api/errors.ts",
-    "frontend/src/hooks/useQueries.ts",
+    "frontend/src/lib/solveSession.ts",
     "frontend/src/pages/SolveFlowPage.tsx",
-    "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
-    "frontend/src/types/backend-extended.ts",
     "project_state.json"
   ]
 }

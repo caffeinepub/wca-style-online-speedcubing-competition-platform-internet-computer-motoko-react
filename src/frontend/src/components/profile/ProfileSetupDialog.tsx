@@ -15,7 +15,7 @@ export default function ProfileSetupDialog() {
         // Set email first (required for admin allowlist check)
         await setUserEmail.mutateAsync(email.trim());
         // Then create profile with mcubes ID (country and gender set to null initially)
-        await createProfile.mutateAsync(displayName.trim());
+        await createProfile.mutateAsync({ displayName: displayName.trim(), email: email.trim() });
       } catch (error) {
         console.error('Failed to create profile:', error);
       }

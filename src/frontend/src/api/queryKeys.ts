@@ -1,33 +1,33 @@
 export const QUERY_KEYS = {
-  competitions: ['competitions'] as const,
-  competition: (id: bigint) => ['competition', id.toString()] as const,
-  userResult: (competitionId: bigint, event: string) =>
-    ['userResult', competitionId.toString(), event] as const,
-  leaderboard: (competitionId: bigint, event: string) =>
-    ['leaderboard', competitionId.toString(), event] as const,
-  userProfile: (principal?: string) =>
-    principal ? ['userProfile', principal] : ['userProfile'] as const,
-  currentUserProfile: ['currentUserProfile'] as const,
-  razorpayConfigured: ['razorpayConfigured'] as const,
-  paymentHistory: ['paymentHistory'] as const,
-  
-  // Public profile keys
-  publicProfile: (principal: string) => ['publicProfile', principal] as const,
-  publicResults: (principal: string) => ['publicResults', principal] as const,
-  
-  // Admin keys
-  adminUsers: ['admin', 'users'] as const,
-  adminCompetitions: ['admin', 'competitions'] as const,
-  adminResults: ['admin', 'results'] as const,
-  adminCompetitionResults: (competitionId: bigint) =>
-    ['admin', 'competitionResults', competitionId.toString()] as const,
-  adminUserSolveHistory: (principal: string) =>
-    ['admin', 'userSolveHistory', principal] as const,
+  // Auth & Profile
   isCallerAdmin: ['isCallerAdmin'] as const,
-  
-  // Solve session keys
-  solveSessionState: (competitionId: bigint, event: string) =>
-    ['solveSession', 'state', competitionId.toString(), event] as const,
-  scrambleForAttempt: (competitionId: bigint, event: string, attemptIndex: number) =>
-    ['scramble', competitionId.toString(), event, attemptIndex] as const,
+  currentUserProfile: ['currentUserProfile'] as const,
+  userPaymentHistory: ['userPaymentHistory'] as const,
+
+  // Competitions
+  competitions: ['competitions'] as const,
+  competition: (id: string) => ['competition', id] as const,
+  hasRazorpayConfig: ['hasRazorpayConfig'] as const,
+
+  // Solve Session
+  sessionState: (competitionId: string, event: string) => 
+    ['sessionState', competitionId, event] as const,
+  scramble: (competitionId: string, event: string, attemptIndex: number) => 
+    ['scramble', competitionId, event, attemptIndex] as const,
+  userResult: (competitionId: string, event: string) =>
+    ['userResult', competitionId, event] as const,
+
+  // Leaderboard
+  leaderboard: (competitionId: string, event: string) => 
+    ['leaderboard', competitionId, event] as const,
+  competitorResults: (competitor: any) => 
+    ['competitorResults', competitor.toString()] as const,
+  publicProfile: (principal: string) =>
+    ['publicProfile', principal] as const,
+
+  // Admin
+  adminCompetitions: ['adminCompetitions'] as const,
+  adminUsers: ['adminUsers'] as const,
+  adminCompetitionResults: (competitionId: string) => 
+    ['adminCompetitionResults', competitionId] as const,
 } as const;

@@ -61,7 +61,7 @@ export function normalizeError(error: unknown): string {
       return 'Resuming your existing session for this event.';
     }
 
-    if (message.includes('Session already completed')) {
+    if (message.includes('Session already completed') || message.includes('already completed')) {
       return 'You have already completed this event.';
     }
 
@@ -71,6 +71,15 @@ export function normalizeError(error: unknown): string {
 
     if (message.includes('Session not found') || message.includes('Invalid session')) {
       return 'Session not found. Please start a new session from the competition page.';
+    }
+
+    // Attempt submission errors
+    if (message.includes('duplicate') || message.includes('Attempt already submitted')) {
+      return 'This attempt has already been submitted.';
+    }
+
+    if (message.includes('Invalid attempt index')) {
+      return 'Invalid attempt number.';
     }
 
     // Payment errors
@@ -125,13 +134,15 @@ export function normalizeError(error: unknown): string {
       return 'No scrambles available for this event.';
     }
 
-    if (message.includes('Invalid attempt index')) {
-      return 'Invalid attempt number.';
+    // Refresh recovery - preserve attempt numbers from backend messages
+    if (message.includes('marked DNF because the page was refreshed')) {
+      // Return the full message to preserve attempt numbers
+      return message;
     }
 
-    // Refresh recovery
-    if (message.includes('marked DNF because the page was refreshed')) {
-      return 'This attempt was marked DNF because the page was refreshed.';
+    if (message.includes('Continuing with attempt')) {
+      // Return the full message to preserve attempt numbers
+      return message;
     }
 
     // Generic error message

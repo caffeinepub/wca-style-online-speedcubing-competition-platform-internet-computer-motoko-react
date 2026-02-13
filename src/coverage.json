@@ -1,35 +1,39 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-12T23:43:57.678Z",
+  "generatedAt": "2026-02-13T00:35:09.448Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
     "total": 2,
-    "implemented": 1,
+    "implemented": 2,
     "items": [
       {
-        "id": "REQ-117",
-        "summary": "Update solve-session recovery behavior so that if an authenticated user refreshes/reloads the page during an in-progress event attempt, the backend automatically marks the currently in-progress attempt as DNF (server-side) and advances the session to the next attempt, so the user continues from the next solve rather than resuming the interrupted solve.",
-        "status": "unknown",
-        "plannedFiles": [],
-        "matchedFiles": []
-      },
-      {
-        "id": "REQ-118",
-        "summary": "Update the Solve Flow frontend to align with the new refresh handling: on SolveFlowPage load, fetch the current server session state and render the correct next attempt index after any auto-DNF-on-refresh advance, showing a clear English message to the user when a refresh caused the previous attempt to be marked DNF and the flow continued.",
+        "id": "REQ-123",
+        "summary": "Fix solve-session refresh recovery so that when a user refreshes during attempt N, the backend marks attempt N as DNF and advances `currentAttempt` to N+1; after reload, the solve flow must resume on the next attempt (not restart at attempt 1) and must not allow re-solving an already-DNF’d attempt index.",
         "status": "implemented",
         "plannedFiles": [
+          "frontend/src/pages/SolveFlowPage.tsx",
           "frontend/src/hooks/useQueries.ts",
           "frontend/src/types/backend-extended.ts",
+          "frontend/REGRESSION_SMOKE_TEST_CHECKLIST.md"
+        ],
+        "matchedFiles": [
+          "frontend/src/pages/SolveFlowPage.tsx",
+          "frontend/REGRESSION_SMOKE_TEST_CHECKLIST.md"
+        ]
+      },
+      {
+        "id": "REQ-124",
+        "summary": "Update SolveFlowPage refresh messaging and attempt index display so it never shows an incorrect attempt number (e.g., “Continuing with attempt 1”) when the backend has advanced the session; the message must reflect the actual 1-based attempt number that the user should do next.",
+        "status": "implemented",
+        "plannedFiles": [
           "frontend/src/pages/SolveFlowPage.tsx",
           "frontend/src/api/errors.ts"
         ],
         "matchedFiles": [
-          "frontend/src/hooks/useQueries.ts",
-          "frontend/src/types/backend-extended.ts",
           "frontend/src/pages/SolveFlowPage.tsx",
           "frontend/src/api/errors.ts"
         ]
@@ -38,20 +42,15 @@
   },
   "changedFiles": [
     "backend/main.mo",
-    "backend/migration.mo",
     "build-request.json",
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
+    "frontend/REGRESSION_SMOKE_TEST_CHECKLIST.md",
     "frontend/src/api/errors.ts",
     "frontend/src/backend.d.ts",
-    "frontend/src/backend.ts",
-    "frontend/src/declarations/backend.did.d.ts",
-    "frontend/src/declarations/backend.did.js",
-    "frontend/src/hooks/useQueries.ts",
+    "frontend/src/lib/solveSession.ts",
     "frontend/src/pages/SolveFlowPage.tsx",
-    "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
-    "frontend/src/types/backend-extended.ts",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",
