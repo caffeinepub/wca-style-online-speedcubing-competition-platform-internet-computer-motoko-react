@@ -1,56 +1,40 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-13T01:32:00.363Z",
-  "summary": "Diff implements significant frontend fixes for admin competition edit (fetch full competition and build scrambles map defensively), adds explicit loading/error UI for admin Users/Results and Leaderboard pages, and introduces new query keys and shared pricing fields. However, the diff summary does not provide enough evidence that the required backend actor methods were implemented/restored for admin users/results/leaderboard, nor that backend leaderboard filtering (completed-only, not hidden) is enforced. Some required admin actions (solve history, reset competition status) are not evidenced in the modified pages shown.",
+  "generatedAt": "2026-02-13T01:48:01.068Z",
+  "summary": "The diff adds an Admin query error panel component and integrates explicit error+retry states into several Admin pages (including AdminGuard and AdminCompetitions/AdminUsers, plus competition-load error handling in AdminResults). However, the diff summary is truncated for the backend and useQueries, so it does not provide enough evidence that all required admin backend methods were implemented and that all admin hooks were fully rewired. Also, AdminResultsPage shows an error panel for failing to load competitions, but the provided snippet does not show a corresponding error state for failing to load results.",
   "missing_requirements": [
     {
-      "id": "REQ-126",
-      "requirement": "Wire admin Users management to real backend actor methods so /admin/users loads real data and all required actions execute end-to-end (block/unblock, delete, view solve history, reset competition status), with stable English error state (no infinite loading).",
-      "reason": "The AdminUsersPage shows load/error/table UI and includes block/unblock and delete flows, but there is no evidence in the provided diff summary of implementing or restoring the necessary backend actor methods, and no evidence that \"view solve history\" or \"reset competition status\" actions exist in the page/hooks.",
+      "id": "REQ-128",
+      "requirement": "Implement/expose the missing Motoko backend admin canister methods required by the existing Admin UI (competitions CRUD + lock/unlock + activate/deactivate, users list/block/unblock/delete, results list with reliable isHidden and toggle hide/unhide), enforcing allowlisted-admin checks and returning English errors.",
+      "reason": "backend/main.mo is heavily truncated in the diff summary and does not show any of the required admin-only method definitions or the required authorization/error-handling behavior, so implementation cannot be verified from the provided evidence.",
       "evidence": [
-        "frontend/src/pages/admin/AdminUsersPage.tsx",
-        "frontend/src/hooks/useQueries.ts (truncated)",
-        "backend/main.mo (truncated)"
+        "backend/main.mo (truncated in diff summary; no admin methods shown)"
       ]
     },
     {
-      "id": "REQ-126",
-      "requirement": "Wire admin Results management to real backend actor methods so /admin/results loads real data and required actions execute end-to-end (list results for selected competition+event, toggle hidden/visible, export CSV), with stable English error state (no infinite loading).",
-      "reason": "AdminResultsPage includes UI for selecting competition/event, listing results, toggling visibility, and exporting CSV, but the diff summary does not show the underlying hooks implementations or backend actor methods that return real data and perform the toggle end-to-end.",
+      "id": "REQ-129",
+      "requirement": "Remove admin-related placeholder queries/mutations in frontend/src/hooks/useQueries.ts and wire admin hooks to real backend actor methods (competitions, users, results visibility), including proper query invalidation and English normalizeError usage.",
+      "reason": "frontend/src/hooks/useQueries.ts is truncated and the diff snippet does not include the admin hooks implementations (e.g., useAdminCreateCompetition/useAdminUpdateCompetition/useAdminToggleResultVisibility) nor show removal of placeholder 'Backend method not available' throws or required query invalidations.",
       "evidence": [
-        "frontend/src/pages/admin/AdminResultsPage.tsx",
-        "frontend/src/hooks/useQueries.ts (truncated)",
-        "backend/main.mo (truncated)"
+        "frontend/src/hooks/useQueries.ts (truncated in diff summary; admin hook implementations not shown)"
       ]
     },
     {
-      "id": "REQ-127",
-      "requirement": "Ensure leaderboard loads reliably using the intended backend leaderboard/results API, and ensure backend filters results correctly (completed only; not hidden). Add stable English error state so it never remains stuck loading.",
-      "reason": "LeaderboardPage now has explicit loading and error rendering, but the diff summary does not show evidence that the frontend query is using the intended backend method (beyond a note in frontend-file-summaries) nor any backend implementation that filters out hidden and non-completed results.",
+      "id": "REQ-130",
+      "requirement": "Admin Results page shows a clear English error state when its results list query fails, and provides a Retry action that refetches results.",
+      "reason": "AdminResultsPage includes an error panel for failures loading competitions, but the provided snippet does not show any handling for results query failure (resultsError/resultsErrorObj) with an inline error panel and retry.",
       "evidence": [
-        "frontend/src/pages/LeaderboardPage.tsx",
-        "frontend/src/hooks/useQueries.ts (truncated)",
-        "backend/main.mo (truncated)",
-        "frontend-file-summaries.txt (truncated)"
+        "frontend/src/pages/admin/AdminResultsPage.tsx (truncated; compsError handling shown, resultsError handling not shown)"
       ]
     }
   ],
   "hallucinated_features": [
     {
-      "description": "Introduced a new CompetitionPricingFields component and integrated pricing mode UI/logic (free/per-event/base+additional/all-events-flat) into admin competition forms.",
-      "reason": "The BuildRequest focuses on fixing loading screens, the admin edit crash, and leaderboard loading. Adding/overhauling pricing UI may be beyond the minimum necessary changes to address the reported crashes/loading issues (even if related to displaying feeMode).",
+      "description": "New/updated Admin landing dashboard page with section cards for users/competitions/results.",
+      "reason": "The build request focuses on fixing admin-side errors by wiring hooks to backend methods and adding error states; it does not request adding or changing an Admin landing/dashboard page.",
       "evidence": [
-        "frontend/src/components/admin/CompetitionPricingFields.tsx",
-        "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
-        "frontend/src/pages/admin/AdminEditCompetitionPage.tsx"
-      ]
-    },
-    {
-      "description": "Expanded normalizeError mappings with additional categories and user-facing English messages (e.g., backend method not available, actor not available, various competition/session/payment cases).",
-      "reason": "While stable English error states are required, the diff shows broad new normalization behavior not explicitly requested (beyond handling loading/error states for admin pages and leaderboard).",
-      "evidence": [
-        "frontend/src/api/errors.ts"
+        "frontend/src/pages/admin/AdminLandingPage.tsx"
       ]
     }
   ],
@@ -58,13 +42,12 @@
   "changed_files": [
     "backend/main.mo",
     "frontend-file-summaries.txt",
-    "frontend/src/api/errors.ts",
-    "frontend/src/api/queryKeys.ts",
-    "frontend/src/components/admin/CompetitionPricingFields.tsx",
+    "frontend/src/components/auth/AdminGuard.tsx",
+    "frontend/src/components/system/AdminQueryErrorPanel.tsx",
     "frontend/src/hooks/useQueries.ts",
-    "frontend/src/pages/LeaderboardPage.tsx",
+    "frontend/src/pages/admin/AdminCompetitionsPage.tsx",
     "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
-    "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
+    "frontend/src/pages/admin/AdminLandingPage.tsx",
     "frontend/src/pages/admin/AdminResultsPage.tsx",
     "frontend/src/pages/admin/AdminUsersPage.tsx",
     "project_state.json"

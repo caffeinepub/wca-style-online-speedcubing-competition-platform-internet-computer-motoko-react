@@ -1,58 +1,60 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-13T01:32:00.370Z",
+  "generatedAt": "2026-02-13T01:48:01.074Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
     "total": 3,
-    "implemented": 3,
+    "implemented": 2,
     "items": [
       {
-        "id": "REQ-125",
-        "summary": "Fix the admin competition edit flow so it never crashes with \"Cannot read properties of undefined (reading 'forEach')\" and the edit form always loads the correct existing competition data (including events, feeMode, registrationStartDate, and per-event scrambles). Specifically, stop relying on a competition list payload that may not contain `scrambles`, and fetch a full competition record for the selected `competitionId` before building the scrambles map.",
+        "id": "REQ-128",
+        "summary": "Eliminate remaining \"Backend method not available\"/stub behavior in Admin flows by implementing (or exposing) the missing Motoko backend admin canister methods required by the existing Admin UI for competition management, user management, and results visibility toggling.",
+        "status": "unknown",
+        "plannedFiles": [],
+        "matchedFiles": []
+      },
+      {
+        "id": "REQ-129",
+        "summary": "Update `frontend/src/hooks/useQueries.ts` to remove admin-related placeholder mutations/queries that throw \"Backend method not available\" and wire them to the real backend actor methods for Admin competitions, Admin users, and Admin results visibility toggling.",
         "status": "implemented",
         "plannedFiles": [
           "frontend/src/hooks/useQueries.ts",
-          "frontend/src/pages/admin/AdminEditCompetitionPage.tsx"
+          "frontend/src/backend.d.ts",
+          "frontend/src/pages/admin/AdminCompetitionsPage.tsx",
+          "frontend/src/pages/admin/AdminUsersPage.tsx",
+          "frontend/src/pages/admin/AdminResultsPage.tsx"
         ],
         "matchedFiles": [
           "frontend/src/hooks/useQueries.ts",
-          "frontend/src/pages/admin/AdminEditCompetitionPage.tsx"
+          "frontend/src/backend.d.ts",
+          "frontend/src/pages/admin/AdminCompetitionsPage.tsx",
+          "frontend/src/pages/admin/AdminUsersPage.tsx",
+          "frontend/src/pages/admin/AdminResultsPage.tsx"
         ]
       },
       {
-        "id": "REQ-126",
-        "summary": "Fix the admin Users and Results management pages so they do not stay in a perpetual loading state. Remove/replace any React Query stubs/disabled hooks that return empty arrays, never resolve, or throw \"Backend method not available\" and wire the pages to real backend actor methods so admin user management and admin results management load real data and actions execute end-to-end.",
+        "id": "REQ-130",
+        "summary": "Add stable, actionable Admin-page error states so Admin pages do not appear to “hang” when an admin query/mutation fails (e.g., show an inline error panel with normalized English error text and a Retry button that refetches).",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/components/system/AdminQueryErrorPanel.tsx",
+          "frontend/src/components/auth/AdminGuard.tsx",
+          "frontend/src/pages/admin/AdminCompetitionsPage.tsx",
           "frontend/src/pages/admin/AdminUsersPage.tsx",
           "frontend/src/pages/admin/AdminResultsPage.tsx",
-          "frontend/src/api/queryKeys.ts"
+          "frontend/src/hooks/useQueries.ts"
         ],
         "matchedFiles": [
-          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/components/system/AdminQueryErrorPanel.tsx",
+          "frontend/src/components/auth/AdminGuard.tsx",
+          "frontend/src/pages/admin/AdminCompetitionsPage.tsx",
           "frontend/src/pages/admin/AdminUsersPage.tsx",
           "frontend/src/pages/admin/AdminResultsPage.tsx",
-          "frontend/src/api/queryKeys.ts"
-        ]
-      },
-      {
-        "id": "REQ-127",
-        "summary": "Fix the public leaderboard so it loads reliably (no perpetual loading) and displays real results when they exist. Ensure the frontend leaderboard query uses the intended backend leaderboard/results API, and ensure the backend filters results correctly (completed only; not hidden). Add a stable English error state if the query fails so the page does not remain stuck loading.",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/hooks/useQueries.ts",
-          "frontend/src/pages/LeaderboardPage.tsx",
-          "frontend/src/api/errors.ts"
-        ],
-        "matchedFiles": [
-          "frontend/src/hooks/useQueries.ts",
-          "frontend/src/pages/LeaderboardPage.tsx",
-          "frontend/src/api/errors.ts"
+          "frontend/src/hooks/useQueries.ts"
         ]
       }
     ]
@@ -63,17 +65,16 @@
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
-    "frontend/src/api/errors.ts",
-    "frontend/src/api/queryKeys.ts",
     "frontend/src/backend.d.ts",
     "frontend/src/backend.ts",
-    "frontend/src/components/admin/CompetitionPricingFields.tsx",
+    "frontend/src/components/auth/AdminGuard.tsx",
+    "frontend/src/components/system/AdminQueryErrorPanel.tsx",
     "frontend/src/declarations/backend.did.d.ts",
     "frontend/src/declarations/backend.did.js",
     "frontend/src/hooks/useQueries.ts",
-    "frontend/src/pages/LeaderboardPage.tsx",
+    "frontend/src/pages/admin/AdminCompetitionsPage.tsx",
     "frontend/src/pages/admin/AdminCreateCompetitionPage.tsx",
-    "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
+    "frontend/src/pages/admin/AdminLandingPage.tsx",
     "frontend/src/pages/admin/AdminResultsPage.tsx",
     "frontend/src/pages/admin/AdminUsersPage.tsx",
     "project_state.json",

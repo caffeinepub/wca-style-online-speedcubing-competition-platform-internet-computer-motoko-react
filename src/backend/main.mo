@@ -360,6 +360,236 @@ actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
+  // Admin and Judges Functionality
+  public query ({ caller }) func getUserSummaries() : async [UserSummary] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can view user summaries");
+    };
+    let systemUsers = userProfiles.toArray();
+    let userSummariesArray = systemUsers.map(
+      func((principal, _)) {
+        {
+          principal;
+          profile = userProfiles.get(principal);
+          email = userEmails.get(principal);
+          isBlocked = blockedUsers.get(principal) == ?true;
+        };
+      }
+    );
+    userSummariesArray;
+  };
+
+  public shared ({ caller }) func blockUser(target : Principal) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can block users");
+    };
+
+    if (target.isAnonymous()) {
+      Runtime.trap("Cannot block anonymous users");
+    };
+    blockedUsers.add(target, true);
+  };
+
+  public shared ({ caller }) func unblockUser(target : Principal) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can unblock users");
+    };
+    blockedUsers.remove(target);
+  };
+
+  public query ({ caller }) func getBlockedUsers() : async [Principal] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can view blocked users");
+    };
+    blockedUsers.toArray().filter(
+      func((_, isBlocked)) {
+        isBlocked;
+      }
+    ).map(
+      func((principal, _)) { principal }
+    );
+  };
+
+  public shared ({ caller }) func toggleLeaderboardEntryVisibility(user : Principal, competitionId : Nat, event : Event) : async AdminLeaderboardToggleResult {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can toggle leaderboard visibility");
+    };
+
+    let currentVisibility = switch (hiddenLeaderboardEntries.get((competitionId, user, event))) {
+      case (?hidden) { hidden };
+      case (null) { false };
+    };
+
+    let newVisibility = not currentVisibility;
+    hiddenLeaderboardEntries.add((competitionId, user, event), newVisibility);
+
+    {
+      user;
+      competitionId;
+      event;
+      isHidden = newVisibility;
+    };
+  };
+
+  public query ({ caller }) func getAdminResults(competitionId : Nat) : async [AdminResultEntry] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can view competition results");
+    };
+
+    results.toArray().map(
+      func(((cid, user, event), result)) {
+        if (cid == competitionId) {
+          {
+            user;
+            competitionId = cid;
+            event;
+            attempts = result.attempts.map(
+              func(a) { { time = a.time; penalty = a.penalty } }
+            );
+            status = result.status;
+            ao5 = result.ao5;
+            isHidden = hiddenLeaderboardEntries.get((cid, user, event)) == ?true;
+          };
+        } else {
+          Runtime.trap("Entry does not exist");
+        };
+      }
+    );
+  };
+
+  public query ({ caller }) func getAdminScrambleView() : async [AdminScrambleView] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can view scramble data");
+    };
+
+    let allCompEntries = competitions.toArray();
+
+    let flatScrambles = allCompEntries.foldLeft(
+      ([] : [AdminScrambleView]),
+      func(acc, entry) {
+        let transformed = entry.1.scrambles.map(
+          func((scrambleSet, event)) {
+            {
+              id = entry.0;
+              event;
+              scrambleRecords = scrambleSet.map(
+                func(scramble) {
+                  (scramble, event == #threeByThree);
+                }
+              );
+            };
+          }
+        );
+        acc.concat(transformed);
+      },
+    );
+    flatScrambles;
+  };
+
+  public shared ({ caller }) func createCompetition(competition : CompetitionInput) : async Competition {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can create competitions");
+    };
+
+    if (not competition.name.startsWith(#text "mcubes")) {
+      Runtime.trap("Competition name must start with 'mcubes'");
+    };
+
+    let newCompetition = {
+      id = nextCompetitionId;
+      name = competition.name;
+      slug = competition.slug;
+      startDate = competition.startDate;
+      endDate = competition.endDate;
+      status = competition.status;
+      participantLimit = competition.participantLimit;
+      feeMode = competition.feeMode;
+      events = competition.events;
+      scrambles = competition.scrambles;
+      registrationStartDate = competition.registrationStartDate;
+      isActive = true;
+      isLocked = false;
+    };
+    competitions.add(newCompetition.id, newCompetition);
+    nextCompetitionId += 1;
+    newCompetition;
+  };
+
+  public shared ({ caller }) func toggleCompetitionLock(competitionId : Nat) : async Competition {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can lock competitions");
+    };
+
+    let competition = switch (competitions.get(competitionId)) {
+      case (?comp) { comp };
+      case (null) { Runtime.trap("Competition not found") };
+    };
+    let updatedCompetition = { competition with isLocked = not competition.isLocked };
+    competitions.add(competitionId, updatedCompetition);
+    updatedCompetition;
+  };
+
+  public shared ({ caller }) func updateCompetitionStatus(competitionId : Nat, status : CompetitionStatus) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can update competition status");
+    };
+
+    let competition = switch (competitions.get(competitionId)) {
+      case (?comp) { comp };
+      case (null) { Runtime.trap("Competition does not exist") };
+    };
+    let updatedCompetition = { competition with status };
+    competitions.add(competitionId, updatedCompetition);
+  };
+
+  public shared ({ caller }) func toggleCompetitionActive(competitionId : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can activate competitions");
+    };
+
+    let competition = switch (competitions.get(competitionId)) {
+      case (?comp) {
+        { comp with isActive = not comp.isActive };
+      };
+      case (null) {
+        Runtime.trap("Competition does not exist");
+      };
+    };
+    competitions.add(competitionId, competition);
+  };
+
+  public shared ({ caller }) func deleteCompetition(competitionId : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can delete competitions");
+    };
+    competitions.remove(competitionId);
+  };
+
+  public shared ({ caller }) func updateCompetitorResult(updatedResult : ResultInput) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can update results");
+    };
+
+    let existingResult = switch (results.get((updatedResult.competitionId, updatedResult.user, updatedResult.event))) {
+      case (?result) { result };
+      case (null) {
+        Runtime.trap("Result does not exist");
+      };
+    };
+    let updatedAttempts = updatedResult.attempts.map(
+      func(a) { { time = a.time; penalty = a.penalty } }
+    );
+
+    results.add(
+      (updatedResult.competitionId, updatedResult.user, updatedResult.event),
+      {
+        existingResult with
+        attempts = updatedResult.attempts;
+        ao5 = updatedResult.ao5;
+      },
+    );
+  };
+
   // Public API to get competitor's visible results across all competitions
   // No authentication required - public leaderboard data
   public query func getCompetitorResults(competitor : Principal) : async CompetitorResults {

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 69,
+  "projectStateVersion": 71,
   "summary": "Full-stack online speedcubing competition platform with multi-event, WCA-style 5-solve flow, manual external payment-link based entry (replacing Razorpay checkout) with user “Request approval” flow and admin approvals panel, strong integrity controls (session lock, progressive scrambles, recovery), WCA Ao5 rules server-side validated, post-completion UX enhancements, leaderboard discoverability, pricing enhancements, and a registration-start date feature that gates starting until a specified datetime and auto-transitions upcoming competitions to running at that time.",
   "architectural_notes": [
     "Tech stack: Next.js (App Router) + TypeScript + PostgreSQL + Prisma ORM + NextAuth; deploy on Vercel.",
@@ -731,6 +731,22 @@
         "REQ-127"
       ],
       "version": 1
+    },
+    {
+      "id": "feature-update-frontend-src-hooks-usequeries-ts-to-remove-admin-related-placeholder-mutations-queries-that-throw-backend-method-not-available-and-wire-them-to-the-real-backend-actor-methods-for-admin-competitions-admin-users-and-admin-results-visibility-toggling",
+      "title": "Update `frontend/src/hooks/useQueries.ts` to remove admin-related placeholder mutations/queries that throw \"Backend method not available\" and wire them to the real backend actor methods for Admin competitions, Admin users, and Admin results visibility toggling.",
+      "reqIds": [
+        "REQ-129"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-stable-actionable-admin-page-error-states-so-admin-pages-do-not-appear-to-hang-when-an-admin-query-mutation-fails-e-g-show-an-inline-error-panel-with-normalized-english-error-text-and-a-retry-button-that-refetches",
+      "title": "Add stable, actionable Admin-page error states so Admin pages do not appear to “hang” when an admin query/mutation fails (e.g., show an inline error panel with normalized English error text and a Retry button that refetches).",
+      "reqIds": [
+        "REQ-130"
+      ],
+      "version": 1
     }
   ],
   "new_feature_requests": [
@@ -1296,6 +1312,14 @@
       "id": "AR-121",
       "summary": "Auto-complete an event server-side immediately after the 5th solve is successfully stored, even if the user does not click a “Complete competition” / “Choose another event” button; ensure leaderboard eligibility is not blocked by missing post-5-solves UI actions.",
       "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-122",
+      "summary": "Eliminate remaining \"Backend method not available\"/stub behavior in Admin flows by implementing (or exposing) the missing Motoko backend admin canister methods required by the existing Admin UI for competition management, user management, and results visibility toggling.",
+      "reqIds": [
+        "REQ-128"
+      ],
       "status": "pending"
     }
   ],

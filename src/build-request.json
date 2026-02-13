@@ -1,78 +1,92 @@
 {
   "kind": "build_request",
-  "title": "Fix admin loading screens and competition edit crash (undefined forEach) + ensure leaderboard loads",
+  "title": "Fix remaining Admin-side errors by removing stubbed hooks and wiring Admin UI to real backend APIs",
   "priority": "high",
   "requirements": [
     {
-      "id": "REQ-125",
-      "text": "Fix the admin competition edit flow so it never crashes with \"Cannot read properties of undefined (reading 'forEach')\" and the edit form always loads the correct existing competition data (including events, feeMode, registrationStartDate, and per-event scrambles). Specifically, stop relying on a competition list payload that may not contain `scrambles`, and fetch a full competition record for the selected `competitionId` before building the scrambles map.",
+      "id": "REQ-128",
+      "text": "Eliminate remaining \"Backend method not available\"/stub behavior in Admin flows by implementing (or exposing) the missing Motoko backend admin canister methods required by the existing Admin UI for competition management, user management, and results visibility toggling.",
+      "target": "backend",
+      "source": {
+        "messageIds": [
+          "msg-1"
+        ],
+        "quotes": [
+          "still error from admin side"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Backend actor exposes admin-only methods needed by the current frontend Admin pages so they no longer rely on placeholder methods (no traps/errors like \"Backend method not available: adminUpdateCompetition\" from frontend stubs).",
+        "All admin-only backend methods enforce the same allowlisted-admin rule already used by `isCallerAdmin()` (admin permission + allowlisted email / mcubesId rule) and return clear English errors on unauthorized access.",
+        "Admin competition management backend supports: create, update, delete, lock/unlock, activate/deactivate (matching actions present in `frontend/src/pages/admin/AdminCompetitionsPage.tsx`, `AdminCreateCompetitionPage.tsx`, and `AdminEditCompetitionPage.tsx`).",
+        "Admin results backend supports: list competition results for (competitionId,event) including a reliable per-result `isHidden` flag, and toggle hidden true/false.",
+        "Admin users backend supports: list users (principal + optional profile + optional email + blocked flag), block/unblock, delete user.",
+        "All backend validation errors are in English and do not leak secrets."
+      ]
+    },
+    {
+      "id": "REQ-129",
+      "text": "Update `frontend/src/hooks/useQueries.ts` to remove admin-related placeholder mutations/queries that throw \"Backend method not available\" and wire them to the real backend actor methods for Admin competitions, Admin users, and Admin results visibility toggling.",
       "target": "frontend",
       "source": {
         "messageIds": [
           "msg-1"
         ],
         "quotes": [
-          "competions open but unable to edit says : Something went wrong!\nHide Error\nCannot read properties of undefined (reading 'forEach')"
+          "still error from admin side"
         ]
       },
       "acceptanceCriteria": [
-        "Navigating to `/admin/competitions/$competitionId/edit` no longer throws any runtime error, including the reported `forEach` undefined error.",
-        "The edit page loads and displays: name, slug, status, start/end dates, optional registrationStartDate, participantLimit, feeMode, selected events, and 5 scrambles per selected event (when present in backend data).",
-        "If scrambles are missing/invalid for any event, the page shows a clear English error state explaining what is missing (instead of crashing) and does not allow saving until validation passes.",
-        "No changes are made to immutable frontend paths listed in SYSTEM_CONTEXT."
+        "`useAdminCreateCompetition()` no longer throws \"Backend method not available: adminCreateCompetition\" and successfully creates a competition when the caller is an admin; on success it invalidates the relevant queries (`QUERY_KEYS.competitions`, `QUERY_KEYS.adminCompetitions`).",
+        "`useAdminUpdateCompetition()` no longer throws \"Backend method not available: adminUpdateCompetition\" and successfully saves edits from the Admin Edit page.",
+        "`useAdminDeleteCompetition()`, `useAdminLockCompetition()`, and `useAdminActivateCompetition()` call real backend methods and the Admin competitions list actions succeed without toast errors caused by missing hooks.",
+        "`useAdminGetUsers()`, `useAdminBlockUser()`, `useAdminDeleteUser()` (used by `frontend/src/pages/admin/AdminUsersPage.tsx`) load real users and execute actions end-to-end.",
+        "`useAdminGetCompetitionResults()` and `useAdminToggleResultVisibility()` (used by `frontend/src/pages/admin/AdminResultsPage.tsx`) load real results and can both hide and unhide, with the UI reflecting `result.isHidden` reliably.",
+        "All surfaced UI errors remain English-only and are routed through `normalizeError` where applicable."
       ]
     },
     {
-      "id": "REQ-126",
-      "text": "Fix the admin Users and Results management pages so they do not stay in a perpetual loading state. Remove/replace any React Query stubs/disabled hooks that return empty arrays, never resolve, or throw \"Backend method not available\" and wire the pages to real backend actor methods so admin user management and admin results management load real data and actions execute end-to-end.",
-      "target": "both",
+      "id": "REQ-130",
+      "text": "Add stable, actionable Admin-page error states so Admin pages do not appear to “hang” when an admin query/mutation fails (e.g., show an inline error panel with normalized English error text and a Retry button that refetches).",
+      "target": "frontend",
       "source": {
         "messageIds": [
           "msg-1"
         ],
         "quotes": [
-          "leadbooard, user management and results management from admin side doesnt load still loading"
+          "still error from admin side"
         ]
       },
       "acceptanceCriteria": [
-        "`/admin/users` transitions from loading to either (a) a populated users table or (b) a stable English error state; it must not spin indefinitely when the backend returns an error.",
-        "`/admin/results` transitions from loading to either (a) populated filter controls and results table (after selecting a competition) or (b) a stable English error state; it must not spin indefinitely when the backend returns an error.",
-        "Admin actions in Users work without placeholders: block/unblock, delete, view solve history, reset competition status (with errors shown in English via existing normalization where applicable).",
-        "Admin actions in Results work without placeholders: list results for selected competition+event, toggle hidden/visible state, and export CSV (with errors shown in English via existing normalization where applicable).",
-        "Backend implements (or restores) the specific admin actor methods required by the existing frontend hooks/pages so the UI is not forced to rely on stubs."
-      ]
-    },
-    {
-      "id": "REQ-127",
-      "text": "Fix the public leaderboard so it loads reliably (no perpetual loading) and displays real results when they exist. Ensure the frontend leaderboard query uses the intended backend leaderboard/results API, and ensure the backend filters results correctly (completed only; not hidden). Add a stable English error state if the query fails so the page does not remain stuck loading.",
-      "target": "both",
-      "source": {
-        "messageIds": [
-          "msg-1"
-        ],
-        "quotes": [
-          "leadbooard... doesnt load still loading"
-        ]
-      },
-      "acceptanceCriteria": [
-        "Leaderboard pages/routes render a loading indicator only while the underlying request is in-flight, and then render either results or a stable English error state (no infinite spinner).",
-        "When completed, non-hidden results exist for a competition+event, the leaderboard shows them; when none exist, the page clearly communicates that no results are available.",
-        "Backend leaderboard/results response used by the leaderboard excludes hidden results and excludes non-completed results.",
-        "Competitor display name rendering behavior remains English-only and consistent with existing logic (display name when available; fallback to \"Anonymous\" only when no display name exists)."
+        "If `useAdminGetAllCompetitions()` fails, `AdminCompetitionsPage` shows a visible English error state (not just an infinite spinner) and provides a Retry action.",
+        "If `useIsCallerAdmin()` fails inside `AdminGuard`, show a visible English error state explaining that admin status could not be verified and provide a Retry button, rather than only showing a loader forever.",
+        "Admin Results and Admin Users pages show a clear English error state when their list queries fail, and allow retry (React Query refetch)."
       ]
     }
   ],
   "constraints": [
-    "Make only necessary changes to fix the reported issues; do not remove or replace unrelated existing functionality.",
-    "Do not edit frontend immutable paths listed in SYSTEM_CONTEXT.",
-    "All user-facing text introduced/changed by this work must be in English."
+    "Backend must remain a single Motoko actor in `backend/main.mo` (single-actor architecture).",
+    "Only add `backend/migration.mo` if state migration is required by changes (conditional migration policy).",
+    "Do not edit any files under `frontend/src/components/ui` (immutable component sources).",
+    "Keep all user-facing text in English."
   ],
   "nonGoals": [
-    "Implementing any new admin features beyond making existing Users/Competitions edit/Results screens load and function.",
-    "Changing the solve-flow, payment flow, or site-wide theme as part of these fixes (unless required to unblock loading/error handling)."
+    "Do not change the public (non-admin) competition/solve/leaderboard flows beyond what is necessary to fix admin-side errors.",
+    "Do not introduce any new authentication provider (Internet Identity remains the only auth mechanism).",
+    "Do not add external databases or non-Motoko backend services."
   ],
   "imageRequirements": {
     "required": [],
     "edits": []
+  },
+  "userProfileUpdate": {
+    "goalsToAdd": [],
+    "goalsToRemove": [],
+    "preferencesToAdd": [],
+    "preferencesToRemove": [],
+    "miscToAdd": [],
+    "miscToRemove": [],
+    "fieldsToSet": {},
+    "fieldsToDelete": []
   }
 }

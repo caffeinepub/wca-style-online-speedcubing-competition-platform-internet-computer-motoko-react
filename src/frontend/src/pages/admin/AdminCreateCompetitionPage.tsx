@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
-import AdminGuard from '../../components/auth/AdminGuard';
+import { AdminGuard } from '../../components/auth/AdminGuard';
 import { useAdminCreateCompetition } from '../../hooks/useQueries';
 import { normalizeError } from '../../api/errors';
 import { Loader2, Plus } from 'lucide-react';

@@ -1,87 +1,85 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Fix admin edit crash + stabilize admin/public loading and leaderboard data fetching",
+  "title": "Fix Admin UI stubs by wiring React Query admin hooks to backend actor and adding reliable Admin error states",
   "requirements": [
     {
-      "id": "REQ-125",
-      "summary": "Stop admin competition edit from crashing by fetching a full competition record before building scrambles and by adding non-crashing validation/error states.",
+      "id": "REQ-129",
+      "summary": "Remove admin-related placeholder hooks in useQueries and connect Admin UI flows to real backend actor methods (competitions, users, results visibility).",
       "acceptanceCriteria": [
-        "Navigating to `/admin/competitions/$competitionId/edit` no longer throws any runtime error, including the reported `forEach` undefined error.",
-        "The edit page loads and displays: name, slug, status, start/end dates, optional registrationStartDate, participantLimit, feeMode, selected events, and 5 scrambles per selected event (when present in backend data).",
-        "If scrambles are missing/invalid for any event, the page shows a clear English error state explaining what is missing (instead of crashing) and does not allow saving until validation passes.",
-        "No changes are made to immutable frontend paths listed in SYSTEM_CONTEXT."
+        "`useAdminCreateCompetition()` no longer throws \"Backend method not available: adminCreateCompetition\" and successfully creates a competition when the caller is an admin; on success it invalidates the relevant queries (`QUERY_KEYS.competitions`, `QUERY_KEYS.adminCompetitions`).",
+        "`useAdminUpdateCompetition()` no longer throws \"Backend method not available: adminUpdateCompetition\" and successfully saves edits from the Admin Edit page.",
+        "`useAdminDeleteCompetition()`, `useAdminLockCompetition()`, and `useAdminActivateCompetition()` call real backend methods and the Admin competitions list actions succeed without toast errors caused by missing hooks.",
+        "`useAdminGetUsers()`, `useAdminBlockUser()`, `useAdminDeleteUser()` (used by `frontend/src/pages/admin/AdminUsersPage.tsx`) load real users and execute actions end-to-end.",
+        "`useAdminGetCompetitionResults()` and `useAdminToggleResultVisibility()` (used by `frontend/src/pages/admin/AdminResultsPage.tsx`) load real results and can both hide and unhide, with the UI reflecting `result.isHidden` reliably.",
+        "All surfaced UI errors remain English-only and are routed through `normalizeError` where applicable."
       ],
       "file_operations": [
         {
           "path": "frontend/src/hooks/useQueries.ts",
           "operation": "modify",
-          "description": "Add/adjust an admin edit-specific query hook that fetches a full competition record by competitionId (using the existing actor competition fetch capability) instead of relying on the competitions list payload that may omit scrambles; ensure the hook exposes stable loading/error states so the page can render an English error instead of crashing."
+          "description": "Replace admin stub query/mutation implementations that throw \"Backend method not available\" with real actor calls for: competition create/update/delete, lock/unlock, activate/deactivate; admin users list/block/unblock/delete; admin results list (with reliable `isHidden`) and visibility toggle. Ensure React Query invalidation matches existing keys (e.g., QUERY_KEYS.competitions, QUERY_KEYS.adminCompetitions, QUERY_KEYS.adminUsers, QUERY_KEYS.adminResults/adminCompetitionResults)."
         },
         {
-          "path": "frontend/src/pages/admin/AdminEditCompetitionPage.tsx",
+          "path": "frontend/src/backend.d.ts",
           "operation": "modify",
-          "description": "Replace list-derived edit initialization with a full competition fetch for the selected competitionId before building the scrambles map; guard against missing/invalid scrambles (no `forEach` on undefined), render a clear English error/validation block when scrambles are missing/invalid, and disable saving until validation passes. Continue using the existing pricing fields component for feeMode."
-        }
-      ]
-    },
-    {
-      "id": "REQ-126",
-      "summary": "Remove admin data-loading stubs that cause perpetual loading and ensure admin Users/Results pages resolve to data or a stable English error state (no infinite spinner).",
-      "acceptanceCriteria": [
-        "`/admin/users` transitions from loading to either (a) a populated users table or (b) a stable English error state; it must not spin indefinitely when the backend returns an error.",
-        "`/admin/results` transitions from loading to either (a) populated filter controls and results table (after selecting a competition) or (b) a stable English error state; it must not spin indefinitely when the backend returns an error.",
-        "Admin actions in Users work without placeholders: block/unblock, delete, view solve history, reset competition status (with errors shown in English via existing normalization where applicable).",
-        "Admin actions in Results work without placeholders: list results for selected competition+event, toggle hidden/visible state, and export CSV (with errors shown in English via existing normalization where applicable).",
-        "Backend implements (or restores) the specific admin actor methods required by the existing frontend hooks/pages so the UI is not forced to rely on stubs."
-      ],
-      "file_operations": [
+          "description": "Update the frontend backend actor type definitions to include any admin methods that the existing Admin UI and updated hooks will call (e.g., admin competition update/delete where needed, admin user delete, admin results list/toggle visibility), so the frontend compiles against the real backend capabilities."
+        },
         {
-          "path": "frontend/src/hooks/useQueries.ts",
+          "path": "frontend/src/pages/admin/AdminCompetitionsPage.tsx",
           "operation": "modify",
-          "description": "Remove/replace admin-related React Query stubs that return empty arrays or throw 'Backend method not available' in a way that can lead to UI uncertainty; ensure each admin hook used by `/admin/users` and `/admin/results` either calls an available backend capability or fails fast with a real error (so React Query transitions to an error state)."
+          "description": "Align page behavior with updated admin hooks (create/update/delete/lock/activate) and ensure all mutation error handling continues to use `normalizeError` for English-only error messages."
         },
         {
           "path": "frontend/src/pages/admin/AdminUsersPage.tsx",
           "operation": "modify",
-          "description": "Update the admin users page to handle React Query error states explicitly (using existing `normalizeError`) so it never spins indefinitely; ensure action buttons show in-flight states and surface backend errors in English. Ensure the page remains protected by the existing admin access control (authorization component via existing AdminGuard); verify the component's usage instructions before implementing."
+          "description": "Wire user list and actions to the updated real admin hooks; replace any remaining console-only error handling for mutations with normalized, user-visible error handling consistent with other Admin pages."
         },
         {
           "path": "frontend/src/pages/admin/AdminResultsPage.tsx",
           "operation": "modify",
-          "description": "Update the admin results page to avoid indefinite loading by handling `isError`/error states and guarding queries until a competition is selected; ensure results listing/export resolve to data or a stable English error state and that action failures render normalized English errors. Keep admin protection via existing AdminGuard (authorization component); verify the component's usage instructions before implementing."
-        },
-        {
-          "path": "frontend/src/api/queryKeys.ts",
-          "operation": "modify",
-          "description": "Adjust/admin-extend React Query keys if needed to distinguish admin competition-list vs full competition fetch and to ensure invalidation/refetch works consistently for admin screens without causing stale loading loops."
+          "description": "Wire results listing and visibility toggle to the updated real admin hooks so `result.isHidden` is sourced reliably and the toggle action updates the UI via React Query invalidation/refetch (using `normalizeError` for user-visible errors)."
         }
       ]
     },
     {
-      "id": "REQ-127",
-      "summary": "Fix public leaderboard data fetching to use the intended leaderboard capability and ensure the UI never gets stuck loading by adding stable English error states.",
+      "id": "REQ-130",
+      "summary": "Add stable, actionable Admin error states with Retry actions so Admin pages don’t hang on failed queries/mutations.",
       "acceptanceCriteria": [
-        "Leaderboard pages/routes render a loading indicator only while the underlying request is in-flight, and then render either results or a stable English error state (no infinite spinner).",
-        "When completed, non-hidden results exist for a competition+event, the leaderboard shows them; when none exist, the page clearly communicates that no results are available.",
-        "Backend leaderboard/results response used by the leaderboard excludes hidden results and excludes non-completed results.",
-        "Competitor display name rendering behavior remains English-only and consistent with existing logic (display name when available; fallback to \"Anonymous\" only when no display name exists)."
+        "If `useAdminGetAllCompetitions()` fails, `AdminCompetitionsPage` shows a visible English error state (not just an infinite spinner) and provides a Retry action.",
+        "If `useIsCallerAdmin()` fails inside `AdminGuard`, show a visible English error state explaining that admin status could not be verified and provide a Retry button, rather than only showing a loader forever.",
+        "Admin Results and Admin Users pages show a clear English error state when their list queries fail, and allow retry (React Query refetch)."
       ],
       "file_operations": [
         {
+          "path": "frontend/src/components/system/AdminQueryErrorPanel.tsx",
+          "operation": "create",
+          "description": "Create a reusable Admin-focused inline error panel component that displays normalized English error text and a Retry button that triggers a provided `onRetry` (React Query refetch). Use existing UI primitives (do not modify files under `frontend/src/components/ui`)."
+        },
+        {
+          "path": "frontend/src/components/auth/AdminGuard.tsx",
+          "operation": "modify",
+          "description": "Update AdminGuard to handle `useIsCallerAdmin()` query failures by rendering a visible error state (using `normalizeError`) with a Retry action that refetches admin status, instead of showing an indefinite loader."
+        },
+        {
+          "path": "frontend/src/pages/admin/AdminCompetitionsPage.tsx",
+          "operation": "modify",
+          "description": "Add a clear inline error state for failures of `useAdminGetAllCompetitions()` and a Retry button that triggers React Query refetch (use the new AdminQueryErrorPanel and `normalizeError`)."
+        },
+        {
+          "path": "frontend/src/pages/admin/AdminUsersPage.tsx",
+          "operation": "modify",
+          "description": "Extend the existing error UI to include a Retry action that refetches the users list query when `useAdminGetUsers()` fails (use AdminQueryErrorPanel and `normalizeError`)."
+        },
+        {
+          "path": "frontend/src/pages/admin/AdminResultsPage.tsx",
+          "operation": "modify",
+          "description": "Add a Retry action for results list query failures (`useAdminGetCompetitionResults()`), ensuring the page shows a stable English error state instead of appearing to hang (use AdminQueryErrorPanel and `normalizeError`)."
+        },
+        {
           "path": "frontend/src/hooks/useQueries.ts",
           "operation": "modify",
-          "description": "Update the leaderboard query hook to call the backend leaderboard capability (not the generic results fetch) and to surface errors (no silent/never-resolving behavior); keep React Query enabled/disabled logic correct so the hook only loads when dependencies are available."
-        },
-        {
-          "path": "frontend/src/pages/LeaderboardPage.tsx",
-          "operation": "modify",
-          "description": "Prevent state updates during render when setting the default event (move to an effect), add a stable English error UI when the leaderboard query fails (instead of spinning), and keep competitor display-name fallback logic English-only and consistent (use displayName when present; otherwise 'Anonymous')."
-        },
-        {
-          "path": "frontend/src/api/errors.ts",
-          "operation": "modify",
-          "description": "If needed, extend `normalizeError` mappings for common leaderboard/admin query failures so newly surfaced error states read clearly in English (without changing unrelated normalization behavior)."
+          "description": "Ensure admin queries used by AdminGuard/Admin pages expose stable error state to the UI (avoid configurations that can cause indefinite loading on error) and keep all surfaced UI errors English-only and routed through `normalizeError` at call sites."
         }
       ]
     }
